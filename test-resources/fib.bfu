@@ -1,0 +1,47 @@
+// this is simply a macro that pastes the content of the file here
+// in this case std is reserved for a standard library
+import "std"
+
+// all bfu programs should have an entry point with this function signature
+// because of the distinction between code memory and variable memory it
+// would be harder to not have an entry point
+fn main() { // all variables need to have their type defined, sorry, no sorry
+	let variable_name: Num = 4;
+
+	// all functions are inlined, because, well bf
+	// (although it may not be impossible, it would require setting up stuff
+	// on the tape, which would greatly increase complexity and inefficiency)
+	// this has the side effect of making functions unhable to recurse
+	let fib_result: Num = fib(&variable_name);
+
+	// print is provided by a standard library
+	// i won't go into much detail about strings, but i would implement it
+	// like in c, an array of Char
+	print_str("The ");
+	print_num(variable_name);
+	print_str("th element of the fibonacci sequence has a value of ")
+	print_num(fib_result);
+	// Char's hold the same space as Num's (1 slot), but they have different
+	// sementic meaning and thus different functions associated with them.
+	// printing a Num of value 99 would get you "99"
+	// printing a Char of value 'c' (99) would get you "c"
+	print_char('\n');
+}
+
+fn fib(n: Num): Num {
+	let a: Num = 0;
+	let b: Num = 1;
+	while n != 0 {
+		// &b: "the value of" b
+		// by default all operations are destructive
+		// including moves, because bf
+		let c: Num = &b;
+		b = a + b; // here these destroy both a and b making them invalid
+		a = c;
+
+		// maybe i can switch this to "n--" to simplify to the translating
+		n = n - 1;
+	}
+
+	n // no early return is allowed
+}
