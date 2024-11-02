@@ -1,3 +1,5 @@
+#![feature(assert_matches)]
+
 /// The number type, aka what does each cell on the tape hold
 pub (self) type Num = u8;
 

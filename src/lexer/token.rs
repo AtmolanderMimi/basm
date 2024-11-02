@@ -6,18 +6,23 @@ use super::LiteralError;
 
 #[derive(Debug, Clone, PartialEq)]
 /// A syntactic token
-pub struct Token {
+pub struct Token<'a> {
     pub t_type: TokenType,
-    pub char_range: Range<usize>,
+    pub slice: SfSlice<'a>,
 }
 
-impl Token {
+impl<'a> Token<'a> {
     /// Creates a new [Token].
-    pub fn new(t_type: TokenType, char_range: Range<usize>) -> Token {
+    pub fn new(t_type: TokenType, slice: SfSlice) -> Token {
         Token {
             t_type,
-            char_range,
+            slice: slice,
         }
+    }
+
+    /// Returns the range in characters that contains this character
+    pub fn char_range(&self) -> Range<usize> {
+        self.slice.char_range()
     }
 }
 
@@ -165,7 +170,7 @@ impl TokenType {
     }
 }
 
-impl Token {
+impl<'a> Token<'a> {
     // beware, trash ahead. also:
     //   /---\  /-----\     /---|_ _|/--\|-|
     //   \    \/     O \    |   /| | |  /| |
@@ -241,27 +246,22 @@ impl Token {
                     .collect::<Vec<_>>();
             higher_level_matches.len() < 1
         })
-        .nth(0).map_or(None, |inner| {
+        .nth(0).map_or(None, move |inner| {
             let inner = inner.clone();
-            Some(Token::new(inner.1, inner.0))
+            let char_slice = sf_slice.byte_slice(inner.0)
+                .unwrap();
+
+            Some(Token::new(inner.1, char_slice))
         });
 
-        matched_token.map(|mut t| {
-            // the tokens are actually in byte range, so we have to return them to char range
-            t.char_range = slice.byte_to_char_range(t.char_range)
-                .expect("slice should be valid");
-            // and then we offset them so that they are relative to the source file rather than
-            // the slice
-            t.char_range = (t.char_range.start+sf_slice.offset())..(t.char_range.end+sf_slice.offset());
-            t
-        })
+        matched_token
     }
 
     /// Parses a string for a literal/ident. Note this should only be used on a
     /// string that contains a **FULL LITERAL/IDENT AND NOTHING ELSE**, because it might
     /// detect alphanumeric tokens (ex: "let") as idents.
     /// The tokens' range positions are absolute.
-    pub fn parse_token_lit<'a>(sf_slice: SfSlice<'a>) -> Result<Option<Token>, LiteralError<'a>> {
+    pub fn parse_token_lit(sf_slice: SfSlice) -> Result<Option<Token>, LiteralError> {
         let string = sf_slice.inner_slice();
         let trim_str = string.trim();
         let trim_str_start = string.find(trim_str)
@@ -272,7 +272,8 @@ impl Token {
         if trim_str.starts_with("\"") && trim_str.ends_with("\"") {
             let string_contents = trim_str.replace("\"", "");
 
-            return Ok(Some(Token::new(TokenType::StrLit(string_contents.to_string()), trim_str_range)));
+            let slice = sf_slice.byte_slice(trim_str_range).unwrap();
+            return Ok(Some(Token::new(TokenType::StrLit(string_contents.to_string()), slice)));
         }
 
         // Char
@@ -281,7 +282,7 @@ impl Token {
             if char_content.len() == 0 {
                 let error_slice = sf_slice.byte_slice(trim_str_range)
                     .expect("byte slice should not be oob");
-                return Err(LiteralError::EmptyChar(error_slice.to_owned()));
+                return Err(LiteralError::EmptyChar(error_slice));
             }
             if char_content.len() >= 2 {
                 return Err(LiteralError::TooFullChar(
@@ -294,16 +295,22 @@ impl Token {
 
             let ch = char_content.chars().next()
                 .expect("the checks should have caught that we have at least one char");
-            return Ok(Some(Token::new(TokenType::CharLit(ch), trim_str_range)));
+            let slice = sf_slice.byte_slice(trim_str_range)
+                .unwrap();
+            return Ok(Some(Token::new(TokenType::CharLit(ch), slice)));
             //todo!("char lits");
         }
 
         // Bool
         if trim_str == "true" {
-            return Ok(Some(Token::new(TokenType::BoolLit(true), trim_str_range)));
+            let slice = sf_slice.byte_slice(trim_str_range)
+                .unwrap();
+            return Ok(Some(Token::new(TokenType::BoolLit(true), slice)));
         }
         if trim_str == "false" {
-            return Ok(Some(Token::new(TokenType::BoolLit(false), trim_str_range)));
+            let slice = sf_slice.byte_slice(trim_str_range)
+                .unwrap();
+            return Ok(Some(Token::new(TokenType::BoolLit(false), slice)));
         }
 
         // Num
@@ -328,7 +335,7 @@ impl Token {
 
             return Ok(Some(Token::new(
                 TokenType::NumLit(num),
-                trim_str_range,
+                sf_slice.byte_slice(trim_str_range).unwrap(),
             )));
         }
 
@@ -336,7 +343,7 @@ impl Token {
         if trim_str.is_alphanumeric() {
             return Ok(Some(Token::new(
                 TokenType::Ident(trim_str.to_string()),
-                trim_str_range,
+                sf_slice.byte_slice(trim_str_range).unwrap(),
             )));
         }
         
@@ -350,7 +357,46 @@ impl Token {
 
 #[cfg(test)]
 mod tests {
+    use std::assert_matches::assert_matches;
+
     use super::*;
+
+    fn non_lit_match(token: Option<Token>, expected_t_type: Option<TokenType>) {
+        match expected_t_type {
+            Some(t) => assert_matches!(
+                token,
+                Some(Token { t_type: t, .. })
+            ),
+            None => assert_matches!(
+                token,
+                None,
+            ),
+        }
+    }
+
+    fn non_lit_match_range(token: Option<Token>, expected_t_type: TokenType, expected_char_range: Range<usize>) {
+        non_lit_match(token.clone(), Some(expected_t_type));
+
+        assert_eq!(token.unwrap().char_range(), expected_char_range);
+    }
+
+    fn lit_match(token: &Result<Option<Token>, LiteralError>, expected_t_type: Option<TokenType>) {
+        match expected_t_type {
+            Some(t) => assert_matches!(
+                token,
+                Ok(Some(Token { t_type: t, .. }))
+            ),
+            None => assert_matches!(
+                token,
+                Ok(None),
+            ),
+        }
+    }
+
+    fn lit_match_range(token: Result<Option<Token>, LiteralError>, expected_t_type: TokenType, expected_char_range: Range<usize>) {
+        lit_match(&token, Some(expected_t_type));
+        assert_eq!(token.unwrap().unwrap().char_range(), expected_char_range);
+    }
 
     /// new SfSlice, but shorter name
     fn sfs(contents: &str) -> SfSlice<'static> {
@@ -379,33 +425,58 @@ mod tests {
     #[test]
     fn parse_token_non_lit_real_world() {
         // cause we can't know if it is ident
-        assert_eq!(Token::parse_token_non_lit(sfs("\n    let")),
-            None);
+        non_lit_match(
+            Token::parse_token_non_lit(sfs("\n    let")),
+            None
+        );
         // now we can guarenty that this is the VarDecl token
-        assert_eq!(Token::parse_token_non_lit(sfs("\n    let ")),
-            Some(Token::new(TokenType::VarDecl, 5..8)));
+        non_lit_match_range(
+            Token::parse_token_non_lit(sfs("\n    let ")),
+            TokenType::VarDecl,
+            5..8,
+        );
 
         // no need to look farther ":" can only be TypeDecl, we could then
         // parse out the rest of the string for ident
-        assert_eq!(Token::parse_token_non_lit(sfs(" a:Num")),
-            Some(Token::new(TokenType::TypeDecl, 2..3)));
+        non_lit_match_range(
+            Token::parse_token_non_lit(sfs(" a:Num")),
+            TokenType::TypeDecl,
+            2..3,
+        );
 
-        assert_eq!(Token::parse_token_non_lit(sfs("while ")),
-            Some(Token::new(TokenType::While, 0..5)));
-        assert_eq!(Token::parse_token_non_lit(sfs(" n -")),
-            Some(Token::new(TokenType::Minus, 3..4)));
-        assert_eq!(Token::parse_token_non_lit(sfs(" 1;")),
-            Some(Token::new(TokenType::StatementDelimiter, 2..3)));
+        non_lit_match_range(
+            Token::parse_token_non_lit(sfs("while ")),
+            TokenType::While,
+            0..5,
+        );
 
-        assert_eq!(Token::parse_token_non_lit(sfs(" &")),
-            None);
-        assert_eq!(Token::parse_token_non_lit(sfs(" &b")),
-            Some(Token::new(TokenType::CloneOp, 1..2)));
-        assert_eq!(Token::parse_token_non_lit(sfs(" &&")),
-            Some(Token::new(TokenType::And, 1..3)));
+        non_lit_match_range(
+            Token::parse_token_non_lit(sfs(" n -")),
+            TokenType::Minus,
+            3..4,
+        );
+        non_lit_match_range(
+            Token::parse_token_non_lit(sfs(" 1;")),
+            TokenType::StatementDelimiter,
+            2..3,
+        );
+        non_lit_match(
+            Token::parse_token_non_lit(sfs(" &")),
+            None
+        );
+        non_lit_match_range(
+            Token::parse_token_non_lit(sfs(" &b")),
+            TokenType::CloneOp,
+            1..2,
+        );
+        non_lit_match_range(
+            Token::parse_token_non_lit(sfs(" &&")),
+            TokenType::And,
+            1..3,
+        );
 
         // parses are in order
-        assert_eq!(Token::parse_token_non_lit(sfs("
+        non_lit_match_range(Token::parse_token_non_lit(sfs("
     while n != 0 {
         // &b: \"the value of\" b
         // by default all operations are destructive
@@ -416,7 +487,7 @@ mod tests {
 
         // maybe i can switch this to \"n--\" to simplify to the translating
         n = n - 1;
-    }")), Some(Token::new(TokenType::While, 5..10)))
+    }")), TokenType::While, 5..10);
     }
 
     #[test]
@@ -433,47 +504,50 @@ mod tests {
 
     #[test]
     fn parse_token_lit_bool() {
-        assert_eq!(
+        lit_match_range(
             Token::parse_token_lit(sfs("\n  \n\ntrue   ")),
-            Ok(Some(Token::new(TokenType::BoolLit(true), 5..9))),
-        );
-        assert_eq!(
-            Token::parse_token_lit(sfs("\n \n false")),
-            Ok(Some(Token::new(TokenType::BoolLit(false), 4..9))),
+            TokenType::BoolLit(true),
+            5..9
         );
 
-        assert_eq!(
-            Token::parse_token_lit(sfs("\n \n afalsethingamabob")),
-            Ok(Some(Token::new(TokenType::Ident("afalsethingamabob".to_string()), 4..21))),
+        lit_match_range(
+            Token::parse_token_lit(sfs("\n \n false")),
+            TokenType::BoolLit(false),
+            4..9
         );
     }
 
     #[test]
     fn parse_token_lit_str() {
-        assert_eq!(
-            Token::parse_token_lit(sfs("\n\"Hello, World!\" ")),
-            Ok(Some(Token::new(TokenType::StrLit("Hello, World!".to_string()), 1..16))),
+        lit_match_range(
+            Token::parse_token_lit(sfs("\n\"Hello, World!\"")),
+            TokenType::StrLit("Hello, World!".to_string()),
+            1..16
         );
-        assert_eq!(
+        lit_match_range(
             Token::parse_token_lit(sfs(" \"\"")),
-            Ok(Some(Token::new(TokenType::StrLit("".to_string()), 1..3))),
+            TokenType::StrLit("".to_string()),
+            1..3
         );
-
-        assert_eq!(
+        lit_match_range(
             Token::parse_token_lit(sfs("\"Sfdsfa339472evm weoi 03d \"")),
-            Ok(Some(Token::new(TokenType::StrLit("Sfdsfa339472evm weoi 03d ".to_string()), 0..27))),
+            TokenType::StrLit("Sfdsfa339472evm weoi 03d ".to_string()),
+            0..27
         );
     }
 
     #[test]
     fn parse_token_lit_char() {
-        assert_eq!(
+        lit_match_range(
             Token::parse_token_lit(sfs("\n'c' ")),
-            Ok(Some(Token::new(TokenType::CharLit('c'), 1..4))),
+            TokenType::CharLit('c'),
+            1..4
         );
-        assert_eq!(
+
+        lit_match_range(
             Token::parse_token_lit(sfs(" 'à'")),
-            Ok(Some(Token::new(TokenType::CharLit('à'), 1..4))),
+            TokenType::CharLit('à'),
+            1..4
         );
 
         let res = Token::parse_token_lit(sfs("''"));
@@ -494,18 +568,15 @@ mod tests {
 
     #[test]
     fn parse_token_lit_num() {
-        assert_eq!(
+        lit_match_range(
             Token::parse_token_lit(sfs("\n72 ")),
-            Ok(Some(Token::new(TokenType::NumLit(72), 1..3))),
+            TokenType::NumLit(72),
+            1..3
         );
-        assert_eq!(
+        lit_match_range(
             Token::parse_token_lit(sfs(" 142 \n\0")),
-            Ok(Some(Token::new(TokenType::NumLit(142), 1..4))),
-        );
-
-        assert_eq!(
-            Token::parse_token_lit(sfs("\n7a2 ")),
-            Ok(Some(Token::new(TokenType::NumLit(72), 1..3))),
+            TokenType::NumLit(142),
+            1..4
         );
 
         let res = Token::parse_token_lit(sfs("\n7142 "));

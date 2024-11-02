@@ -67,6 +67,18 @@ impl<'a> CharOps<'a> for SourceFile {
     }
 }
 
+impl ToString for SourceFile {
+    fn to_string(&self) -> String {
+        self.contents.clone()
+    }
+}
+
+impl AsRef<str> for SourceFile {
+    fn as_ref(&self) -> &str {
+        &self.contents
+    }
+}
+
 /// A slice of a [SourceFile]. It contains information about its position.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SfSlice<'a> {
@@ -98,7 +110,7 @@ impl<'a> SfSlice<'a> {
     pub fn new_bogus(contents: &str) -> SfSlice<'static> {
         let sf = SourceFile::from_raw_parts(PathBuf::new(), contents.to_string());
         let slice = sf.char_slice(0..(contents.chars().count())).unwrap();
-        slice.to_owned()
+        slice.into_owned()
     }
 
     /// Returns the offset from the start of the source file this slice is referencing.
@@ -107,7 +119,7 @@ impl<'a> SfSlice<'a> {
     }
 
     /// Transforms this type into its owned form ('static).
-    pub fn to_owned(self) -> SfSlice<'static> {
+    pub fn into_owned(self) -> SfSlice<'static> {
         let owned_source = self.source.into_owned();
         let slice_char_range = self.slice_char_range;
 
@@ -182,8 +194,8 @@ impl<'a> SfSlice<'a> {
     }
 }
 
-impl<'a> CharOps<'a> for SfSlice<'a> {
-    type SliceType = SfSlice<'a>;
+impl<'a, 'b> CharOps<'a> for SfSlice<'b> {
+    type SliceType = SfSlice<'b>;
 
     fn byte_slice(&'a self, byte_range: Range<usize>) -> Option<Self::SliceType> {
         let sub_range = self.relative_byte_to_absolute_range(byte_range)?;
@@ -204,6 +216,18 @@ impl<'a> CharOps<'a> for SfSlice<'a> {
     }
 }
 
+impl<'a> ToString for SfSlice<'a> {
+    fn to_string(&self) -> String {
+        self.inner_slice().to_string()
+    }
+}
+
+impl<'a> AsRef<str> for SfSlice<'a> {
+    fn as_ref(&self) -> &str {
+        self.inner_slice()
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum SourceFileError {
     #[error("failed to open source file at \"{path}\" because {error}")]
@@ -221,7 +245,7 @@ impl CompilerError for SourceFileError {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::{self, absolute};
+    use std::path;
 
     #[test]
     fn reading_from_source_file() {
