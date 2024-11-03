@@ -1,41 +1,94 @@
 pub mod token;
-use thiserror::Error;
+use std::ops::Range;
 
-use crate::{error::{CompilerError, Lint}, source::SfSlice};
+use thiserror::Error;
+use token::Token;
+
+use crate::{error::{CompilerError, Lint}, source::{SfSlice, SourceFile}, utils::CharOps};
 
 struct Lexer<'a> {
-    index: usize,
-    source: &'a str,
-    /// the token currently being built
-    building_token: &'a str,
-
+    range: Range<usize>,
+    source: &'a SourceFile,
+    tokens: Vec<Token<'a>>
 }
 
 impl<'a> Lexer<'a> {
-    pub fn new(source: &str) -> Lexer {
+    pub fn new(source_file: &SourceFile) -> Lexer {
         Lexer {
-            index: 0,
-            source: source,
-            building_token: "",
+            range: 0..0,
+            source: source_file,
+            tokens: Vec::new(),
         }
     }
 
-    //pub fn advance(&mut self) {
-    //    let next = if let Some(n) = self.source.chars().nth(self.index) {
-    //        n
-    //    } else {
-    //        return
-    //    };
-//
-    //    if next {}
-    //}
+    pub fn advance(&mut self) -> Result<Advancement, LexerError<'a>> {
+        self.range.end += 1;
 
+        if self.range.end > self.source.char_lenght() {
+            return Ok(Advancement::Finished);
+        }
+
+        let sf_slice = self.source.char_slice(self.range.clone())
+            .unwrap();
+        match Token::parse_token_non_lit(sf_slice) {
+            Some(non_lit) => {
+                let possibly_lit_range = self.range.start..non_lit.slice.start();
+                let possibly_lit_slice = self.source.char_slice(possibly_lit_range)
+                    .unwrap();
+
+                self.range.start = non_lit.slice.end();
+
+                if let Some(lit) = Token::parse_token_lit(possibly_lit_slice)? {
+                    self.tokens.push(lit);
+                    self.tokens.push(non_lit);
+                } else {
+                    self.tokens.push(non_lit);
+                }
+            },
+            None => (),
+        }
+
+        return Ok(Advancement::Advancing)
+    }
 }
 
-#[derive(Error, Debug, PartialEq)]
+pub fn lex_file(source_file: &SourceFile) -> (Vec<Token>, Vec<LexerError>) {
+    let mut errors = Vec::new();
+    let mut lexer = Lexer::new(source_file);
+    loop {
+        match lexer.advance() {
+            Ok(Advancement::Finished) => break,
+            Ok(Advancement::Advancing) => (),
+            Err(e) => errors.push(e),
+        }
+    }
+
+    (lexer.tokens, errors)
+}
+
+enum Advancement {
+    Advancing,
+    Finished,
+}
+
+#[derive(Error, Debug)]
 pub enum LexerError<'a> {
     #[error("literal contents are invalid {0}")]
     InvalidLiteral(LiteralError<'a>),
+}
+
+impl<'a> CompilerError for LexerError<'a> {
+    fn lint(&self) -> Option<Lint> {
+        match self {
+            LexerError::InvalidLiteral(e) => e.lint()
+        }
+    }
+}
+
+impl<'a> From<LiteralError<'a>> for LexerError<'a> {
+    fn from(value: LiteralError<'a>) -> Self {
+        LexerError::InvalidLiteral(value)
+    }
 }
 
 #[derive(Error, Debug, PartialEq)]
@@ -60,5 +113,27 @@ impl<'a> CompilerError for LiteralError<'a> {
         };
 
         Some(Lint::from_slice_error(slice.clone()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::{absolute, PathBuf};
+
+    fn test_file() -> SourceFile {
+        let path = PathBuf::from("./test-resources/small-fib.bfu");
+        let abs_path = absolute(path).unwrap();
+        SourceFile::from_file(abs_path).unwrap()
+    }
+
+    #[test]
+    fn lexing_does_not_panic() {
+        lex_file(&test_file());
+    }
+
+    #[test]
+    fn lexing_does_not_error() {
+        assert_eq!(lex_file(&test_file()).1.len(), 0);
     }
 }

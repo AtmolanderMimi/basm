@@ -72,6 +72,8 @@ pub enum TokenType {
     If,
     /// "while", a while loop.
     While,
+    /// "import", an import statement.
+    Import,
     /// "72", an Num literal.
     NumLit(Num),
     /// '"Hello, World"', a Str literal.
@@ -120,6 +122,7 @@ impl TokenType {
         (",", Self::ElementSeperator),
         ("if", Self::If),
         ("while", Self::While),
+        ("import", Self::Import),
         // lits go here also idents in spirit, cus they can't be mapped like this
         ("[", Self::LSquare),
         ("]", Self::RSquare),
@@ -164,6 +167,7 @@ impl TokenType {
             Self::StrLit(_) => (),
             Self::TypeDecl => (),
             Self::While => (),
+            Self::Import => (),
             Self::And => (),
             Self::Or => (),
         }
@@ -271,6 +275,7 @@ impl<'a> Token<'a> {
         let trim_str_range = trim_str_start..(trim_str_start+trim_str.len());
         if trim_str.starts_with("\"") && trim_str.ends_with("\"") {
             let string_contents = trim_str.replace("\"", "");
+            let string_contents = string_contents.replace("\\n", "\n");
 
             let slice = sf_slice.byte_slice(trim_str_range).unwrap();
             return Ok(Some(Token::new(TokenType::StrLit(string_contents.to_string()), slice)));
@@ -279,6 +284,8 @@ impl<'a> Token<'a> {
         // Char
         if trim_str.starts_with("'") && trim_str.ends_with("'") {
             let char_content = trim_str.replace("'", "");
+            let char_content = char_content.replace("\\n", "\n");
+
             if char_content.len() == 0 {
                 let error_slice = sf_slice.byte_slice(trim_str_range)
                     .expect("byte slice should not be oob");
@@ -334,7 +341,8 @@ impl<'a> Token<'a> {
         }
 
         // If none of the above, try Ident
-        if trim_str.is_alphanumeric() {
+        let trim_str_without_under = trim_str.replace("_", "");
+        if trim_str_without_under.is_alphanumeric() {
             return Ok(Some(Token::new(
                 TokenType::Ident(trim_str.to_string()),
                 sf_slice.byte_slice(trim_str_range).unwrap(),

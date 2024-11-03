@@ -44,6 +44,18 @@ impl SourceFile {
             absolute_path: absolute_path.to_path_buf(),
         })
     }
+
+    /// returns the lenght in bytes of the file.
+    pub fn byte_lenght(&self) -> usize {
+        self.contents.len()
+    }
+
+    /// returns the lenght in chars of the file.
+    pub fn char_lenght(&self) -> usize {
+        let full_slice = self.byte_slice(0..self.byte_lenght())
+            .unwrap();
+        full_slice.end()
+    }
 }
 
 impl<'a> CharOps<'a> for SourceFile {

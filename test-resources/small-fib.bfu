@@ -1,0 +1,19 @@
+import "std"
+
+fn main() {
+	let a: Num = 0;
+    let b: Num = 1;
+    let c: Num = 0;
+    let counter: Num = 4;
+
+    while &counter != 0 {
+        c = &a + &b;
+        b = a;
+        a = c;
+
+        counter = counter - 1;
+    }
+
+    print_num(b);
+    print_char('\n');
+}

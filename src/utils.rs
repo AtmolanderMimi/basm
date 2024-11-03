@@ -132,11 +132,12 @@ pub trait IsAlphanumeric {
     fn is_numeric(&self) -> bool;
 }
 
-impl IsAlphanumeric for &str {
+impl<T: AsRef<str>> IsAlphanumeric for T {
     fn is_alphanumeric(&self) -> bool {
-        if self.len() == 0 { return false }
+        let string= self.as_ref();
+        if string.len() == 0 { return false }
 
-        for ch in self.chars() {
+        for ch in string.chars() {
             if !ch.is_alphanumeric() {
                 return false;
             }
@@ -146,9 +147,10 @@ impl IsAlphanumeric for &str {
     }
 
     fn is_alphabetic(&self) -> bool {
-        if self.len() == 0 { return false }
+        let string= self.as_ref();
+        if string.len() == 0 { return false }
 
-        for ch in self.chars() {
+        for ch in string.chars() {
             if !ch.is_alphabetic() {
                 return false;
             }
@@ -158,9 +160,10 @@ impl IsAlphanumeric for &str {
     }
 
     fn is_numeric(&self) -> bool {
-        if self.len() == 0 { return false }
+        let string= self.as_ref();
+        if string.len() == 0 { return false }
 
-        for ch in self.chars() {
+        for ch in string.chars() {
             if !ch.is_numeric() {
                 return false;
             }
