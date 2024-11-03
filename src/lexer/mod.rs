@@ -40,12 +40,14 @@ pub enum LexerError<'a> {
 
 #[derive(Error, Debug, PartialEq)]
 pub enum LiteralError<'a> {
-    #[error("Num \"{1:?}\" is not within allowed range (tip: most likely 0-255)")]
-    InvalidNumber(SfSlice<'a>, String),
+    #[error("Num {0} is not within allowed range (tip: most likely 0-255)")]
+    InvalidNumber(SfSlice<'a>),
     #[error("Char literals cannot be empty")]
     EmptyChar(SfSlice<'a>),
-    #[error("Char '{1:?}' is invalid. Char literals can only hold one character (maybe you want a string: \"...\"?")]
-    TooFullChar(SfSlice<'a>, String),
+    #[error("Char {0} is invalid. Char literals can only hold one character (maybe you want a string: \"...\"?")]
+    TooFullChar(SfSlice<'a>),
+    #[error("could not parse this substring \"{0}\" (neither ident, nor other token)")]
+    Unparseable(SfSlice<'a>),
 }
 
 impl<'a> CompilerError for LiteralError<'a> {
@@ -54,6 +56,7 @@ impl<'a> CompilerError for LiteralError<'a> {
             Self::EmptyChar(s, ..) => s,
             Self::InvalidNumber(s, ..) => s,
             Self::TooFullChar(s, ..) => s,
+            Self::Unparseable(s, ..) => s,
         };
 
         Some(Lint::from_slice_error(slice.clone()))

@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fs, io, ops::Range, path::{Path, PathBuf}};
+use std::{borrow::Cow, fmt::{Debug, Display}, fs, io, ops::Range, path::{Path, PathBuf}};
 
 use thiserror::Error;
 
@@ -80,7 +80,7 @@ impl AsRef<str> for SourceFile {
 }
 
 /// A slice of a [SourceFile]. It contains information about its position.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct SfSlice<'a> {
     pub source: Cow<'a, SourceFile>,
     slice_char_range: Range<usize>,
@@ -216,15 +216,25 @@ impl<'a, 'b> CharOps<'a> for SfSlice<'b> {
     }
 }
 
-impl<'a> ToString for SfSlice<'a> {
-    fn to_string(&self) -> String {
-        self.inner_slice().to_string()
-    }
-}
-
 impl<'a> AsRef<str> for SfSlice<'a> {
     fn as_ref(&self) -> &str {
         self.inner_slice()
+    }
+}
+
+impl<'a> Debug for SfSlice<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SfSlice")
+            .field("source", &self.source.absolute_path)
+            .field("char_range", &self.char_range())
+            .field("slice", &self.inner_slice())
+            .finish()
+    }
+}
+
+impl<'a> Display for SfSlice<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.inner_slice())
     }
 }
 
