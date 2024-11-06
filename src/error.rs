@@ -1,13 +1,77 @@
 use std::{error::Error, ops::Range};
 
+use colored::Colorize;
 use either::Either;
 
-use crate::{source::{SfSlice, SourceFile}, utils::CharOps as _};
+use crate::{source::{SfSlice, SourceFile}, utils::{CharOps as _, FindLnCol}};
+
+/// Number of characters around a lint for context in error display.
+const CONTEXT_WINDOW: usize = 50;
 
 pub trait CompilerError: Error {
     /// Returns the range of the error.
     fn lint(&self) -> Option<Lint> {
         None
+    }
+
+    /// Returns a fancy print-ready description
+    /// of the error.
+    fn description(&self) -> String {
+        let mut out = String::new();
+
+        let lint = self.lint();
+
+        let gravity = lint.map(|l| l.gravity)
+            .unwrap_or(LintGravity::Error);
+
+        match gravity {
+            LintGravity::Error => out.push_str(&"Error:".color(gravity.associated_color()).bold().to_string()),
+            LintGravity::Warning => out.push_str(&"Warning:".color(gravity.associated_color()).bold().to_string()),
+        }
+
+        if let Some(l) = self.lint() {
+            // -- position --
+            match l.slice {
+                Either::Left(ref slice) => {
+                    let start = slice.char_range().start;
+                    let (ln, col) = slice.source.char_find_ln_col(start).unwrap();
+                    let abs_path = slice.source.absolute_path();
+
+                    out.push_str(&format!(" from Ln {:?}, Col {:?} in {:?}\n", ln, col, abs_path));
+                },
+                Either::Right(sf) => {
+                    let abs_path = sf.absolute_path();
+                    
+                    out.push_str(&format!(" in {:?}\n", abs_path));
+                }
+            }
+
+            // -- err message --
+            out.push_str(&format!(" → {}\n", self.to_string().underline().bold()));
+
+            // -- context --
+            if let Either::Left(ref slice) = l.slice {
+                let source = &slice.source;
+                let pre_context_range = slice.start().saturating_sub(CONTEXT_WINDOW)..slice.start();
+                let post_context_range = if (slice.end() + CONTEXT_WINDOW) > source.char_lenght() {
+                    slice.end()..source.char_lenght()
+                } else {
+                    slice.end()..(slice.end() + CONTEXT_WINDOW)
+                };
+
+                out.push_str(&"[...] ".black().to_string());
+                out.push_str(&source.char_slice(pre_context_range).unwrap().as_ref());
+
+                out.push_str(&slice.as_ref().color(gravity.associated_color()).underline().bold().to_string());
+
+                out.push_str(&source.char_slice(post_context_range).unwrap().as_ref());
+                out.push_str(&" [...]".black().to_string());
+            }
+        } else {
+            out.push_str(&format!(" {}", self.to_string()).underline().to_string());
+        }
+        
+        out
     }
 }
 
@@ -80,4 +144,13 @@ pub enum LintGravity {
     #[default]
     Error,
     Warning,
+}
+
+impl LintGravity {
+    pub fn associated_color(&self) -> colored::Color {
+        match self {
+            LintGravity::Error => colored::Color::Red,
+            LintGravity::Warning => colored::Color::Yellow,
+        }
+    }
 }

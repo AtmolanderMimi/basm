@@ -56,6 +56,11 @@ impl SourceFile {
             .unwrap();
         full_slice.end()
     }
+
+    /// Returns the absolute path of the source file.
+    pub fn absolute_path(&self) -> &Path {
+        &self.absolute_path
+    }
 }
 
 impl<'a> CharOps<'a> for SourceFile {

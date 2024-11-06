@@ -73,7 +73,7 @@ enum Advancement {
 
 #[derive(Error, Debug)]
 pub enum LexerError<'a> {
-    #[error("literal contents are invalid {0}")]
+    #[error("{0}")]
     InvalidLiteral(LiteralError<'a>),
 }
 
@@ -91,6 +91,9 @@ impl<'a> From<LiteralError<'a>> for LexerError<'a> {
     }
 }
 
+const ITALIC_START: &'static str = "\x1B[3m";
+const ITALIC_END: &'static str = "\x1B[23m";
+
 #[derive(Error, Debug, PartialEq)]
 pub enum LiteralError<'a> {
     #[error("Num {0} is not within allowed range (tip: most likely 0-255)")]
@@ -99,7 +102,7 @@ pub enum LiteralError<'a> {
     EmptyChar(SfSlice<'a>),
     #[error("Char {0} is invalid. Char literals can only hold one character (maybe you want a string: \"...\"?")]
     TooFullChar(SfSlice<'a>),
-    #[error("could not parse this substring \"{0}\" (neither ident, nor other token)")]
+    #[error("could not parse this substring \"{ITALIC_START}{0}{ITALIC_END}\" (neither ident, nor other token)")]
     Unparseable(SfSlice<'a>),
 }
 

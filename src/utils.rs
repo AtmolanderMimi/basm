@@ -3,8 +3,8 @@ use std::ops::Range;
 /// Trait that implements operations which allows operations on characters
 /// rather than on bytes.
 /// As thus treating string as arrays of characters, instead of bytes.
-pub trait CharOps<'a> {
-    type SliceType;
+pub trait CharOps<'a>: AsRef<str> {
+    type SliceType: AsRef<str>;
     /// Creates a slice from a string.
     /// This should be equivalent to `get`, but for support for custom
     /// slice types, this method *exists*,
@@ -125,6 +125,56 @@ impl<'a> CharOps<'a> for String {
         self.as_str().char_to_byte_range(char_range)
     }
 }
+
+/// Trait implementing utilities to find the `(ln, col)` char position
+/// of an element in a string.
+pub trait FindLnCol<'a>: CharOps<'a> {
+    /// Returns the `(ln, col)` position in char of the `nth` byte.
+    /// May return `None` if the character is not in the string.
+    /// # Note
+    /// This might not meet your preconseptions of lines and columns.
+    /// Lines and columns start counting from one, not from zero.
+    /// ```
+    /// use bf_unfucked::utils::FindLnCol;
+    /// 
+    /// // Lines and columns start counting from 1.
+    /// assert_eq!("".byte_find_ln_col(0), Some((1, 1)));
+    /// // Do NOT be fooled!
+    /// assert_ne!("".byte_find_ln_col(0), Some((0, 0)));
+    /// ```
+    fn byte_find_ln_col(&self, nth_byte: usize) -> Option<(usize, usize)> {
+        let string = self.as_ref();
+        let sub_string = string.get(0..nth_byte)?;
+        let new_lines = sub_string.char_indices()
+            .filter(|(_, c)| *c == '\n');
+
+        let mut line = new_lines.clone().count();
+        let last_nl_byte_index = new_lines.map(|(i, c)| i)
+            .last();
+        // because \n is one byte long and we don't want to include it
+        let start_line_byte_index = last_nl_byte_index.map(|b| b + 1)
+            .unwrap_or(0);
+
+        let mut column = string[start_line_byte_index..nth_byte].len();
+
+        // line and column are zero-indexed right now, let's switch
+        // them to the more common one-index
+        line += 1;
+        column += 1;
+
+        Some((line, column))
+    }
+
+    /// Returns the `(ln, col)` position in char of the `nth` char.
+    /// May return `None` if the character is not in the string.
+    fn char_find_ln_col(&self, nth_char: usize) -> Option<(usize, usize)> {
+        let byte = self.char_to_byte_range(nth_char..nth_char)?
+            .start;
+        self.byte_find_ln_col(byte)
+    }
+}
+
+impl<'a, T: CharOps<'a> + ?Sized> FindLnCol<'a> for T {}
 
 pub trait IsAlphanumeric {
     fn is_alphanumeric(&self) -> bool;
