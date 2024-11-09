@@ -1,3 +1,5 @@
+//! Utilities to handle the provenance of string back to it orignal file (aka its source).
+
 use std::{borrow::Cow, fmt::{Debug, Display}, fs, io, ops::Range, path::{Path, PathBuf}};
 
 use thiserror::Error;
@@ -13,15 +15,18 @@ pub struct SourceFile {
 }
 
 impl SourceFile {
+    /// Creates a new [`SourceFile`] from its raw parts.
+    /// `absolute_path` is expected to be in its absolute form.
     pub fn from_raw_parts(absolute_path: PathBuf, contents: String) -> SourceFile {
         SourceFile {
-            absolute_path,
             contents,
+            absolute_path,
         }
     }
 
-    /// Creates a new [SourceFile] from a file.
+    /// Creates a new [`SourceFile`] from a file.
     /// 
+    /// # Errors
     /// Errors out if `absolute_path` is not absolute.
     pub fn from_file(absolute_path: impl AsRef<Path>) -> Result<SourceFile, SourceFileError> {
         let absolute_path = absolute_path.as_ref();
@@ -29,7 +34,7 @@ impl SourceFile {
             return Err(SourceFileError::NotAbsPath(absolute_path.to_path_buf()));
         }
 
-        let contents = match fs::read_to_string(&absolute_path) {
+        let contents = match fs::read_to_string(absolute_path) {
             Ok(c) => c,
             Err(error) => {
                 return Err(SourceFileError::OpeningSourceFile {
@@ -84,9 +89,9 @@ impl<'a> CharOps<'a> for SourceFile {
     }
 }
 
-impl ToString for SourceFile {
-    fn to_string(&self) -> String {
-        self.contents.clone()
+impl Display for SourceFile {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.contents)
     }
 }
 
@@ -96,24 +101,20 @@ impl AsRef<str> for SourceFile {
     }
 }
 
-/// A slice of a [SourceFile]. It contains information about its position.
+/// A slice of a [`SourceFile`]. It contains information about its position.
 #[derive(Clone, PartialEq)]
 pub struct SfSlice<'a> {
-    pub source: Cow<'a, SourceFile>,
+    source: Cow<'a, SourceFile>,
     slice_char_range: Range<usize>,
     // will be none if source is owned, because we can't reference self in self
     slice: Option<&'a str>,
 }
 
-impl<'a> SfSlice<'a> {
-    /// Creates a [SfSlice] from a [SourceFile].
+impl SfSlice<'_> {
+    /// Creates a [`SfSlice`] from a [`SourceFile`].
     /// The `range` is by characters, not bytes.
     pub fn from_source(source: &SourceFile, char_range: Range<usize>) -> Option<SfSlice> {
-        let slice = if let Some(s) = source.contents.char_slice(char_range.clone()) {
-            s
-        } else {
-            return None;
-        };
+        let slice = source.contents.char_slice(char_range.clone())?;
 
         Some(SfSlice {
             source: Cow::Borrowed(source),
@@ -155,6 +156,15 @@ impl<'a> SfSlice<'a> {
         self.slice_char_range.clone()
     }
 
+    /// Returns the range of characters into the source of
+    /// this slice.
+    /// This start char range is absolute from the original source file,
+    /// not from it's originating subslice.
+    pub fn byte_range(&self) -> Range<usize> {
+        self.char_to_byte_range(self.char_range())
+            .expect("SfSlices are assumed to be valid")
+    }
+
     /// Returns the start index of the range of characters 
     /// into the source of this slice.
     /// This start position is absolute from the original source file,
@@ -176,10 +186,15 @@ impl<'a> SfSlice<'a> {
         match self.slice {
             Some(s) => s,
             None => {
-                self.source.contents.char_slice(self.slice_char_range.clone())
-                    .unwrap()
+                self.source.contents.char_slice(self.char_range())
+                    .expect("char_range should always be a valid substring of the source")
             }
         }
+    }
+
+    /// Returns the [`SourceFile`] from which this [`SfSlice`] was referenced.
+    pub fn source(&self) -> &SourceFile {
+        &self.source
     }
 
     /// Transforms a relative range into this slice into an absolute range of the source file.
@@ -233,13 +248,13 @@ impl<'a, 'b> CharOps<'a> for SfSlice<'b> {
     }
 }
 
-impl<'a> AsRef<str> for SfSlice<'a> {
+impl AsRef<str> for SfSlice<'_> {
     fn as_ref(&self) -> &str {
         self.inner_slice()
     }
 }
 
-impl<'a> Debug for SfSlice<'a> {
+impl Debug for SfSlice<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SfSlice")
             .field("source", &self.source.absolute_path)
@@ -249,19 +264,25 @@ impl<'a> Debug for SfSlice<'a> {
     }
 }
 
-impl<'a> Display for SfSlice<'a> {
+impl Display for SfSlice<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.inner_slice())
     }
 }
 
+/// An error that occurs while working with [`SourceFile`] and other related types.
 #[derive(Debug, Error)]
 pub enum SourceFileError {
+    /// Failed to open the path to the source file.
     #[error("failed to open source file at \"{path}\" because {error}")]
     OpeningSourceFile {
+        /// The inner error that caused the fail.
         #[source] error: io::Error,
+        /// The path that it tried to open.
         path: PathBuf,
     },
+    /// The provided path was not absolute, even if it was expected.
+    /// `0` is the non absolute path.
     #[error("the path \"{0}\" is not absolute")]
     NotAbsPath(PathBuf),
 }

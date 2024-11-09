@@ -1,9 +1,14 @@
+//! Random utilities, including an assortment of strings as arrays of char traits
+//! that can be implemented on any string-like type.
+
 use std::ops::Range;
 
 /// Trait that implements operations which allows operations on characters
 /// rather than on bytes.
 /// As thus treating string as arrays of characters, instead of bytes.
 pub trait CharOps<'a>: AsRef<str> {
+    /// The type to which `Self` can be sliced.
+    /// Should be &str for most uses.
     type SliceType: AsRef<str>;
     /// Creates a slice from a string.
     /// This should be equivalent to `get`, but for support for custom
@@ -44,7 +49,7 @@ impl<'a> CharOps<'a> for str {
         }
 
         // NOTE: This may be laggy
-        for byte_index in 1..(self.as_bytes().len()+1) {
+        for byte_index in 1..=self.as_bytes().len() {
             if !self.is_char_boundary(byte_index) {
                 continue
             }
@@ -64,7 +69,7 @@ impl<'a> CharOps<'a> for str {
         if let (Some(s), Some(e)) = (byte_start_index, byte_end_index) {
             Some(s..e)
         } else {
-            return None;
+            None
         }
     }
 
@@ -149,11 +154,10 @@ pub trait FindLnCol<'a>: CharOps<'a> {
             .filter(|(_, c)| *c == '\n');
 
         let mut line = new_lines.clone().count();
-        let last_nl_byte_index = new_lines.map(|(i, c)| i)
+        let last_nl_byte_index = new_lines.map(|(i, _)| i)
             .last();
         // because \n is one byte long and we don't want to include it
-        let start_line_byte_index = last_nl_byte_index.map(|b| b + 1)
-            .unwrap_or(0);
+        let start_line_byte_index = last_nl_byte_index.map_or(0, |b| b + 1);
 
         let mut column = string[start_line_byte_index..nth_byte].len();
 
@@ -176,16 +180,20 @@ pub trait FindLnCol<'a>: CharOps<'a> {
 
 impl<'a, T: CharOps<'a> + ?Sized> FindLnCol<'a> for T {}
 
+/// Allows to check whether or not something is alphanumeric, alphabetic or numeric.
 pub trait IsAlphanumeric {
+    /// Returns `true` if it is alphanumeric.
     fn is_alphanumeric(&self) -> bool;
+    /// Returns `true` if it is alphabetic.
     fn is_alphabetic(&self) -> bool;
+    /// Returns `true` if it is numeric.
     fn is_numeric(&self) -> bool;
 }
 
 impl<T: AsRef<str>> IsAlphanumeric for T {
     fn is_alphanumeric(&self) -> bool {
         let string= self.as_ref();
-        if string.len() == 0 { return false }
+        if string.is_empty() { return false }
 
         for ch in string.chars() {
             if !ch.is_alphanumeric() {
@@ -198,7 +206,7 @@ impl<T: AsRef<str>> IsAlphanumeric for T {
 
     fn is_alphabetic(&self) -> bool {
         let string= self.as_ref();
-        if string.len() == 0 { return false }
+        if string.is_empty() { return false }
 
         for ch in string.chars() {
             if !ch.is_alphabetic() {
@@ -211,7 +219,7 @@ impl<T: AsRef<str>> IsAlphanumeric for T {
 
     fn is_numeric(&self) -> bool {
         let string= self.as_ref();
-        if string.len() == 0 { return false }
+        if string.is_empty() { return false }
 
         for ch in string.chars() {
             if !ch.is_numeric() {

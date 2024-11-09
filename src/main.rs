@@ -1,6 +1,6 @@
 use std::path::absolute;
 
-use bf_unfucked::{error, lexer::lex_file, source::SourceFile, CompilerError};
+use bf_unfucked::{source::SourceFile, CompilerError};
 
 fn main() {
     let path = std::env::args().nth(1)
@@ -8,13 +8,12 @@ fn main() {
     let abs_path = absolute(path).unwrap();
     let sf = SourceFile::from_file(abs_path)
         .unwrap();
-    let (tokens, errors) = lex_file(&sf);
+    let (tokens, errors) = bf_unfucked::lex_file(&sf);
     println!("------------------ [ TOKENS ] ------------------");
     println!("{:#?}", tokens);
-    if errors.len() != 0 {
+    if !errors.is_empty() {
         println!("\n------------------ [ ERRORS ] ------------------");
         for e in errors {
-            // TODO: Add comments
             println!("{}", e.description());
         }
     }
