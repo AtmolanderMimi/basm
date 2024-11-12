@@ -6,14 +6,15 @@ pub mod token;
 use std::ops::Range;
 
 use thiserror::Error;
-use token::Token;
+use token::{Token, TokenType};
 
 use crate::{error::{CompilerError, Lint}, source::{SfSlice, SourceFile}, utils::CharOps};
 
 struct Lexer<'a> {
     range: Range<usize>,
     source: &'a SourceFile,
-    tokens: Vec<Token<'a>>
+    tokens: Vec<Token<'a>>,
+    comment_mode: bool,
 }
 
 impl<'a> Lexer<'a> {
@@ -22,6 +23,7 @@ impl<'a> Lexer<'a> {
             range: 0..0,
             source: source_file,
             tokens: Vec::new(),
+            comment_mode: false,
         }
     }
 
@@ -34,6 +36,17 @@ impl<'a> Lexer<'a> {
 
         let sf_slice = self.source.char_slice(self.range.clone())
             .unwrap();
+
+        if self.comment_mode && sf_slice.inner_slice().contains('\n') {
+            self.comment_mode = false;
+            self.range.start = self.range.end;
+
+            return Ok(Advancement::Advancing);
+        } else if self.comment_mode {
+            // we don't want to match any more tokens before reaching the end of a line
+            return Ok(Advancement::Advancing);
+        }
+
         if let Some(non_lit) = Token::parse_token_non_lit(&sf_slice) {
             let possibly_lit_range = self.range.start..non_lit.slice.start();
             let possibly_lit_slice = self.source.char_slice(possibly_lit_range)
@@ -44,7 +57,13 @@ impl<'a> Lexer<'a> {
             if let Some(lit) = Token::parse_token_lit(&possibly_lit_slice)? {
                 self.tokens.push(lit);
             }
-            self.tokens.push(non_lit);
+
+            // we don't want line comments into the ast
+            if non_lit.t_type == TokenType::LineComment {
+                self.comment_mode = true;
+            } else {
+                self.tokens.push(non_lit);
+            }
         }
 
         Ok(Advancement::Advancing)
@@ -115,7 +134,7 @@ pub enum LiteralError<'a> {
     EmptyChar(SfSlice<'a>),
     /// Char is invalid, because it contains more than one character. Can be misleading, because an accented
     /// character is represented as two Rust char's. For example ë would look like ¨ e.
-    #[error("Char {0} is invalid. Char literals can only hold one character (maybe you want a string: \"...\"?")]
+    #[error("Char {0} is invalid. Char literals can only hold one character (maybe you want a string: \"...\"?)")]
     TooFullChar(SfSlice<'a>),
     /// No valid token type was found for this substring even ident,
     /// which are just alphanumeric sequences with underscores.

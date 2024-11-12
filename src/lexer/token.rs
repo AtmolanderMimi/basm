@@ -98,6 +98,10 @@ pub enum TokenType {
     LParen,
     /// ")", an closing parentheses, many uses.
     RParen,
+    /// "//", starts a comment on the rest of the line.
+    /// Is only used by the lexer to avoid comments.
+    /// This will not be found in the AST.
+    LineComment,
     /// Any alphanumeric squence that starts with a letter and
     /// is not any other token.
     Ident(String),
@@ -133,6 +137,7 @@ impl TokenType {
         ("}", Self::RCurly),
         ("(", Self::LParen),
         (")", Self::RParen),
+        ("//", Self::LineComment),
         // lits go here also idents in spirit, cus they can't be mapped like this
     ];
 
@@ -149,6 +154,7 @@ impl TokenType {
             Self::BiggerThanEqual => (),
             Self::BoolLit(_) => (),
             Self::CharLit(_) => (),
+            Self::LineComment => (),
             Self::CloneOp => (),
             Self::ElementSeperator => (),
             Self::Equals => (),
