@@ -66,6 +66,15 @@ impl<'a> Lexer<'a> {
             }
         }
 
+        // kind-of a cheat, instead of waiting for a non-lit, if there is a space, check
+        let string = sf_slice.inner_slice();
+        if string.ends_with(' ') || string.ends_with('\n') {
+            if let Some(lit) = Token::parse_token_lit(&sf_slice)? {
+                self.tokens.push(lit);
+                self.range.start = self.range.end;
+            }
+        }
+
         Ok(Advancement::Advancing)
     }
 }
@@ -127,14 +136,14 @@ const ITALIC_END: &str = "\x1B[23m";
 /// *`"Yo... This is literally an error, man..."`*
 pub enum LiteralError<'a> {
     /// Number is invalid, because it is not within the range that bf can store (0-255).
-    #[error("Num {0} is not within allowed range (tip: most likely 0-255)")]
+    #[error("number {0} could not be parsed, probably too big")]
     InvalidNumber(SfSlice<'a>),
     /// Char is invalid, because it does not contain a character. It should look like this: ''.
-    #[error("Char literals cannot be empty")]
+    #[error("character literals cannot be empty")]
     EmptyChar(SfSlice<'a>),
     /// Char is invalid, because it contains more than one character. Can be misleading, because an accented
     /// character is represented as two Rust char's. For example ë would look like ¨ e.
-    #[error("Char {0} is invalid. Char literals can only hold one character (maybe you want a string: \"...\"?)")]
+    #[error("character {0} is invalid. Character literals can only hold one character (maybe you want a string: \"...\"?)")]
     TooFullChar(SfSlice<'a>),
     /// No valid token type was found for this substring even ident,
     /// which are just alphanumeric sequences with underscores.
@@ -161,7 +170,7 @@ mod tests {
     use std::path::{absolute, PathBuf};
 
     fn test_file() -> SourceFile {
-        let path = PathBuf::from("./test-resources/small-fib.bfu");
+        let path = PathBuf::from("./test-resources/fib.basm");
         let abs_path = absolute(path).unwrap();
         SourceFile::from_file(abs_path).unwrap()
     }

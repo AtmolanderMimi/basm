@@ -1,147 +1,174 @@
-# Brainfuck Unfucked Syntax
+# Brain Aneurysm
 
-## Prelude
+## Description
+BrainAneurysm or for short basm is a very simple, assembly-like, language transpiling to Brain*Fuck*. *(ono, big boy words!)*
+The purpose of this language is to abstract of the parts of BrainFuck that makes it *fucky* like:
+* The relative nature of memory,
+* Difficulty working with text,
+* The lack of organisation features,
+  Mitigating these problems will hopefully allow writing complex programs.
+  This project is only for my own personal pleasure as a creator and is not aimed at creating efficient bf programs.
+  If you useable and well informed implementations of bf transpilers look [here](https://esolangs.org/wiki/Brainfuck_code_generation).
 
-I am going to try to design this as to be as easy as possible to parse and transpile into bf, this means:
+My main motivation for this project is to prove that if it is turing complete, it can do anything any other language could.
+Whilst bf is very well known for being one of the smallest languages that is turing complete,
+I believe that not many people have actually used it to create works that take advantage of the theoratically
+all-purpose nature of bf. Whilst I say this, i know fully that this language is not and will never be the right
+tool for the job of creating programs in this niche language that is bf. It is moreso a learning experience for myself.
 
-* no for loops
-* no methods (but yes compound types later)
-* no syntactic distinction between constant and variable
+Although this project was supposed to be a fully fledged language similar in syntax to Rust or C,
+with after further reconsideration (looking into making a ast and parser), I have desided to 180 the
+syntax of this language to something more akin to an assembly language.
+Though i wouldn't call an assembly language, since it transpiles to a lower language, being bf.
 
-## Example
+In basm, files are split into three main fields:
+* `[data]` which is used to preload cells of the bf tape with data before running any code,
+* `[main]` which is the start point of your program,
+* `[@name(arg, arg)]` which defines a meta-instruction, there can be more than one of these fields,
 
-```rs // would use bfu, but they are fairly similar
-// this is simply a macro that pastes the content of the file here
-// in this case std is reserved for a standard library
-import "std"
+## The `[data]` Field
+This field allows you to define an values to be preloaded a certain adresses on the tape.
+You can either load a single value into a single cell by using `SET (addr) (value)`
+or you can load an entire string using `STR (starting addr) (string literal)`.
+Loading a string via `STR` will set it into memory by equating each character with its ASCII value.
+Strings in basm are assumed to start and end with a cell of value zero. Thus making the smallest string use up two cells.
+When providing the adress to it use to one referencing the starting zero cell (which is going to be the same as the one you used to declare it).
+At compile-time, the data field will get translated into a serie of instructions set before `[main]`.
 
-// all bfu programs should have an entry point with this function signature
-// because of the distinction between code memory and variable memory it
-// would be harder to not have an entry point
-fn main() { // all variables need to have their type defined, sorry, no sorry
-	let variable_name: Num = 4;
+### Instructions
+| Name | Arguments | Function |
+|-|-|-|
+| CELL | addr, value | initiates the `addr` cell with the `value` |
+| STR | addr, string | initiates the cells including and after `addr` with the ASCII values of the `string` |
 
-	// all functions are inlined, because, well bf
-	// (although it may not be impossible, it would require setting up stuff
-	// on the tape, which would greatly increase complexity and inefficiency)
-	// this has the side effect of making functions unhable to recurse
-	let fib_result: Num = fib(&variable_name);
-
-	// print is provided by a standard library
-	// i won't go into much detail about strings, but i would implement it
-	// like in c, an array of Char
-	print_str("The ");
-	print_num(variable_name);
-	print_str("th element of the fibonacci sequence has a value of ")
-	print_num(fib_result);
-	// Char's hold the same space as Num's (1 slot), but they have different
-	// sementic meaning and thus different functions associated with them.
-	// printing a Num of value 99 would get you "99"
-	// printing a Char of value 'c' (99) would get you "c"
-	print_char('\n');
-}
-
-fn fib(n: Num): Num {
-	let a: Num = 0;
-	let b: Num = 1;
-	while n != 0 {
-		// &b: "the value of" b
-		// by default all operations are destructive
-		// including moves, because bf
-		let c: Num = &b;
-		b = a + b; // here these destroy both a and b making them invalid
-		a = c;
-
-		// maybe i can switch this to "n--" to simplify to the translating
-		n = n - 1;
-	}
-
-	n // no early return is allowed
-}
+### Example
+```basm
+[data]
+CELL 0 42; // sets cell 0 to 42
+STR 1 "The answer to life the universe and everything."; // writes the string from cell 1
 ```
 
-The example above should print out "The 4th element of the fibonacci sequence has a value of 5\n"
+## The `[main]` Field
+This field defines the entrypoint of your program.
+Instructions written within it will be executed at runtime sequencially.
+Arguments cells of instructions should be understood as "consumed", meaning that their value
+is non-deterministic, unless the cell is a result argument, or stated otherwise.
+To use a "consumed" cell you should use instructions.
 
-This example allows us to better understand what →I (ME)← want as syntactic items.
+### Instructions
+| Name | Arguments | Function |
+|-|-|-|
+| ALIS | ident, value | aliases a value to an identifier, this instruction is purely abstraction |
 
-## Expressions
+| ZERO | addr | sets the value of `addr` to 0 |
+| COPY | addr1, addr2, addr3 | copies the value of `addr1` into `addr2` and `addr3` |
 
-### Literals
+| IN   | addr | takes input form the user and sets it in `addr`, behaviour will vary between bf implementations |
+| OUT  | addr | send `addr` to the output, `addr` is not consumed |
 
-Num lit ex:  0, 72, 255
-Str lit ex:  "Hello, World" -> [Char; 13] (because of the added nul)
-arr lit ex: ['H', 'e', 'l', 'l', 'o']
-Char lit ex: 'c', '\n'
-Bool lit ex: true, false, maybe(?)
+| INCR | addr, value | increments the value of the `addr` cell by `value` |
+| DECR | addr, value | decrements the value of the `addr` cell by `value` |
+| ADDP | addr1, addr2 | adds `addr2` to `addr1` in place |
+| SUBP | addr1, addr2 | substract `addr2` from `addr1` in place |
 
-### Binary Expressions
+| WHNE | addr, value, [instruction] | while the value of `addr` cell is not equal to `value` runs the `[instruction]`. `addr` is not consumed |
+FIXME: add WHNE, IFEQ and IFNE
 
-note: there won't be unary expressions because we simply don't
-need them, for example "!bool" could be written "bool == false"
-they can also be made into functions if i get to add them later
-Num -> Num expressions: +, -, *, /(?), % and |- (abs diff)
-Num -> Bool expressions: ==, !=, >, <, >= and <=
-Char -> Bool expressions: == and !=
-Bool -> Bool expressions: == and !=
+### Example
+Fibonacci:
+```basm
+INCR 1 1 // a
+INCR 2 0 // b
+WHNE 0 3 [
+    INCR 0 1;
 
-### Unary Experession
+    COPY 1 3 4;
+    ADDP 1 4;
+    ADDP 1 2;
+    ZERO 2;
+    ADDP 2 3;
 
-actually small caviat to the note above:
+    OUT  1;
+];
+```
 
-\* -> * expressions: &var (clone)
+```bf
+>+              | INCR 1
+>               | INCR 2
+<<---[+++       | WHNE
+ +              | INCR 0
 
-### Function calls
+ >[->>+>+<<<]   | COPY 1
+ >>>[-<<<+>>>]  | ADDP 4
+ <<[-<+>]       | ADDP 2
+ [-]            | ZERO 2
+ >[-<+>]        | ADDP 3
+ <<.            | OUT  1
+ <---           | WHNE 0
+]+++            | WHNE 0
+```
 
-Function calls function like expressions,
-to be more precise the last expressions of a function body (if any)
-gets returned as the result of that expression.
+## The `[@name(arg, arg)]` Fields
+These fields allows you to define your own meta-instructions, to use elsewhere in the program.
+You can make as many of these fields as you require, as long as there is no two meta-instructions
+with the same name. It is also disallowed to make meta-instructions with the same name as normal instructions.
+Although do not be scared as there is no requirement for the name, other than it being an alphanumerical sequence with `_` allowed.
+Meta-instructions, once defined, can be used from anywhere below their definition like built-in instructions.
+As the name implies, meta-instructions are just instructions that are defined by a sequence of other instructions at compile time.
+This means, that meta-instctions are **inlined** and cannot be recusive.
 
-## Statements
+Arguments to meta-instructions are aliased by the name of the arguments in the meta-instruction signature.
+It is also important to note that meta-instructions are in their own scope, thus any aliases from main should not affect them.
 
-### Variable Declaration
+### Example
+Let's make an instruction that lets us set a cell to a specific value:
+```basm
+[@SET(addr, value)]
+ZERO addr;
+INCR addr value;
+```
 
-Variables can be declared like this:
-`let ident = value`
+Here is a bit more complex example where we implement a multiplication instruction:
+```basm
+[@MULT(addr1, addr2, addr3, sp)]
+// reserving two cells on the stack
+ALIS factor_copy1 sp+1;
+ALIS factor_copy2 sp+2;
+// since this new "sp" alias is just shadowing the old one, when the meta-instruction body
+// will end this alias will get invalidated and the prior sp will be restored, like we reclamed space on the stack
+ALIS sp sp+2; 
 
-### Functions Declaration
+WHNE addr2 0 [
+    DECR addr2 1;
+    COPY addr1 factor_copy1 factor_copy2;
+    ADDP factor_copy1 addr3;
+    ADDP factor_copy2 addr1; // this is just moving arg1 to arg2 if arg2 = 0, which it is
+];
+```
+Since multiplication requires us to take a bit more memory on the tape than just the addresses
+specified to us by the arguments, we take a sp (stack pointer) arguents that tells us where to
+take that these extra temporary cells required for the operation.
 
-Function declaration are made in this format:
-`fn function_name(func_arg1: type) -> return_val { body }`
+## Aliasing
+Aliasing via the `ALIS` instructions allows you to specify identifiers equating to values.
+Note that the name can be any alphanumerical sequence of characters and `_`.
+These aliases can be used to name adresses or constants for example.
+Aliases automatically shadow other prior aliases with the same name, and get invalidated
+once they run out of the scope. In basm the only two elements creating scopes are `[]` blocks
+and meta-instruction. Higher scope aliases can go inter lower scope, but lower scope aliases cannot reach higher scopes.
 
-### Loops/Branches
+## Language Items
+In basm, every instruction is formed by a sequence of language items.
+For example, `ADDP addr1 addr2;` would be `[instruction_id, expression, expression, declaration_delimitor]`.
 
-Loops and branches are in this format:
-`while expr { body }` & `if expr { body }`
+### Expressions
+Expressions in basm are very simple, they are formed by an alias or literal,
+possibly offset by another alias or literal. (There can only be one add/sub per expression)
+Here are examples of expressions:
+* `732` (number literal)
+* `10+9` (number literal offset by another number literal)
+* `'a'` (character literal, gets interpreted as it's ASCII value)
+* `my_alias` (alias)
+* `my_alias-1` (alias offset by number literal)
 
-## Syntax Tokens
-
-With all of that we can set down basic tokens to define the syntax
-of the language:
-
-| Written Form                                                  | Token   |
-| --------------------------------------------------------------- | --------- |
-| fn                                                            | FnDecl  |
-| let                                                        | VarDecl |
-| [ident]**:** [type] | TypeDecl
-|+, -, *, %, ==, !=, >...|BinaryOp
-|=|AssignOp|
-|&|CloneOp|
-|;|StatementDelimiter|
-|72|NumLit|
-|"Hello World"|StrLit|
-|'c'|CharLit|
-|true/false|BoolLit|
-|import|Import|
-|while|While|
-|if|If|
-|,|ElementSeperator|
-|[|LSquare|
-|]|RSquare|
-|{|LCurly|
-|}|LCurly|
-|(|LParentheses|
-|)|RParentheses|
-|*(any other alpha numeric squence that starts with a letter)* |Ident|
-
-written 2024-10-12
-
+Written 2024-11-23

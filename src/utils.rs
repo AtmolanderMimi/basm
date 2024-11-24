@@ -140,7 +140,7 @@ pub trait FindLnCol<'a>: CharOps<'a> {
     /// This might not meet your preconseptions of lines and columns.
     /// Lines and columns start counting from one, not from zero.
     /// ```
-    /// use bf_unfucked::utils::FindLnCol;
+    /// use basm::utils::FindLnCol;
     /// 
     /// // Lines and columns start counting from 1.
     /// assert_eq!("".byte_find_ln_col(0), Some((1, 1)));

@@ -297,7 +297,7 @@ mod tests {
 
     #[test]
     fn reading_from_source_file() {
-        let abs_path = path::absolute(PathBuf::from("./test-resources/fib.bfu")).unwrap();
+        let abs_path = path::absolute(PathBuf::from("./test-resources/fib.basm")).unwrap();
         let sf = SourceFile::from_file(&abs_path).unwrap();
 
         let contents = fs::read_to_string(&abs_path).unwrap();
@@ -306,7 +306,7 @@ mod tests {
 
     #[test]
     fn non_abs_path_check() {
-        let not_abs_path = PathBuf::from("./test-resources/fib.bfu");
+        let not_abs_path = PathBuf::from("./test-resources/fib.basm");
         if let Err(SourceFileError::NotAbsPath(_)) = SourceFile::from_file(not_abs_path) {
             // YAY ! :3
         } else {
@@ -325,7 +325,7 @@ mod tests {
     }
 
     fn test_file() -> SourceFile {
-        let path = path::absolute(PathBuf::from("./test-resources/fib.bfu")).unwrap();
+        let path = path::absolute(PathBuf::from("./test-resources/fib.basm")).unwrap();
         let sf = SourceFile::from_file(path)
             .unwrap();
 

@@ -33,71 +33,30 @@ impl Token<'_> {
 /// Syntactic tokens types
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
-    /// "fn", function declaration.
-    FnDecl,
-    /// "let", variable declaration.
-    VarDecl,
-    /// "[Ident]: [type Ident]", type declaration.
-    /// Can also be used to signify the return type of a function.
-    TypeDecl,
-    /// "+", adds left and right.
-    Plus,
-    /// "-", substracts right from left.
-    Minus,
-    /// "*", multiply left and right.
-    Multiply,
-    /// "%", remainder of the division of left by right. ex: 5 % 2 = 1
-    Modulo,
-    /// "==", true if left and right are equal.
-    Equals,
-    /// "!=", true if left and right are not equal.
-    NotEquals,
-    /// ">", true if left is bigger than right.
-    BiggerThan,
-    /// "<", true if left is smaller than right.
-    SmallerThan,
-    /// ">=", true if left is bigger or equal to right.
-    BiggerThanEqual,
-    /// "<=", true if left is smaller or equal to right.
-    SmallerThanEqual,
-    /// "||", true if left or right is true.
-    Or,
-    /// "&&", true if left and right are true.
-    And,
-    /// "=", the assignment operator.
-    AssignOp,
-    /// "&", the clone operator.
-    CloneOp,
-    /// ";", the delimiter between statements.
-    StatementDelimiter,
-    /// ",", the seperator between elements in an array.
-    ElementSeperator,
-    /// "if", an if branch.
-    If,
-    /// "while", a while loop.
-    While,
-    /// "import", an import statement.
-    Import,
     /// "72", an Num literal.
     NumLit(Num),
     /// '"Hello, World"', a Str literal.
     StrLit(String),
     /// "'c'", a Char literal.
     CharLit(char),
-    /// "true"/"false", a Bool literal.
-    BoolLit(bool),
+    /// "+", used to offset values.
+    Plus,
+    /// "-", used to offset values.
+    Minus,
     /// "[", an opening square bracket, many uses.
     LSquare,
     /// "]", an closing square bracket, many uses.
     RSquare,
-    /// "{", an opening curly bracket, many uses.
-    LCurly,
-    /// "}", an closing curly bracket, many uses.
-    RCurly,
     /// "(", an opening parentheses, many uses.
     LParen,
     /// ")", an closing parentheses, many uses.
     RParen,
+    /// "@", used to declare the signature of a meta-instruction.
+    At,
+    /// ",", used to enumerate arguments in meta-instruction signature.
+    Colon,
+    /// ";", delimits instructions.
+    InstructionDelimitor,
     /// "//", starts a comment on the rest of the line.
     /// Is only used by the lexer to avoid comments.
     /// This will not be found in the AST.
@@ -109,35 +68,16 @@ pub enum TokenType {
 
 impl TokenType {
     const MAPPING: &'static [(&'static str, TokenType)] = &[
-        ("fn", Self::FnDecl),
-        ("let", Self::VarDecl),
-        (":", Self::TypeDecl),
         ("+", Self::Plus),
         ("-", Self::Minus),
-        ("*", Self::Multiply),
-        ("%", Self::Modulo),
-        ("==", Self::Equals),
-        ("!=", Self::NotEquals),
-        (">", Self::BiggerThan),
-        ("<", Self::SmallerThan),
-        (">=", Self::BiggerThanEqual),
-        ("<=", Self::SmallerThanEqual),
-        ("||", Self::Or),
-        ("&&", Self::And),
-        ("=", Self::AssignOp),
-        ("&", Self::CloneOp),
-        (";", Self::StatementDelimiter),
-        (",", Self::ElementSeperator),
-        ("if", Self::If),
-        ("while", Self::While),
-        ("import", Self::Import),
         ("[", Self::LSquare),
         ("]", Self::RSquare),
-        ("{", Self::LCurly),
-        ("}", Self::RCurly),
         ("(", Self::LParen),
         (")", Self::RParen),
+        ("@", Self::At),
         ("//", Self::LineComment),
+        (";", Self::InstructionDelimitor),
+        (",", Self::Colon),
         // lits go here also idents in spirit, cus they can't be mapped like this
     ];
 
@@ -147,40 +87,20 @@ impl TokenType {
     fn _exhaustive(&self) {
         #[allow(clippy::pedantic)]
         match self {
-            Self::FnDecl => (),
-            Self::VarDecl => (),
-            Self::AssignOp => (),
-            Self::BiggerThan => (),
-            Self::BiggerThanEqual => (),
-            Self::BoolLit(_) => (),
+            Self::At => (),
             Self::CharLit(_) => (),
             Self::LineComment => (),
-            Self::CloneOp => (),
-            Self::ElementSeperator => (),
-            Self::Equals => (),
             Self::Ident(_) => (),
-            Self::If => (),
-            Self::LCurly => (),
             Self::LParen => (),
             Self::LSquare => (),
             Self::Minus => (),
-            Self::Modulo => (),
-            Self::Multiply => (),
-            Self::NotEquals => (),
             Self::NumLit(_) => (),
             Self::Plus => (),
-            Self::RCurly => (),
             Self::RParen => (),
             Self::RSquare => (),
-            Self::SmallerThan => (),
-            Self::SmallerThanEqual => (),
-            Self::StatementDelimiter => (),
             Self::StrLit(_) => (),
-            Self::TypeDecl => (),
-            Self::While => (),
-            Self::Import => (),
-            Self::And => (),
-            Self::Or => (),
+            Self::InstructionDelimitor => (),
+            Self::Colon => (),
         }
     }
 }
@@ -310,18 +230,6 @@ impl<'a> Token<'a> {
             return Ok(Some(Token::new(TokenType::CharLit(ch), slice)));
         }
 
-        // Bool
-        if trim_str == "true" {
-            let slice = sf_slice.byte_slice(trim_str_range)
-                .unwrap();
-            return Ok(Some(Token::new(TokenType::BoolLit(true), slice)));
-        }
-        if trim_str == "false" {
-            let slice = sf_slice.byte_slice(trim_str_range)
-                .unwrap();
-            return Ok(Some(Token::new(TokenType::BoolLit(false), slice)));
-        }
-
         // Num
         if trim_str.is_numeric() {
             let res = trim_str.parse::<Num>();
@@ -423,13 +331,6 @@ mod tests {
     }
 
     #[test]
-    fn parse_token_non_lit_unknowable_doesnt_get_recognised() {
-        assert_eq!(Token::parse_token_non_lit(&sfs("whilebogus=")), None);
-        assert_eq!(Token::parse_token_non_lit(&sfs("one==")).unwrap().t_type, TokenType::Equals);
-        assert_eq!(Token::parse_token_non_lit(&sfs("two= ==")).unwrap().t_type, TokenType::AssignOp);
-    }
-
-    #[test]
     fn parse_token_non_lit_alphanumeric_tokens_not_found_in_ident() {
         assert!(Token::parse_token_non_lit(&sfs("while_condition")).is_none()); // while
         assert!(Token::parse_token_non_lit(&sfs("pinchifly")).is_none()); // if
@@ -443,65 +344,22 @@ mod tests {
             Token::parse_token_non_lit(&sfs("\n    let")),
             None
         );
-        // now we can guarenty that this is the VarDecl token
-        non_lit_match_range(
-            Token::parse_token_non_lit(&sfs("\n    let ")),
-            TokenType::VarDecl,
-            5..8,
-        );
-
-        // no need to look farther ":" can only be TypeDecl, we could then
-        // parse out the rest of the string for ident
-        non_lit_match_range(
-            Token::parse_token_non_lit(&sfs(" a:Num")),
-            TokenType::TypeDecl,
-            2..3,
-        );
-
-        non_lit_match_range(
-            Token::parse_token_non_lit(&sfs("while ")),
-            TokenType::While,
-            0..5,
-        );
 
         non_lit_match_range(
             Token::parse_token_non_lit(&sfs(" n -")),
             TokenType::Minus,
             3..4,
         );
-        non_lit_match_range(
-            Token::parse_token_non_lit(&sfs(" 1;")),
-            TokenType::StatementDelimiter,
-            2..3,
-        );
         non_lit_match(
             Token::parse_token_non_lit(&sfs(" &")),
             None
         );
-        non_lit_match_range(
-            Token::parse_token_non_lit(&sfs(" &b")),
-            TokenType::CloneOp,
-            1..2,
-        );
-        non_lit_match_range(
-            Token::parse_token_non_lit(&sfs(" &&")),
-            TokenType::And,
-            1..3,
-        );
 
         // parses are in order
-        non_lit_match_range(Token::parse_token_non_lit(&sfs("
-    while n != 0 {
-        // &b: \"the value of\" b
-        // by default all operations are destructive
-        // including moves, because bf
-        let c: Num = &b;
-        b = a + b; // here these destroy both a and b making them invalid
-        a = c;
-
-        // maybe i can switch this to \"n--\" to simplify to the translating
-        n = n - 1;
-    }")), TokenType::While, 5..10);
+        non_lit_match_range(
+            Token::parse_token_non_lit(&sfs("@ + - //")),
+             TokenType::At, 0..1
+        );
     }
 
     #[test]
@@ -513,21 +371,6 @@ mod tests {
         assert_eq!(
             Token::parse_token_lit(&sfs("\n\n    \n ")),
             Ok(None),
-        );
-    }
-
-    #[test]
-    fn parse_token_lit_bool() {
-        lit_match_range(
-            Token::parse_token_lit(&sfs("\n  \n\ntrue   ")),
-            TokenType::BoolLit(true),
-            5..9
-        );
-
-        lit_match_range(
-            Token::parse_token_lit(&sfs("\n \n false")),
-            TokenType::BoolLit(false),
-            4..9
         );
     }
 

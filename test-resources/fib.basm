@@ -1,0 +1,27 @@
+[@MOVE(from, to)]
+ZERO to;
+ADDP to from;
+
+MOVE a c;
+MOVE b a;
+MOVE c a;
+
+[main]
+ALIS i 0;
+ALIS a 1;
+ALIS b 2;
+ALIS sp 3;
+
+INCR a 1;
+INCR b 0;
+WHNE i 3 [
+    INCR i 1;
+
+    COPY a 3 4;
+    MOVE 4 a;
+    ADDP a b;
+	
+	MOVE 3 b;
+    OUT  a;
+];
+

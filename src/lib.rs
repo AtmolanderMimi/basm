@@ -1,6 +1,6 @@
-//! # Bfu
-//! Brainfuck, unfucked.
-//! stuff to do: add more things here
+//! # Brain Aneurysm
+//! 
+//! started as of 2024-10-12
 
 #![feature(assert_matches)]
 
