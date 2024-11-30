@@ -131,11 +131,11 @@ const ITALIC_START: &str = "\x1B[3m";
 const ITALIC_END: &str = "\x1B[23m";
 
 #[derive(Error, Debug, PartialEq)]
-/// An error encounted while trying to parse for a literal syntax token.à
+/// An error encounted while trying to parse for a literal syntax token.
 /// 
 /// *`"Yo... This is literally an error, man..."`*
 pub enum LiteralError<'a> {
-    /// Number is invalid, because it is not within the range that bf can store (0-255).
+    /// Number is invalid, because it is not within the range that bf can store.
     #[error("number {0} could not be parsed, probably too big")]
     InvalidNumber(SfSlice<'a>),
     /// Char is invalid, because it does not contain a character. It should look like this: ''.

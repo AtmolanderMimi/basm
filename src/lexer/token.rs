@@ -2,7 +2,7 @@
 
 use std::{num::IntErrorKind, ops::Range};
 
-use crate::{source::SfSlice, utils::{CharOps, IsAlphanumeric}, Num};
+use crate::{source::SfSlice, utils::{CharOps, IsAlphanumeric}};
 
 use super::LiteralError;
 
@@ -28,13 +28,21 @@ impl Token<'_> {
     pub fn char_range(&self) -> Range<usize> {
         self.slice.char_range()
     }
+
+    /// Creates an owned version of this [`Token`] by copying the contents of the source file.
+    pub fn into_owned(self) -> Token<'static> {
+        Token {
+            t_type: self.t_type,
+            slice: self.slice.into_owned(),
+        }
+    }
 }
 
 /// Syntactic tokens types
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
     /// "72", an Num literal.
-    NumLit(Num),
+    NumLit(u32),
     /// '"Hello, World"', a Str literal.
     StrLit(String),
     /// "'c'", a Char literal.
@@ -47,14 +55,8 @@ pub enum TokenType {
     LSquare,
     /// "]", an closing square bracket, many uses.
     RSquare,
-    /// "(", an opening parentheses, many uses.
-    LParen,
-    /// ")", an closing parentheses, many uses.
-    RParen,
     /// "@", used to declare the signature of a meta-instruction.
     At,
-    /// ",", used to enumerate arguments in meta-instruction signature.
-    Colon,
     /// ";", delimits instructions.
     InstructionDelimitor,
     /// "//", starts a comment on the rest of the line.
@@ -72,12 +74,9 @@ impl TokenType {
         ("-", Self::Minus),
         ("[", Self::LSquare),
         ("]", Self::RSquare),
-        ("(", Self::LParen),
-        (")", Self::RParen),
         ("@", Self::At),
         ("//", Self::LineComment),
         (";", Self::InstructionDelimitor),
-        (",", Self::Colon),
         // lits go here also idents in spirit, cus they can't be mapped like this
     ];
 
@@ -91,16 +90,13 @@ impl TokenType {
             Self::CharLit(_) => (),
             Self::LineComment => (),
             Self::Ident(_) => (),
-            Self::LParen => (),
             Self::LSquare => (),
             Self::Minus => (),
             Self::NumLit(_) => (),
             Self::Plus => (),
-            Self::RParen => (),
             Self::RSquare => (),
             Self::StrLit(_) => (),
             Self::InstructionDelimitor => (),
-            Self::Colon => (),
         }
     }
 }
@@ -232,7 +228,7 @@ impl<'a> Token<'a> {
 
         // Num
         if trim_str.is_numeric() {
-            let res = trim_str.parse::<Num>();
+            let res = trim_str.parse::<u32>();
 
             let num = match res {
                 Ok(n) => n,
@@ -438,12 +434,5 @@ mod tests {
             TokenType::NumLit(142),
             1..4
         );
-
-        let res = Token::parse_token_lit(&sfs("\n7142 "));
-        if let Err(LiteralError::InvalidNumber(..)) = res {
-            // aight ok
-        } else {
-            panic!("{:?} is wrong error or not error", res)
-        }
     }
 }

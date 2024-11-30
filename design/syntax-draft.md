@@ -24,7 +24,7 @@ Though i wouldn't call an assembly language, since it transpiles to a lower lang
 In basm, files are split into three main fields:
 * `[data]` which is used to preload cells of the bf tape with data before running any code,
 * `[main]` which is the start point of your program,
-* `[@name(arg, arg)]` which defines a meta-instruction, there can be more than one of these fields,
+* `[@name arg arg]` which defines a meta-instruction, there can be more than one of these fields,
 
 ## The `[data]` Field
 This field allows you to define an values to be preloaded a certain adresses on the tape.
@@ -108,7 +108,7 @@ WHNE 0 3 [
 ]+++            | WHNE 0
 ```
 
-## The `[@name(arg, arg)]` Fields
+## The `[@name arg arg]` Fields
 These fields allows you to define your own meta-instructions, to use elsewhere in the program.
 You can make as many of these fields as you require, as long as there is no two meta-instructions
 with the same name. It is also disallowed to make meta-instructions with the same name as normal instructions.
@@ -123,14 +123,14 @@ It is also important to note that meta-instructions are in their own scope, thus
 ### Example
 Let's make an instruction that lets us set a cell to a specific value:
 ```basm
-[@SET(addr, value)]
+[@SET addr value]
 ZERO addr;
 INCR addr value;
 ```
 
 Here is a bit more complex example where we implement a multiplication instruction:
 ```basm
-[@MULT(addr1, addr2, addr3, sp)]
+[@MULT addr1 addr2 addr3 sp)]
 // reserving two cells on the stack
 ALIS factor_copy1 sp+1;
 ALIS factor_copy2 sp+2;

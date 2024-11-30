@@ -1,4 +1,4 @@
-[@MOVE(from, to)]
+[@MOVE from to]
 ZERO to;
 ADDP to from;
 

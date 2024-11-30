@@ -16,15 +16,13 @@
     clippy::missing_errors_doc,
 )]
 
-/// The number type, aka what does each cell on the tape hold
-pub type Num = u8;
-
 pub mod error;
 pub use error::{CompilerError, Lint};
 pub mod lexer;
 pub use lexer::lex_file;
 pub mod source;
 pub mod utils;
+mod parser;
 
 /// Transpiles bfu source code into bf.
 pub fn transpile(source: &str) -> &str {
