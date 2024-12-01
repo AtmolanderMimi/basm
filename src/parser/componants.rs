@@ -1,12 +1,12 @@
 //! Componant patterns, these are generic util patterns used to make other patterns.
 
-use std::marker::PhantomData;
+use std::{marker::PhantomData, mem};
 
 use either::Either;
 
 use crate::lexer::token::Token;
 
-use super::{Advancement, AdvancementState as AdvState, Pattern, PatternMatchingError};
+use super::{Advancement, AdvancementState as AdvState, Pattern};
 
 #[derive(Debug, Clone, PartialEq, Default)]
 /// Requires one of the patterns to be valid.
@@ -131,6 +131,46 @@ where T: Pattern<'a>, U: Pattern<'a> {
     }
 }
 
+/// Greedly matches the provided pattern zero or more times.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Many<'a, T: Pattern<'a>> {
+    t: T,
+    results: Vec<T::ParseResult>,
+}
+
+impl<'a, T: Pattern<'a>> Default for Many<'a, T> {
+    fn default() -> Self {
+        Many {
+            t: T::default(),
+            results: Vec::new(),
+        }
+    }
+}
+
+impl<'a, T: Pattern<'a>> Pattern<'a> for Many<'a, T> {
+    type ParseResult = Vec<T::ParseResult>;
+
+    fn advance(&mut self, token: &'a Token) -> Advancement<Self::ParseResult> {
+        let adv = self.t.advance(token);
+        let overeach = adv.overeach;
+
+        match adv.state {
+            AdvState::Advancing => Advancement::new(AdvState::Advancing, overeach),
+            AdvState::Done(res) => {
+                self.results.push(res);
+                self.t = T::default();
+
+                Advancement::new(AdvState::Advancing, overeach)
+            },
+            // TODO: bad error handly here too
+            AdvState::Error(_) => {
+                let results = mem::take(&mut self.results);
+                Advancement::new(AdvState::Done(results), overeach)
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{lexer::token::TokenType, parser::{solve_pattern, terminals::*}, source::SfSlice};
@@ -145,7 +185,7 @@ mod tests {
     fn or_token_pattern() {
         let token = bogus_token(TokenType::Ident("joe".to_string()));
         let tokens = vec![token];
-        let res = solve_pattern::<Or::<IdentPattern, Or<NumLitPattern, CharLitPattern>>>(&tokens);
+        let res = solve_pattern::<Or<IdentPattern, Or<NumLitPattern, CharLitPattern>>>(&tokens);
         if let Ok(_) = res {
             // yay
         } else {
@@ -154,7 +194,7 @@ mod tests {
 
         let token = bogus_token(TokenType::CharLit('c'));
         let tokens = vec![token];
-        let res = solve_pattern::<Or::<IdentPattern, Or<NumLitPattern, CharLitPattern>>>(&tokens);
+        let res = solve_pattern::<Or<IdentPattern, Or<NumLitPattern, CharLitPattern>>>(&tokens);
         if let Ok(_) = res {
             // yay
         } else {
@@ -163,7 +203,7 @@ mod tests {
 
         let token = bogus_token(TokenType::Plus);
         let tokens = vec![token];
-        let res = solve_pattern::<Or::<IdentPattern, Or<NumLitPattern, CharLitPattern>>>(&tokens);
+        let res = solve_pattern::<Or<IdentPattern, Or<NumLitPattern, CharLitPattern>>>(&tokens);
         if let Err(_) = res {
             // yay
         } else {
@@ -179,7 +219,7 @@ mod tests {
             bogus_token(TokenType::Ident("a".to_string())),
         ];
 
-        let res = solve_pattern::<Then::<CharLitPattern, Then<MinusPattern, IdentPattern>>>(&tokens);
+        let res = solve_pattern::<Then<CharLitPattern, Then<MinusPattern, IdentPattern>>>(&tokens);
         if res.is_err() {
             panic!("did not complete")
         }
@@ -189,9 +229,42 @@ mod tests {
             bogus_token(TokenType::Ident("a".to_string())),
             bogus_token(TokenType::Minus),
         ];
-        let res = solve_pattern::<Then::<CharLitPattern, Then<MinusPattern, IdentPattern>>>(&tokens);
+        let res = solve_pattern::<Then<CharLitPattern, Then<MinusPattern, IdentPattern>>>(&tokens);
         if res.is_ok() {
             panic!("did complete")
         }
+    }
+
+    #[test]
+    fn many_token_pattern() {
+        let tokens = vec![
+            bogus_token(TokenType::Ident("tavgha".to_string())),
+            bogus_token(TokenType::Ident("a".to_string())),
+            bogus_token(TokenType::Minus),
+            bogus_token(TokenType::Ident("the_secrets_of_732".to_string())),
+            bogus_token(TokenType::Eof),
+        ];
+        let res = solve_pattern::<Many<IdentPattern>>(&tokens);
+        assert_eq!(res.unwrap().len(), 2);
+
+        let tokens = vec![
+            bogus_token(TokenType::Ident("tavgha".to_string())),
+            bogus_token(TokenType::Ident("a".to_string())),
+            bogus_token(TokenType::Minus),
+            bogus_token(TokenType::Ident("the_secrets_of_732".to_string())),
+            bogus_token(TokenType::Eof),
+        ];
+        let res = solve_pattern::<Then<Then<Many<IdentPattern>, MinusPattern>, Many<IdentPattern>>>(&tokens);
+        let res = res.unwrap();
+        assert_eq!(res.0.0.len(), 2);
+        assert_eq!(res.1.len(), 1);
+
+        let tokens = vec![
+            bogus_token(TokenType::Ident("tavgha".to_string())),
+            bogus_token(TokenType::Ident("a".to_string())),
+            bogus_token(TokenType::Eof),
+        ];
+        let res = solve_pattern::<Then<Many<IdentPattern>, IdentPattern>>(&tokens);
+        assert!(res.is_err());
     }
 }

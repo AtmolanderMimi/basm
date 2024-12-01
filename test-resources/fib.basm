@@ -24,4 +24,3 @@ WHNE i 3 [
 	MOVE 3 b;
     OUT  a;
 ];
-

@@ -66,6 +66,8 @@ pub enum TokenType {
     /// Any alphanumeric squence that starts with a letter and
     /// is not any other token.
     Ident(String),
+    /// End of file identificator. Signifies the end of the token string.
+    Eof,
 }
 
 impl TokenType {
@@ -97,6 +99,7 @@ impl TokenType {
             Self::RSquare => (),
             Self::StrLit(_) => (),
             Self::InstructionDelimitor => (),
+            Self::Eof => (),
         }
     }
 }

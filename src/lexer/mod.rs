@@ -97,6 +97,12 @@ pub fn lex_file(source_file: &SourceFile) -> (Vec<Token>, Vec<LexerError>) {
         }
     }
 
+    let file_lenght = source_file.char_lenght();
+    let eof_slice = source_file.char_slice(file_lenght..file_lenght)
+        .expect("slice should be valid");
+    let eof = Token::new(TokenType::Eof, eof_slice);
+    lexer.tokens.push(eof);
+
     (lexer.tokens, errors)
 }
 
