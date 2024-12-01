@@ -1,7 +1,11 @@
+use either::Either;
+
 use crate::lexer::token::Token;
 
 use super::expression::Expression;
 use super::expression::ExpressionPattern;
+use super::scope::Scope;
+use super::scope::ScopePattern;
 use super::terminals::*;
 use super::componants::*;
 use super::Advancement;
@@ -11,14 +15,14 @@ use super::Pattern;
 /// Pattern for constructing an [`Ìnstruction`].
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct InstructionPattern<'a>(
-    Then<'a, IdentPattern, Then<'a, Many<'a, ExpressionPattern<'a>>, SemicolonPattern>>
+    Then<'a, IdentPattern, Then<'a, Many<'a, Or<'a, ExpressionPattern<'a>, ScopePattern<'a>>>, SemicolonPattern>>
 );
 
 /// An instruction.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Instruction<'a> {
     name: Ident<'a>,
-    arguments: Vec<Expression<'a>>,
+    arguments: Vec<Either<Expression<'a>, Scope<'a>>>,
     semicolon: Semicolon<'a>,
 }
 
@@ -72,6 +76,24 @@ mod tests {
 
         let res = solve_pattern::<InstructionPattern>(&tokens).unwrap();
         assert_eq!(res.arguments.len(), 2);
+
+        let tokens = vec![
+            TokenType::Ident("WHNE".to_string()),
+            TokenType::Ident("i".to_string()),
+            TokenType::NumLit(10),
+            TokenType::LSquare,
+                TokenType::Ident("INCR".to_string()),
+                TokenType::Ident("i".to_string()),
+                TokenType::NumLit(1),
+                TokenType::InstructionDelimitor,
+            TokenType::RSquare,
+            TokenType::InstructionDelimitor,
+            TokenType::Eof,
+        ].into_iter()
+        .map(|tt| bogus_token(tt)).collect();
+
+        let res = solve_pattern::<InstructionPattern>(&tokens).unwrap();
+        assert_eq!(res.arguments.len(), 3);
 
         let tokens = vec![
             TokenType::Ident("ADDP".to_string()),

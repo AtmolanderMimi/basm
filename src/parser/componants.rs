@@ -15,9 +15,8 @@ use super::{Advancement, AdvancementState as AdvState, Pattern};
 pub(super) struct Or<'a, T, U>
 where T: Pattern<'a>, U: Pattern<'a> {
     _phantom: PhantomData<&'a ()>,
-    checking_u: bool,
     t: T,
-    u: U,
+    u: Option<U>, // only loads u if it is needed
 }
 
 impl<'a, T, U> Pattern<'a> for Or<'a, T, U>
@@ -25,39 +24,39 @@ where T: Pattern<'a>, U: Pattern<'a> {
     type ParseResult = Either<T::ParseResult, U::ParseResult>;
 
     fn advance(&mut self, token: &'a Token) -> Advancement<Self::ParseResult> {
-        if !self.checking_u {
-            let adv = self.t.advance(&token);
+        if let Some(u) = &mut self.u {
+            let adv = u.advance(&token);
             let overeach = adv.overeach;
-            let adv_return = match adv.state {
+            match adv.state {
                 AdvState::Advancing => {
-                    Advancement::new(AdvState::Advancing, overeach)
+                    return Advancement::new(AdvState::Advancing, overeach)
                 },
-                AdvState::Done(t_res) => {
-                    Advancement::new(AdvState::Done(Either::Left(t_res)), overeach)
+                AdvState::Done(u_res) => {
+                    return Advancement::new(AdvState::Done(Either::Right(u_res)), overeach)
                 },
+                // TODO: simply error forwarding here, a compound error would probably be right'er
                 AdvState::Error(e) => {
-                    self.checking_u = true;
-                    Advancement::new(AdvState::Advancing, overeach)
+                    return Advancement::new(AdvState::Error(e), overeach)
                 },
-            };
-
-            return adv_return;
+            }
         }
 
-        let adv = self.u.advance(&token);
+        
+        let adv = self.t.advance(&token);
         let overeach = adv.overeach;
         match adv.state {
             AdvState::Advancing => {
                 Advancement::new(AdvState::Advancing, overeach)
             },
-            AdvState::Done(u_res) => {
-                Advancement::new(AdvState::Done(Either::Right(u_res)), overeach)
+            AdvState::Done(t_res) => {
+                Advancement::new(AdvState::Done(Either::Left(t_res)), overeach)
             },
-            // TODO: simply error forwarding here, a compound error would probably be right'er
             AdvState::Error(e) => {
-                Advancement::new(AdvState::Error(e), overeach)
+                self.u = Some(U::default());
+                Advancement::new(AdvState::Advancing, overeach)
             },
         }
+
     }
 }
 

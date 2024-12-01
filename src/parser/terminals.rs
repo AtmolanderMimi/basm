@@ -77,6 +77,20 @@ single_token_pattern!(
     TokenType::InstructionDelimitor
 );
 
+single_token_pattern!(
+    LeftSquare,
+    LeftSquarePattern,
+    TokenType::LSquare,
+    TokenType::LSquare
+);
+
+single_token_pattern!(
+    RightSquare,
+    RightSquarePattern,
+    TokenType::RSquare,
+    TokenType::RSquare
+);
+
 #[cfg(test)]
 mod test {
     use crate::source::SfSlice;

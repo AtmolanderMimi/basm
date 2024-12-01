@@ -2,6 +2,7 @@ mod terminals;
 mod componants;
 mod expression;
 mod instruction;
+mod scope;
 
 use thiserror::Error;
 
