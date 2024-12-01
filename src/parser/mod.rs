@@ -3,6 +3,7 @@ mod componants;
 mod expression;
 mod instruction;
 mod scope;
+mod fields;
 
 use thiserror::Error;
 

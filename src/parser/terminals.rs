@@ -91,6 +91,40 @@ single_token_pattern!(
     TokenType::RSquare
 );
 
+single_token_pattern!(
+    At,
+    AtPattern,
+    TokenType::At,
+    TokenType::At
+);
+
+/// Pattern for that matches an ident of name `main` only.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct MainIdentPattern;
+
+/// An ident token of value `main`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MainIdent<'a>(Token<'a>);
+
+impl<'a> Pattern<'a> for MainIdentPattern {
+    type ParseResult = MainIdent<'a>;
+
+    fn advance(&mut self, token: &'a Token) -> Advancement<Self::ParseResult> {
+        if let TokenType::Ident(s) = &token.t_type {
+            if s == "main" {
+                let out = MainIdent(token.clone());
+                return Advancement::new_no_overeach(AdvancementState::Done(out))
+            }
+        }
+
+        let error = PatternMatchingError::UnexpectedToken {
+            expected: TokenType::Ident("main".to_string()),
+            got: token.clone().into_owned(),
+        };
+        Advancement::new(AdvancementState::Error(error), 1)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use crate::source::SfSlice;
