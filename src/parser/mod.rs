@@ -1,6 +1,7 @@
 mod terminals;
 mod componants;
 mod expression;
+mod instruction;
 
 use thiserror::Error;
 

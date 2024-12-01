@@ -70,6 +70,13 @@ single_token_pattern!(
     TokenType::Minus
 );
 
+single_token_pattern!(
+    Semicolon,
+    SemicolonPattern,
+    TokenType::InstructionDelimitor,
+    TokenType::InstructionDelimitor
+);
+
 #[cfg(test)]
 mod test {
     use crate::source::SfSlice;
