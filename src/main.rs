@@ -1,6 +1,6 @@
 use std::path::absolute;
 
-use basm::{source::SourceFile, CompilerError};
+use basm::{parser::parse_tokens, source::SourceFile, CompilerError};
 
 fn main() {
     let path = std::env::args().nth(1)
@@ -17,4 +17,8 @@ fn main() {
             println!("{}", e.description());
         }
     }
+
+    println!("\n------------------ [ PARSED ] ------------------");
+    let program = parse_tokens(&tokens).unwrap();
+    println!("{program:#?}");
 }

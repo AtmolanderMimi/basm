@@ -1,3 +1,5 @@
+//! Tools used to parse a string of tokens into sensible a sensible structure (the [`ParsedProgram`] struct).
+
 mod terminals;
 mod componants;
 mod expression;
@@ -5,12 +7,25 @@ mod instruction;
 mod scope;
 mod fields;
 
+use componants::{Many, Then};
+use fields::{MainFieldPattern, MetaFieldPattern};
 use thiserror::Error;
 
 use crate::{lexer::token::{Token, TokenType}, CompilerError, Lint};
 
+#[allow(unused_imports)]
+pub use terminals::{Ident, NumLit, CharLit, Plus, Minus, Semicolon, LeftSquare, RightSquare, At, MainIdent};
+#[allow(unused_imports)]
+pub use expression::Expression;
+#[allow(unused_imports)]
+pub use fields::{MainField, MetaField};
+#[allow(unused_imports)]
+pub use instruction::Instruction;
+#[allow(unused_imports)]
+pub use scope::Scope;
+
 /// Defines a language pattern.
-pub trait Pattern<'a>: Default {
+trait Pattern<'a>: Default {
     type ParseResult: Clone;
 
     /// Advances a pattern.
@@ -20,13 +35,13 @@ pub trait Pattern<'a>: Default {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum AdvancementState<T> {
+enum AdvancementState<T> {
     Advancing,
     Done(T),
     Error(PatternMatchingError),
 }
 
-pub struct Advancement<T> {
+struct Advancement<T> {
     // The number of tokens that were not used to make a decision, but not included in the pattern.
     pub overeach: usize,
     pub state: AdvancementState<T>,
@@ -99,7 +114,7 @@ impl<'a, 'b: 'a, T: Pattern<'a>> PatternFeeder<'a, 'b, T> {
     }
 }
 
-pub fn solve_pattern<'a, 'b: 'a, T: Pattern<'a> + 'a>(tokens: &'b Vec<Token<'a>>) -> Result<T::ParseResult, PatternMatchingError> {
+fn solve_pattern<'a, 'b: 'a, T: Pattern<'a> + 'a>(tokens: &'b Vec<Token<'a>>) -> Result<T::ParseResult, PatternMatchingError> {
     let mut feeder: PatternFeeder<'_, '_, T> = PatternFeeder::new(tokens);
 
     loop {
@@ -108,5 +123,143 @@ pub fn solve_pattern<'a, 'b: 'a, T: Pattern<'a> + 'a>(tokens: &'b Vec<Token<'a>>
             AdvancementState::Done(res) => return Ok(res),
             AdvancementState::Error(e) => return Err(e),
         }
+    }
+}
+
+/// Pattern for constructing a [`ParsedProgram`].
+#[derive(Debug, Clone, PartialEq, Default)]
+struct ProgramPattern<'a>(
+    Then<'a, Many<'a, MetaFieldPattern<'a>>, MainFieldPattern<'a>>
+);
+
+/// A whole, parsed, basm program.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ParsedProgram<'a> {
+    pub meta_instructions: Vec<MetaField<'a>>,
+    pub main_field: MainField<'a>,
+}
+
+impl<'a> Pattern<'a> for ProgramPattern<'a> {
+    type ParseResult = ParsedProgram<'a>;
+
+    fn advance(&mut self, token: &'a Token) -> Advancement<Self::ParseResult> {
+        use AdvancementState as AdvState;
+
+        let adv = self.0.advance(token);
+        let overeach = adv.overeach;
+
+        match adv.state {
+            AdvState::Advancing => Advancement::new(AdvState::Advancing, overeach),
+            AdvState::Done(res) => {
+                let val = ParsedProgram {
+                    meta_instructions: res.0,
+                    main_field: res.1,
+                };
+
+                Advancement::new(AdvState::Done(val), overeach)
+            },
+            AdvState::Error(e) => Advancement::new(AdvState::Error(e), overeach),
+        }
+    }
+}
+
+/// Parses the tokens into a structured form ([`ParsedProgram`]).
+pub fn parse_tokens<'a, 'b: 'a>(tokens: &'b Vec<Token<'a>>) -> Result<ParsedProgram<'a>, PatternMatchingError> {
+    solve_pattern::<ProgramPattern>(tokens)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::absolute;
+
+    use crate::{lex_file, source::{SfSlice, SourceFile}};
+
+    use super::*;
+
+    fn bogus_token(t_type: TokenType) -> Token<'static> {
+        Token::new(t_type, SfSlice::new_bogus("fishg"))
+    }
+
+    #[test]
+    fn parsed_file_token_pattern() {
+        // normal
+        let tokens = vec![
+            TokenType::LSquare,
+            TokenType::At,
+            TokenType::Ident("SET".to_string()),
+            TokenType::Ident("addr".to_string()),
+            TokenType::Ident("value".to_string()),
+            TokenType::RSquare,
+            TokenType::Ident("ZERO".to_string()),
+            TokenType::Ident("addr".to_string()),
+            TokenType::InstructionDelimitor,
+            TokenType::Ident("INCR".to_string()),
+            TokenType::Ident("addr".to_string()),
+            TokenType::Ident("value".to_string()),
+            TokenType::InstructionDelimitor,
+            TokenType::LSquare,
+            TokenType::Ident("main".to_string()),
+            TokenType::RSquare,
+            TokenType::Ident("SET".to_string()),
+            TokenType::NumLit(0),
+            TokenType::NumLit(732),
+            TokenType::InstructionDelimitor,
+            TokenType::Eof,
+        ].into_iter()
+        .map(|tt| bogus_token(tt)).collect();
+
+        let res = solve_pattern::<ProgramPattern>(&tokens).unwrap();
+        assert_eq!(res.meta_instructions.len(), 1);
+
+        // no [main]
+        let tokens = vec![
+            TokenType::LSquare,
+            TokenType::At,
+            TokenType::Ident("SET".to_string()),
+            TokenType::Ident("addr".to_string()),
+            TokenType::Ident("value".to_string()),
+            TokenType::RSquare,
+            TokenType::Ident("ZERO".to_string()),
+            TokenType::Ident("addr".to_string()),
+            TokenType::InstructionDelimitor,
+            TokenType::Ident("INCR".to_string()),
+            TokenType::Ident("addr".to_string()),
+            TokenType::Ident("value".to_string()),
+            TokenType::InstructionDelimitor,
+            TokenType::Eof,
+        ].into_iter()
+        .map(|tt| bogus_token(tt)).collect();
+
+        let res = solve_pattern::<ProgramPattern>(&tokens);
+        assert!(res.is_err());
+
+        // no meta
+        let tokens = vec![
+            TokenType::LSquare,
+            TokenType::Ident("main".to_string()),
+            TokenType::RSquare,
+            TokenType::Ident("SET".to_string()),
+            TokenType::NumLit(0),
+            TokenType::NumLit(732),
+            TokenType::InstructionDelimitor,
+            TokenType::Eof,
+        ].into_iter()
+        .map(|tt| bogus_token(tt)).collect();
+
+        let res = solve_pattern::<ProgramPattern>(&tokens).unwrap();
+        assert_eq!(res.meta_instructions.len(), 0);
+    }
+
+    #[test]
+    fn parsing_fib_example() {
+        let abs_path = absolute("./test-resources/fib.basm").unwrap();
+        let file = SourceFile::from_file(&abs_path).unwrap();
+        let res = lex_file(&file);
+        assert!(res.1.is_empty());
+        let tokens = res.0;
+        let program = solve_pattern::<ProgramPattern>(&tokens).unwrap();
+
+        assert_eq!(program.meta_instructions.len(), 1);
+        assert_eq!(program.main_field.contents.len(), 7);
     }
 }

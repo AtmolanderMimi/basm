@@ -51,7 +51,7 @@ where T: Pattern<'a>, U: Pattern<'a> {
             AdvState::Done(t_res) => {
                 Advancement::new(AdvState::Done(Either::Left(t_res)), overeach)
             },
-            AdvState::Error(e) => {
+            AdvState::Error(_) => {
                 self.u = Some(U::default());
                 Advancement::new(AdvState::Advancing, overeach)
             },

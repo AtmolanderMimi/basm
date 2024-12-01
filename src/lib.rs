@@ -22,7 +22,7 @@ pub mod lexer;
 pub use lexer::lex_file;
 pub mod source;
 pub mod utils;
-mod parser;
+pub mod parser;
 
 /// Transpiles bfu source code into bf.
 pub fn transpile(source: &str) -> &str {

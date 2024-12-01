@@ -26,10 +26,10 @@ pub struct MainFieldPattern<'a>(
 /// The `[main]` field.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MainField<'a> {
-    left_bracket: LeftSquare<'a>,
-    main: MainIdent<'a>,
-    right_bracket: RightSquare<'a>,
-    contents: Vec<Either<Instruction<'a>, Scope<'a>>>,
+    pub left_bracket: LeftSquare<'a>,
+    pub main: MainIdent<'a>,
+    pub right_bracket: RightSquare<'a>,
+    pub contents: Vec<Either<Instruction<'a>, Scope<'a>>>,
 }
 
 impl<'a> Pattern<'a> for MainFieldPattern<'a> {
@@ -70,12 +70,12 @@ pub struct MetaFieldPattern<'a>(
 /// A `[@META arg]` field.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MetaField<'a> {
-    left_bracket: LeftSquare<'a>,
-    at: At<'a>,
-    name: Ident<'a>,
-    arguments: Vec<Ident<'a>>,
-    right_bracket: RightSquare<'a>,
-    contents: Vec<Either<Instruction<'a>, Scope<'a>>>,
+    pub left_bracket: LeftSquare<'a>,
+    pub at: At<'a>,
+    pub name: Ident<'a>,
+    pub arguments: Vec<Ident<'a>>,
+    pub right_bracket: RightSquare<'a>,
+    pub contents: Vec<Either<Instruction<'a>, Scope<'a>>>,
 }
 
 impl<'a> Pattern<'a> for MetaFieldPattern<'a> {
@@ -241,6 +241,6 @@ mod tests {
 
         let res = solve_pattern::<MetaFieldPattern>(&tokens).unwrap();
         assert_eq!(res.arguments.len(), 2);
-        assert_eq!(dbg!(res.contents).len(), 2);
+        assert_eq!(res.contents.len(), 2);
     }
 }

@@ -21,9 +21,9 @@ pub struct InstructionPattern<'a>(
 /// An instruction.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Instruction<'a> {
-    name: Ident<'a>,
-    arguments: Vec<Either<Expression<'a>, Scope<'a>>>,
-    semicolon: Semicolon<'a>,
+    pub name: Ident<'a>,
+    pub arguments: Vec<Either<Expression<'a>, Scope<'a>>>,
+    pub semicolon: Semicolon<'a>,
 }
 
 impl<'a> Pattern<'a> for InstructionPattern<'a> {

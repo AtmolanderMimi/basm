@@ -6,10 +6,12 @@ use crate::parser::PatternMatchingError;
 
 macro_rules! single_token_pattern {
     ($r:ident, $b:ident, $p:pat, $e:expr) => {
+        /// Newtype wrapper over a token of the type specified by it's name.
+        /// The inner token it **guarentied** to be the same as the name implies.
         #[derive(Debug, Clone, PartialEq)]
-        pub(super) struct $r<'a> {
-            token: Token<'a>
-        }
+        pub struct $r<'a>(
+            pub Token<'a>
+        );
 
         #[allow(unused)]
         #[derive(Debug, Clone, PartialEq, Default)]
@@ -19,9 +21,7 @@ macro_rules! single_token_pattern {
             type ParseResult = $r<'a>;
             fn advance(&mut self, token: &'a Token) -> Advancement<Self::ParseResult> {
                 if let $p = token.t_type {
-                    let result = $r {
-                        token: token.clone(),
-                    };
+                    let result = $r(token.clone());
                     return Advancement::new_no_overeach(AdvancementState::Done(result));
                 } else {
                     Advancement::new(AdvancementState::Error(PatternMatchingError::UnexpectedToken {
