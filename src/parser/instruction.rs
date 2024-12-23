@@ -1,6 +1,7 @@
 use either::Either;
 
 use crate::lexer::token::Token;
+use crate::source::SfSlice;
 
 use super::expression::Expression;
 use super::expression::ExpressionPattern;
@@ -10,6 +11,7 @@ use super::terminals::*;
 use super::componants::*;
 use super::Advancement;
 use super::AdvancementState as AdvState;
+use super::LanguageItem;
 use super::Pattern;
 
 /// Pattern for constructing an [`Ìnstruction`].
@@ -46,6 +48,27 @@ impl<'a> Pattern<'a> for InstructionPattern<'a> {
             },
             AdvState::Error(e) => Advancement::new(AdvState::Error(e), overeach),
         }
+    }
+}
+
+impl<'a> LanguageItem<'a> for Instruction<'a> {
+    type Owned = Instruction<'static>;
+
+    fn into_owned(self) -> Self::Owned {
+        let arguments = self.arguments.into_iter().map(|c| c.map_either(|l| l.into_owned(), |r| r.into_owned()))
+            .collect();
+
+        Instruction {
+            name: self.name.into_owned(),
+            semicolon: self.semicolon.into_owned(),
+            arguments,
+        }
+    }
+
+    fn slice(&self) -> SfSlice<'a> {
+        let start = self.name.0.slice.start();
+        let end = self.semicolon.0.slice.end();
+        self.name.0.slice.reslice_char(start..end)
     }
 }
 

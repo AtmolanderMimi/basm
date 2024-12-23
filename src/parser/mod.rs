@@ -11,7 +11,7 @@ use componants::{Many, Then};
 use fields::{MainFieldPattern, MetaFieldPattern};
 use thiserror::Error;
 
-use crate::{lexer::token::{Token, TokenType}, CompilerError, Lint};
+use crate::{lexer::token::{Token, TokenType}, source::SfSlice, CompilerError, Lint};
 
 #[allow(unused_imports)]
 pub use terminals::{Ident, NumLit, CharLit, Plus, Minus, Semicolon, LeftSquare, RightSquare, At, MainIdent};
@@ -160,6 +160,29 @@ impl<'a> Pattern<'a> for ProgramPattern<'a> {
             },
             AdvState::Error(e) => Advancement::new(AdvState::Error(e), overeach),
         }
+    }
+}
+
+/// A generic trait to be implemented onto each language item.
+pub trait LanguageItem<'a> {
+    type Owned;
+
+    /// A slice defining the position of the language item.
+    fn slice(&self) -> SfSlice<'a>;
+    /// Turns the language item into an owned form.
+    /// (usually by copying)
+    fn into_owned(self) -> Self::Owned;
+}
+
+impl<'a> LanguageItem<'a> for Token<'a> {
+    type Owned = Token<'static>;
+
+    fn into_owned(self) -> Self::Owned {
+        Token::into_owned(self)
+    }
+
+    fn slice(&self) -> SfSlice<'a> {
+        self.slice.clone()
     }
 }
 

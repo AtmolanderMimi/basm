@@ -2,11 +2,15 @@
 
 use either::Either;
 
+use crate::compiler::ScopeContext;
 use crate::lexer::token::Token;
+use crate::lexer::token::TokenType;
+use crate::source::SfSlice;
 
 use super::terminals::*;
 use super::componants::*;
 use super::Advancement;
+use super::LanguageItem;
 use super::Pattern;
 use super::AdvancementState as AdvState;
 
@@ -124,8 +128,131 @@ impl<'a> Pattern<'a> for ExpressionPattern<'a> {
 /// Represents an expression.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Expression<'a> {
-    base: ValueRepresentation<'a>,
-    mods: Vec<Mod<'a>>,
+    pub base: ValueRepresentation<'a>,
+    pub mods: Vec<Mod<'a>>,
+}
+
+impl<'a> Expression<'a> {
+    /// Evaluates the expression in the context.
+    /// Returns `None` if an alias is not defined in the context.
+    pub fn evaluate(&self, ctx: &ScopeContext<'_>) -> Option<u32> {
+        let mut base = self.base.evaluate(ctx)?;
+
+        for m in &self.mods {
+            match m {
+                Mod::Increment { value, .. } => {
+                    base = base.overflowing_add(value.evaluate(ctx)?).0;
+                },
+                Mod::Decrement { value, .. } => {
+                    base = base.overflowing_sub(value.evaluate(ctx)?).0;
+                },
+            }
+        }
+
+        Some(base)
+    }
+}
+
+impl<'a> ValueRepresentation<'a> {
+    /// Evaluates the value in the context.
+    /// Returns `None` if an alias is not defined in the context.
+    pub fn evaluate(&self, ctx: &ScopeContext<'_>) -> Option<u32> {
+        match self {
+            Self::NumLit(n) => {
+                if let TokenType::NumLit(v) = n.0.t_type {
+                    Some(v)
+                } else {
+                    panic!("NumLit should be a token of type NumLit")
+                }
+            },
+            Self::CharLit(c) => {
+                if let TokenType::CharLit(c) = c.0.t_type {
+                    Some(c.into())
+                } else {
+                    panic!("CharLit should be a token of type CharLit")
+                }
+            },
+            Self::Ident(i) => {
+                if let TokenType::Ident(i) = &i.0.t_type {
+                    // search if the ident exists
+                    let value = ctx.find_alias(i)?;
+                    Some(value)
+                } else {
+                    panic!("Ident should be a token of type Ident")
+                }
+            }
+        }
+    }
+}
+
+impl<'a> LanguageItem<'a> for ValueRepresentation<'a> {
+    type Owned = ValueRepresentation<'static>;
+
+    fn into_owned(self) -> Self::Owned {
+        match self {
+            Self::CharLit(c) => ValueRepresentation::CharLit(c.into_owned()),
+            Self::NumLit(c) => ValueRepresentation::NumLit(c.into_owned()),
+            Self::Ident(c) => ValueRepresentation::Ident(c.into_owned()),
+        }
+    }
+
+    fn slice(&self) -> SfSlice<'a> {
+        match self {
+            Self::CharLit(c) => c.slice(),
+            Self::NumLit(c) => c.slice(),
+            Self::Ident(c) => c.slice(),
+        }
+    }
+}
+
+impl<'a> LanguageItem<'a> for Expression<'a> {
+    type Owned = Expression<'static>;
+
+    fn into_owned(self) -> Self::Owned {
+        Expression {
+            base: self.base.into_owned(),
+            mods: self.mods.into_iter().map(|m| m.into_owned()).collect(),
+        }
+    }
+
+    fn slice(&self) -> SfSlice<'a> {
+        let start = self.base.slice().start();
+        let end = self.mods.last()
+            .map(|l| l.slice().end()).unwrap_or(self.base.slice().end());
+        self.base.slice().reslice_char(start..end)
+    }
+}
+
+impl<'a> LanguageItem<'a> for Mod<'a> {
+    type Owned = Mod<'static>;
+
+    fn into_owned(self) -> Self::Owned {
+        match self {
+            Self::Increment { plus_token, value } => Mod::Increment {
+                plus_token: plus_token.into_owned(),
+                value: value.into_owned(),
+            },
+            Self::Decrement { minus_token, value } => Mod::Decrement {
+                minus_token: minus_token.into_owned(),
+                value: value.into_owned(),
+            },
+        }
+    }
+
+    fn slice(&self) -> SfSlice<'a> {
+        match self {
+            Self::Increment { plus_token, value } => {
+                let start = plus_token.slice().start();
+                let end = value.slice().end();
+                plus_token.slice().reslice_char(start..end)
+            }
+            Self::Decrement { minus_token, value } => {
+                let start = minus_token.slice().start();
+                let end = value.slice().end();
+                minus_token.slice().reslice_char(start..end)
+            }
+        }
+    }
 }
 
 #[cfg(test)]

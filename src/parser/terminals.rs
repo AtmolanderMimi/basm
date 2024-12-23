@@ -1,7 +1,7 @@
 //! Implementation of terminal patterns, these patterns only represent one token
 
 use crate::lexer::token::{Token, TokenType};
-use crate::parser::{AdvancementState, Advancement, Pattern};
+use crate::parser::{AdvancementState, Advancement, Pattern, LanguageItem, SfSlice};
 use crate::parser::PatternMatchingError;
 
 macro_rules! single_token_pattern {
@@ -12,6 +12,18 @@ macro_rules! single_token_pattern {
         pub struct $r<'a>(
             pub Token<'a>
         );
+
+        impl<'a> LanguageItem<'a> for $r<'a> {
+            type Owned = $r<'static>;
+
+            fn into_owned(self) -> Self::Owned {
+                $r(self.0.into_owned())
+            }
+        
+            fn slice(&self) -> SfSlice<'a> {
+                self.0.slice.clone()
+            }
+        }
 
         #[allow(unused)]
         #[derive(Debug, Clone, PartialEq, Default)]
@@ -122,6 +134,18 @@ impl<'a> Pattern<'a> for MainIdentPattern {
             got: token.clone().into_owned(),
         };
         Advancement::new(AdvancementState::Error(error), 1)
+    }
+}
+
+impl<'a> LanguageItem<'a> for MainIdent<'a> {
+    type Owned = MainIdent<'static>;
+
+    fn into_owned(self) -> Self::Owned {
+        MainIdent(self.0.into_owned())
+    }
+
+    fn slice(&self) -> SfSlice<'a> {
+        self.0.slice.clone()
     }
 }
 

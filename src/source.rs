@@ -224,6 +224,23 @@ impl SfSlice<'_> {
 
         Some((rel_range.start+self.offset())..(rel_range.end+self.offset()))
     }
+
+    /// Reslices the source file with a new char range. The position is **absolute**.
+    pub fn reslice_char(&self, char_range: Range<usize>) -> Self {
+        let mut nslice = self.clone();
+        nslice.slice_char_range = char_range;
+        nslice.slice = None;
+        nslice
+    }
+
+    /// Reslices the source file with a new bye range. The position is **absolute**.
+    /// Panics if the byte range is invalid.
+    pub fn reslice_byte(&self, byte_range: Range<usize>) -> Self {
+        let mut nslice = self.clone();
+        nslice.slice_char_range = self.byte_to_char_range(byte_range).unwrap();
+        nslice.slice = None;
+        nslice
+    }
 }
 
 impl<'a, 'b> CharOps<'a> for SfSlice<'b> {

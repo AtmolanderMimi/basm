@@ -1,6 +1,7 @@
 use either::Either;
 
 use crate::lexer::token::Token;
+use crate::source::SfSlice;
 
 use super::instruction::Instruction;
 use super::instruction::InstructionPattern;
@@ -8,6 +9,7 @@ use super::terminals::*;
 use super::componants::*;
 use super::Advancement;
 use super::AdvancementState as AdvState;
+use super::LanguageItem;
 use super::Pattern;
 
 /// Pattern for constructing an [`Scope`].
@@ -20,9 +22,9 @@ pub struct ScopePattern<'a>(
 /// An instruction.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Scope<'a> {
-    left_bracket: LeftSquare<'a>,
-    contents: Vec<Either<Instruction<'a>, Scope<'a>>>,
-    right_bracket: RightSquare<'a>,
+    pub left_bracket: LeftSquare<'a>,
+    pub contents: Vec<Either<Instruction<'a>, Scope<'a>>>,
+    pub right_bracket: RightSquare<'a>,
 }
 
 impl<'a> Pattern<'a> for ScopePattern<'a> {
@@ -45,6 +47,27 @@ impl<'a> Pattern<'a> for ScopePattern<'a> {
             },
             AdvState::Error(e) => Advancement::new(AdvState::Error(e), overeach),
         }
+    }
+}
+
+impl<'a> LanguageItem<'a> for Scope<'a> {
+    type Owned = Scope<'static>;
+
+    fn into_owned(self) -> Self::Owned {
+        let contents = self.contents.into_iter().map(|c| c.map_either(|l| l.into_owned(), |r| r.into_owned()))
+            .collect();
+
+        Scope {
+            left_bracket: self.left_bracket.into_owned(),
+            right_bracket: self.right_bracket.into_owned(),
+            contents,
+        }
+    }
+
+    fn slice(&self) -> SfSlice<'a> {
+        let start = self.left_bracket.0.slice.start();
+        let end = self.right_bracket.0.slice.end();
+        self.left_bracket.0.slice.reslice_char(start..end)
     }
 }
 

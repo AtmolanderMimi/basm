@@ -3,6 +3,7 @@
 use either::Either;
 
 use crate::lexer::token::Token;
+use crate::source::SfSlice;
 
 use super::instruction::Instruction;
 use super::instruction::InstructionPattern;
@@ -12,6 +13,7 @@ use super::terminals::*;
 use super::componants::*;
 use super::Advancement;
 use super::AdvancementState as AdvState;
+use super::LanguageItem;
 use super::Pattern;
 
 /// Pattern for constructing an [`MainField`].
@@ -101,6 +103,58 @@ impl<'a> Pattern<'a> for MetaFieldPattern<'a> {
             },
             AdvState::Error(e) => Advancement::new(AdvState::Error(e), overeach),
         }
+    }
+}
+
+impl<'a> LanguageItem<'a> for MainField<'a> {
+    type Owned = MainField<'static>;
+
+    fn into_owned(self) -> Self::Owned {
+        let contents = self.contents.into_iter().map(|c| c.map_either(|l| l.into_owned(), |r| r.into_owned()))
+            .collect();
+
+        MainField {
+            left_bracket: self.left_bracket.into_owned(),
+            main: self.main.into_owned(),
+            right_bracket: self.right_bracket.into_owned(),
+            contents,
+        }
+    }
+
+    fn slice(&self) -> SfSlice<'a> {
+        let start = self.left_bracket.0.slice.start();
+        let end = self.contents.last()
+            .map(|l| l.as_ref().either(|l| l.slice().end(), |r| r.slice().end()))
+            .unwrap_or(self.right_bracket.slice().end());
+
+        self.left_bracket.0.slice.reslice_char(start..end)
+    }
+}
+
+impl<'a> LanguageItem<'a> for MetaField<'a> {
+    type Owned = MetaField<'static>;
+
+    fn into_owned(self) -> Self::Owned {
+        let contents = self.contents.into_iter().map(|c| c.map_either(|l| l.into_owned(), |r| r.into_owned()))
+            .collect();
+
+        MetaField {
+            left_bracket: self.left_bracket.into_owned(),
+            at: self.at.into_owned(),
+            name: self.name.into_owned(),
+            right_bracket: self.right_bracket.into_owned(),
+            contents,
+            arguments: self.arguments.into_iter().map(|a| a.into_owned()).collect()
+        }
+    }
+
+    fn slice(&self) -> SfSlice<'a> {
+        let start = self.left_bracket.0.slice.start();
+        let end = self.contents.last()
+            .map(|l| l.as_ref().either(|l| l.slice().end(), |r| r.slice().end()))
+            .unwrap_or(self.right_bracket.slice().end());
+
+        self.left_bracket.0.slice.reslice_char(start..end)
     }
 }
 
