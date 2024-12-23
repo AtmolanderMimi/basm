@@ -1,16 +1,17 @@
 //! The basm compiler.
 
 mod instruction;
-use instruction::{built_in, InstructionError, SendSyncInstruction};
+use instruction::{built_in, InstructionError, MetaInstruction, SendSyncInstruction};
+use normalized_items::NormalizedScope;
 use thiserror::Error;
 mod normalized_items;
 use std::{collections::HashMap, fmt::Debug, rc::Rc, sync::Mutex};
 
-use crate::{parser::{Expression, Ident, Instruction as ParsedInstruction, MetaField, ParsedProgram}, CompilerError as CompilerErrorTrait};
+use crate::{parser::{Expression, Ident, Instruction as ParsedInstruction, LanguageItem, MetaField, ParsedProgram}, CompilerError as CompilerErrorTrait, Lint};
 
 /// Compiles a [`ParsedProgram`] into a brainfuck program in string format.
 pub fn compile(program: &ParsedProgram) -> Result<String, CompilerError> {
-    todo!()
+    Compiler::compile(program)
 }
 
 struct InnerMainContext {
@@ -160,17 +161,26 @@ impl Compiler {
             compiler.walk_meta_instruction_declaration(meta)?;
         }
 
+        let normalized_main = NormalizedScope::new(program.main_field.contents.clone(), &mut compiler.context.build_scope())?;
+        normalized_main.compile(&compiler.context, &mut compiler.program_buffer)?;
+
         Ok(compiler.program_buffer)
     }
 
+    /// Evaluates a meta-instruction.
     pub fn walk_meta_instruction_declaration<'a>(&mut self, meta: &MetaField<'a>) -> Result<(), CompilerError> {
-        self.context.add_instruction(ident, instruction)
+        // TODO: not a big fan of using static for every meta instruction, especially since the
+        // current implementation of into_owned copies the whole file for every token,
+        // that's *kinda alright* for errors, but totally inaceptable for meta-instructions.
+        let meta = MetaInstruction::new(meta.clone().into_owned())?;
+
+        self.context.add_instruction(meta.name(), meta.clone());
 
         Ok(())
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Error)]
+#[derive(Debug, Clone, Error)]
 pub enum CompilerError {
     //#[error("meta-instruction was defined twice")]
     //DoubleDeclaration,
@@ -180,6 +190,27 @@ pub enum CompilerError {
     AliasNotDefined(Expression<'static>),
     #[error("instruction is not defined")]
     InstructionNotDefined(Ident<'static>),
+}
+
+impl CompilerErrorTrait for CompilerError {
+    fn lint(&self) -> Option<crate::Lint> {
+        let slice = match self {
+            CompilerError::AliasNotDefined(e) => e.slice(),
+            CompilerError::Instruction(ie, instruction) => {
+                match ie {
+                    InstructionError::CouldNotInlineMeta(_, e) => return e.lint(),
+                    _ => instruction.slice(),
+                }
+            },
+            CompilerError::InstructionNotDefined(i) => i.slice(),
+        };
+
+        // FIXME: It would be way simpler if i just leaked the files at the start of the
+        // compilation so that we don't have to play with lifetimes the whole time.
+        // ALSO INTENTIONAL (BUT NOT PROUD) LEAK HERE
+        let source = Box::leak(Box::new(slice.source().clone()));
+        Some(Lint::new_error_range(Box::leak(Box::new(source)), slice.char_range()).unwrap())
+    }
 }
 
 #[cfg(test)]

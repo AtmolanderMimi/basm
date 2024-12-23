@@ -77,6 +77,7 @@ FIXME: add WHNE, IFEQ and IFNE
 ### Example
 Fibonacci:
 ```basm
+[main] [
 INCR 1 1 // a
 INCR 2 0 // b
 WHNE 0 3 [
@@ -90,6 +91,7 @@ WHNE 0 3 [
 
     OUT  1;
 ];
+]
 ```
 
 ```bf
@@ -123,14 +125,15 @@ It is also important to note that meta-instructions are in their own scope, thus
 ### Example
 Let's make an instruction that lets us set a cell to a specific value:
 ```basm
-[@SET addr value]
+[@SET addr value] [
 ZERO addr;
 INCR addr value;
+]
 ```
 
 Here is a bit more complex example where we implement a multiplication instruction:
 ```basm
-[@MULT addr1 addr2 addr3 sp)]
+[@MULT addr1 addr2 addr3 sp)] [
 // reserving two cells on the stack
 ALIS factor_copy1 sp+1;
 ALIS factor_copy2 sp+2;
@@ -144,6 +147,7 @@ WHNE addr2 0 [
     ADDP factor_copy1 addr3;
     ADDP factor_copy2 addr1; // this is just moving arg1 to arg2 if arg2 = 0, which it is
 ];
+]
 ```
 Since multiplication requires us to take a bit more memory on the tape than just the addresses
 specified to us by the arguments, we take a sp (stack pointer) arguents that tells us where to

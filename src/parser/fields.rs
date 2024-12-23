@@ -22,7 +22,7 @@ pub struct MainFieldPattern<'a>(
     // header
     Then<'a, LeftSquarePattern, Then<'a, MainIdentPattern, Then<'a, RightSquarePattern,
     // contents
-    Many<'a, Or<'a, InstructionPattern<'a>, ScopePattern<'a>>>>>>
+    ScopePattern<'a>>>>
 );
 
 /// The `[main]` field.
@@ -31,7 +31,7 @@ pub struct MainField<'a> {
     pub left_bracket: LeftSquare<'a>,
     pub main: MainIdent<'a>,
     pub right_bracket: RightSquare<'a>,
-    pub contents: Vec<Either<Instruction<'a>, Scope<'a>>>,
+    pub contents: Scope<'a>,
 }
 
 impl<'a> Pattern<'a> for MainFieldPattern<'a> {
@@ -65,8 +65,8 @@ pub struct MetaFieldPattern<'a>(
     // header
     Then<'a, LeftSquarePattern, Then<'a, AtPattern, Then<'a, IdentPattern, Then<'a, Many<'a, IdentPattern>, Then<'a, RightSquarePattern,
     // contents
-    Many<'a, Or<'a, InstructionPattern<'a>, ScopePattern<'a>>
-    >>>>>>
+    ScopePattern<'a>
+    >>>>>
 );
 
 /// A `[@META arg]` field.
@@ -77,7 +77,7 @@ pub struct MetaField<'a> {
     pub name: Ident<'a>,
     pub arguments: Vec<Ident<'a>>,
     pub right_bracket: RightSquare<'a>,
-    pub contents: Vec<Either<Instruction<'a>, Scope<'a>>>,
+    pub contents: Scope<'a>,
 }
 
 impl<'a> Pattern<'a> for MetaFieldPattern<'a> {
@@ -110,8 +110,7 @@ impl<'a> LanguageItem<'a> for MainField<'a> {
     type Owned = MainField<'static>;
 
     fn into_owned(self) -> Self::Owned {
-        let contents = self.contents.into_iter().map(|c| c.map_either(|l| l.into_owned(), |r| r.into_owned()))
-            .collect();
+        let contents = self.contents.into_owned();
 
         MainField {
             left_bracket: self.left_bracket.into_owned(),
@@ -123,9 +122,7 @@ impl<'a> LanguageItem<'a> for MainField<'a> {
 
     fn slice(&self) -> SfSlice<'a> {
         let start = self.left_bracket.0.slice.start();
-        let end = self.contents.last()
-            .map(|l| l.as_ref().either(|l| l.slice().end(), |r| r.slice().end()))
-            .unwrap_or(self.right_bracket.slice().end());
+        let end = self.contents.slice().end();
 
         self.left_bracket.0.slice.reslice_char(start..end)
     }
@@ -135,8 +132,7 @@ impl<'a> LanguageItem<'a> for MetaField<'a> {
     type Owned = MetaField<'static>;
 
     fn into_owned(self) -> Self::Owned {
-        let contents = self.contents.into_iter().map(|c| c.map_either(|l| l.into_owned(), |r| r.into_owned()))
-            .collect();
+        let contents = self.contents.into_owned();
 
         MetaField {
             left_bracket: self.left_bracket.into_owned(),
@@ -150,9 +146,7 @@ impl<'a> LanguageItem<'a> for MetaField<'a> {
 
     fn slice(&self) -> SfSlice<'a> {
         let start = self.left_bracket.0.slice.start();
-        let end = self.contents.last()
-            .map(|l| l.as_ref().either(|l| l.slice().end(), |r| r.slice().end()))
-            .unwrap_or(self.right_bracket.slice().end());
+        let end = self.contents.slice().end();
 
         self.left_bracket.0.slice.reslice_char(start..end)
     }
@@ -193,7 +187,7 @@ mod tests {
         .map(|tt| bogus_token(tt)).collect();
 
         let res = solve_pattern::<MainFieldPattern>(&tokens).unwrap();
-        assert_eq!(res.contents.len(), 3);
+        assert_eq!(res.contents.contents.len(), 3);
 
         // if the name of the field is not "main"
         let tokens = vec![
@@ -244,7 +238,7 @@ mod tests {
 
         let res = solve_pattern::<MetaFieldPattern>(&tokens).unwrap();
         assert_eq!(res.arguments.len(), 2);
-        assert_eq!(res.contents.len(), 2);
+        assert_eq!(res.contents.contents.len(), 2);
 
         // without @
         let tokens = vec![
@@ -295,6 +289,6 @@ mod tests {
 
         let res = solve_pattern::<MetaFieldPattern>(&tokens).unwrap();
         assert_eq!(res.arguments.len(), 2);
-        assert_eq!(res.contents.len(), 2);
+        assert_eq!(res.contents.contents.len(), 2);
     }
 }

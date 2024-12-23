@@ -1,12 +1,13 @@
-[@MOVE from to]
+[@MOVE from to] [
 ZERO to;
 ADDP to from;
 
 MOVE a c;
 MOVE b a;
 MOVE c a;
+]
 
-[main]
+[main] [
 ALIS i 0;
 ALIS a 1;
 ALIS b 2;
@@ -24,3 +25,4 @@ WHNE i 3 [
 	MOVE 3 b;
     OUT  a;
 ];
+]

@@ -16,7 +16,7 @@ use crate::{lexer::token::{Token, TokenType}, source::SfSlice, CompilerError, Li
 #[allow(unused_imports)]
 pub use terminals::{Ident, NumLit, CharLit, Plus, Minus, Semicolon, LeftSquare, RightSquare, At, MainIdent};
 #[allow(unused_imports)]
-pub use expression::Expression;
+pub use expression::{Expression, ValueRepresentation};
 #[allow(unused_imports)]
 pub use fields::{MainField, MetaField};
 #[allow(unused_imports)]
@@ -283,6 +283,6 @@ mod tests {
         let program = solve_pattern::<ProgramPattern>(&tokens).unwrap();
 
         assert_eq!(program.meta_instructions.len(), 1);
-        assert_eq!(program.main_field.contents.len(), 7);
+        assert_eq!(program.main_field.contents.contents.len(), 7);
     }
 }

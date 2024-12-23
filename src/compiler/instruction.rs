@@ -4,25 +4,12 @@
 use std::{collections::HashMap, fmt::{Debug, Write}, rc::Rc};
 
 use either::Either;
-// FIXME: BEFORE DOING ANYTHING ELSE, FIGURE OUT HOW TO FIT SCOPES AS ARGUMENTS.
-// FIXME: BEFORE DOING ANYTHING ELSE, FIGURE OUT HOW TO FIT SCOPES AS ARGUMENTS.
-// FIXME: BEFORE DOING ANYTHING ELSE, FIGURE OUT HOW TO FIT SCOPES AS ARGUMENTS.
-// FIXME: BEFORE DOING ANYTHING ELSE, FIGURE OUT HOW TO FIT SCOPES AS ARGUMENTS.
-// i think we could do something like doing a pre-pass with the compiler to
-// map each parsed instruction and scope into "compiled-instructions" and "compiled-scopes",
-// which would simply be instructions (and list of instructions for scopes) with numeral arguments.
-// (So we figure out the expressions and aliases before).
-// We would be left with something like this:
-// CompiledInstruction<'a> {
-//      inner: Instruction<'a>
-//      ident: String,
-//      arguments: Vec<Either<u32, CompiledScope>,
-// }
+
 use thiserror::Error;
 
-use crate::parser::{Instruction as ParsedInstruction, Scope as ParsedScope};
+use crate::{lexer::token::TokenType, parser::{LanguageItem, MetaField}};
 
-use super::{normalized_items::{NormalizedInstruction, NormalizedScope}, CompilerError, MainContext, ScopeContext};
+use super::{normalized_items::NormalizedScope, CompilerError, MainContext};
 
 pub fn built_in() -> HashMap<String, Rc<dyn SendSyncInstruction>> {
     let mut map = HashMap::new();
@@ -117,44 +104,83 @@ impl Instruction for Zero {
 
 /// Struct defining a meta-instruction.
 /// This is only a tool to make objects that implement [`Instruction`] at runtime.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct MetaInstruction<'a> {
+    from: MetaField<'a>,
     argument_names: Vec<String>,
     arguments: Vec<ArgumentKind>,
-    contents: Vec<Either<ParsedInstruction<'a>, ParsedScope<'a>>>,
 }
 
 impl<'a> MetaInstruction<'a> {
+    /// Creates a new [`MetaInstruction`].
     pub fn new(
-        arguments: Vec<(String, ArgumentKind)>,
-        contents: Vec<Either<ParsedInstruction<'a>,
-        ParsedScope<'a>>>
-    ) -> Result<MetaInstruction<'a>, CompilerError> {
-        let iter = arguments.into_iter();
+        meta_field: MetaField<'_>,
+    ) -> Result<MetaInstruction, CompilerError> {
+        let arguments_iter = meta_field.arguments.iter().map(|i| {
+            if let TokenType::Ident(name) = &i.0.t_type {
+                name
+            } else {
+                panic!("Ident is ident")
+            }
+        });
 
         // we unwrap it into two vectors so that we can reference a &[ArgumentKind] slice
         // whilst still keeping the order
         let mut argument_names = Vec::new();
         let mut arguments = Vec::new();
-        for (n, k) in iter {
-            argument_names.push(n);            
-            arguments.push(k);
+        for name in arguments_iter {
+            argument_names.push(name.clone());
+            arguments.push(ArgumentKind::Operand);
         }
 
         Ok(MetaInstruction {
+            from: meta_field.into_owned(),
             argument_names,
             arguments,
-            contents,
         })
+    }
+
+    /// Returns the name of the meta-instruction.
+    pub fn name(&self) -> &str {
+        if let TokenType::Ident(name) = &self.from.name.0.t_type {
+            name
+        } else {
+            panic!("Ident is ident, it is an invariant")
+        }
     }
 }
 
-impl Instruction for MetaInstruction<'_> {
+impl<'a> Instruction for MetaInstruction<'a> {
     fn arguments(&self) -> &[ArgumentKind] {
         &self.arguments
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope<'_>>]) {
+    fn compile_checked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope<'_>>]) -> Result<(), InstructionError> {
+        if args.len() > self.arguments().len() {
+            return Err(InstructionError::TooManyArguments { got: args.len(), expected: self.arguments().len() })
+        } else if args.len() < self.arguments().len() {
+            return Err(InstructionError::TooFewArguments { got: args.len(), expected: self.arguments().len() })
+        }
+
+        // finds non-matching arguments
+        let res = self.arguments().into_iter().enumerate().find(|(i, k)| {
+            match k {
+                ArgumentKind::Operand => args[*i].is_right(),
+                ArgumentKind::Scope => args[*i].is_left(),
+            }
+        });
+
+        if let Some((i, kind)) = res {
+            return Err(InstructionError::NonMatchingArgumentKind {
+                got: match kind {
+                    ArgumentKind::Operand => ArgumentKind::Scope,
+                    ArgumentKind::Scope => ArgumentKind::Operand,
+                },
+                expected: kind.clone(),
+                place: i,
+            })
+        }
+
         let mut scope_ctx = ctx.build_scope();
 
         // we don't support scope as arguments to meta-instructions yet, so it is safe to say we can't
@@ -163,26 +189,27 @@ impl Instruction for MetaInstruction<'_> {
             scope_ctx.add_alias(name.clone(), args[i].clone().unwrap_left());
         }
 
-        let normalized = self.contents.iter().map(|c| match c {
-            Either::Left(i) => {
-                // normalization should have already been done beforehand to check if the meta-instruction is valid
-                let v = NormalizedInstruction::new(i.clone(), &scope_ctx).unwrap();
-                Either::Left(v)
-            },
-            Either::Right(s) => {
-                let v = NormalizedScope::new(s.clone(), &scope_ctx).unwrap();
-                Either::Right(v)
-            },
-        });
+        let mut scope_ctx = ctx.build_scope();
+        let normalized = NormalizedScope::new(self.from.contents.clone(), &mut scope_ctx);
 
-        normalized.for_each(|c| match c {
-            Either::Left(i) => i.compile().unwrap(),
-            Either::Right(s) => s.compile().unwrap(),
-        });
+        let res = match normalized {
+            Ok(n) => n.compile(ctx, buf),
+            Err(e) => return Err(InstructionError::CouldNotInlineMeta(self.from.clone().into_owned(), Box::new(e)))
+        };
+
+        if let Err(e) = res {
+            Err(InstructionError::CouldNotInlineMeta(self.from.clone().into_owned(), Box::new(e)))
+        } else {
+            Ok(())
+        }
+    }
+
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope<'_>>]) {
+        self.compile_checked(buf, ctx, args).unwrap();
     }
 }
 
-impl Debug for MetaInstruction<'_> {
+impl<'a> Debug for MetaInstruction<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MetaInstruction").field("arguments", &self.arguments).finish()
     }
@@ -207,7 +234,7 @@ fn move_pointer_to(buf: &mut String, ctx: &MainContext, nposition: u32) {
     ctx.set_pointer(nposition);
 }
 
-#[derive(Debug, Clone, PartialEq, Error)]
+#[derive(Debug, Clone, Error)]
 pub enum InstructionError {
     #[error("too many arguments, expected {expected}, got {got}")]
     TooManyArguments {
@@ -225,4 +252,8 @@ pub enum InstructionError {
         expected: ArgumentKind,
         place: usize,
     },
+    #[error("failed to inline meta-instruction, because {1}")]
+    CouldNotInlineMeta(MetaField<'static>, Box<CompilerError>),
+    #[error("the alis statement is malformed")]
+    MalformedAlis,
 }
