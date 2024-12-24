@@ -9,7 +9,7 @@ use super::{instruction::{ArgumentKind, Instruction, InstructionError, SendSyncI
 /// An instruction with all arguments normalized.
 #[derive(Clone)]
 pub struct NormalizedInstruction<'a> {
-    from: ParsedInstruction<'a>,
+    pub from: ParsedInstruction<'a>,
     kind: Rc<dyn SendSyncInstruction>, // not too glad about using dynamic dyspatch
     arguments: Vec<Either<u32, NormalizedScope<'a>>>,
 }
@@ -80,7 +80,7 @@ impl<'a> NormalizedInstruction<'a> {
 /// Scope with all items normalized.
 #[derive(Debug, Clone)]
 pub struct NormalizedScope<'a> {
-    from: ParsedScope<'a>,
+    pub from: ParsedScope<'a>,
     contents: Vec<Either<NormalizedInstruction<'a>, NormalizedScope<'a>>>,
 }
 
@@ -92,7 +92,7 @@ impl<'a> NormalizedScope<'a> {
             Either::Left(ins) => {
                 if let TokenType::Ident(name) = &ins.name.0.t_type {
                     if name == "ALIS" {
-                        alis(ctx, ins.clone());
+                        alis(ctx, ins.clone())?;
                     }
                 } else {
                     panic!("Should not reach because Ident is Ident")

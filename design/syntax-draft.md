@@ -1,7 +1,7 @@
 # Brain Aneurysm
 
 ## Description
-BrainAneurysm or for short basm is a very simple, assembly-like, language transpiling to Brain*Fuck*. *(ono, big boy words!)*
+BrainAneurysm (or for short basm) is a very simple, assembly-like, language transpiling to Brain*Fuck*. *(ono, big boy words!)*
 The purpose of this language is to abstract of the parts of BrainFuck that makes it *fucky* like:
 * The relative nature of memory,
 * Difficulty working with text,

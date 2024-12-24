@@ -213,6 +213,7 @@ mod tests {
             TokenType::Ident("addr".to_string()),
             TokenType::Ident("value".to_string()),
             TokenType::RSquare,
+            TokenType::LSquare,
             TokenType::Ident("ZERO".to_string()),
             TokenType::Ident("addr".to_string()),
             TokenType::InstructionDelimitor,
@@ -220,13 +221,16 @@ mod tests {
             TokenType::Ident("addr".to_string()),
             TokenType::Ident("value".to_string()),
             TokenType::InstructionDelimitor,
+            TokenType::RSquare,
             TokenType::LSquare,
             TokenType::Ident("main".to_string()),
             TokenType::RSquare,
+            TokenType::LSquare,
             TokenType::Ident("SET".to_string()),
             TokenType::NumLit(0),
             TokenType::NumLit(732),
             TokenType::InstructionDelimitor,
+            TokenType::RSquare,
             TokenType::Eof,
         ].into_iter()
         .map(|tt| bogus_token(tt)).collect();
@@ -242,6 +246,7 @@ mod tests {
             TokenType::Ident("addr".to_string()),
             TokenType::Ident("value".to_string()),
             TokenType::RSquare,
+            TokenType::LSquare,
             TokenType::Ident("ZERO".to_string()),
             TokenType::Ident("addr".to_string()),
             TokenType::InstructionDelimitor,
@@ -249,6 +254,7 @@ mod tests {
             TokenType::Ident("addr".to_string()),
             TokenType::Ident("value".to_string()),
             TokenType::InstructionDelimitor,
+            TokenType::RSquare,
             TokenType::Eof,
         ].into_iter()
         .map(|tt| bogus_token(tt)).collect();
@@ -261,10 +267,12 @@ mod tests {
             TokenType::LSquare,
             TokenType::Ident("main".to_string()),
             TokenType::RSquare,
+            TokenType::LSquare,
             TokenType::Ident("SET".to_string()),
             TokenType::NumLit(0),
             TokenType::NumLit(732),
             TokenType::InstructionDelimitor,
+            TokenType::RSquare,
             TokenType::Eof,
         ].into_iter()
         .map(|tt| bogus_token(tt)).collect();

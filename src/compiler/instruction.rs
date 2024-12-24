@@ -7,14 +7,20 @@ use either::Either;
 
 use thiserror::Error;
 
-use crate::{lexer::token::TokenType, parser::{LanguageItem, MetaField}};
+use crate::{lexer::token::TokenType, parser::{LanguageItem, MetaField, Scope}};
 
 use super::{normalized_items::NormalizedScope, CompilerError, MainContext};
 
 pub fn built_in() -> HashMap<String, Rc<dyn SendSyncInstruction>> {
     let mut map = HashMap::new();
     map.insert("ALIS", Rc::new(Alis::default()) as Rc<dyn SendSyncInstruction>);
-
+    map.insert("ZERO", Rc::new(Zero::default()) as Rc<dyn SendSyncInstruction>);
+    map.insert("INCR", Rc::new(Incr::default()) as Rc<dyn SendSyncInstruction>);
+    map.insert("COPY", Rc::new(Copy::default()) as Rc<dyn SendSyncInstruction>);
+    map.insert("ADDP", Rc::new(Addp::default()) as Rc<dyn SendSyncInstruction>);
+    map.insert("IN", Rc::new(In::default()) as Rc<dyn SendSyncInstruction>);
+    map.insert("OUT", Rc::new(Out::default()) as Rc<dyn SendSyncInstruction>);
+    map.insert("WHNE", Rc::new(Whne::default()) as Rc<dyn SendSyncInstruction>);
 
     map.into_iter().map(|(l, b)| (l.to_string(), b)).collect()
 }
@@ -52,12 +58,12 @@ pub trait Instruction {
             })
         }
 
-        self.compile_checked(buf, ctx, args)
+        self.compile_unchecked(buf, ctx, args)
     }
     
     /// Compiles the given instructions into string format.
     /// It can be assummed that the arguments passed in are valid.
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope<'_>>]);
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope<'_>>]) -> Result<(), InstructionError>;
 }
 
 pub trait SendSyncInstruction: Instruction + Send + Sync {}
@@ -82,10 +88,12 @@ impl Instruction for Alis {
     }
 
     fn compile_checked(&self, _buf: &mut String, _ctx: &MainContext, _args: &[Either<u32, NormalizedScope<'_>>]) -> Result<(), InstructionError> {
-        panic!("ALIS, cannot be compiled like other built-in's, it should be catched before")
+        //panic!("ALIS, cannot be compiled like other built-in's, it should be catched before")
+        Ok(())
     }
-    fn compile_unchecked(&self, _buf: &mut String, _ctx: &MainContext, _args: &[Either<u32, NormalizedScope<'_>>]) {
-        panic!("ALIS, cannot be compiled like other built-in's, it should be catched before")
+    fn compile_unchecked(&self, _buf: &mut String, _ctx: &MainContext, _args: &[Either<u32, NormalizedScope<'_>>]) -> Result<(), InstructionError> {
+        //panic!("ALIS, cannot be compiled like other built-in's, it should be catched before")
+        Ok(())
     }
 }
 
@@ -96,9 +104,154 @@ impl Instruction for Zero {
         &[ArgumentKind::Operand]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope<'_>>]) {
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope<'_>>]) -> Result<(), InstructionError> {
         move_pointer_to(buf, ctx, *args[0].as_ref().unwrap_left());
-        buf.write_str("[-]");
+        buf.push_str("[-]");
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+struct Incr;
+impl Instruction for Incr {
+    fn arguments(&self) -> &[ArgumentKind] {
+        &[ArgumentKind::Operand, ArgumentKind::Operand]
+    }
+
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope<'_>>]) -> Result<(), InstructionError> {
+        let pos = *args[0].as_ref().unwrap_left();
+        let incrementation = *args[1].as_ref().unwrap_left();
+
+        move_pointer_to(buf, ctx, pos);
+        for _ in 0..incrementation {
+            buf.push('+');
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+struct Copy;
+impl Instruction for Copy {
+    fn arguments(&self) -> &[ArgumentKind] {
+        &[ArgumentKind::Operand, ArgumentKind::Operand, ArgumentKind::Operand]
+    }
+
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope<'_>>]) -> Result<(), InstructionError> {
+        let origin = *args[0].as_ref().unwrap_left();
+        let pos1 = *args[1].as_ref().unwrap_left();
+        let pos2 = *args[2].as_ref().unwrap_left();
+
+        move_pointer_to(buf, ctx, origin);
+        buf.push_str("[-");
+
+        move_pointer_to(buf, ctx, pos1);
+        buf.push('+');
+        move_pointer_to(buf, ctx, pos2);
+        buf.push('+');
+
+        move_pointer_to(buf, ctx, origin);
+        buf.push_str("]");
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+struct Addp;
+impl Instruction for Addp {
+    fn arguments(&self) -> &[ArgumentKind] {
+        &[ArgumentKind::Operand, ArgumentKind::Operand]
+    }
+
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope<'_>>]) -> Result<(), InstructionError> {
+        let pos1 = *args[0].as_ref().unwrap_left();
+        let pos2 = *args[1].as_ref().unwrap_left();
+
+        move_pointer_to(buf, ctx, pos2);
+        buf.push_str("[-");
+
+        move_pointer_to(buf, ctx, pos1);
+        buf.push('+');
+
+        move_pointer_to(buf, ctx, pos2);
+        buf.push(']');
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+struct Whne;
+impl Instruction for Whne {
+    fn arguments(&self) -> &[ArgumentKind] {
+        &[ArgumentKind::Operand, ArgumentKind::Operand, ArgumentKind::Scope]
+    }
+
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope<'_>>]) -> Result<(), InstructionError> {
+        let variable = *args[0].as_ref().unwrap_left();
+        let compared = *args[1].as_ref().unwrap_left();
+        let scope = args[2].as_ref().unwrap_right();
+
+        move_pointer_to(buf, ctx, variable);
+        for _ in 0..compared {
+            buf.push('-');
+        }
+        buf.push('[');
+        for _ in 0..compared {
+            buf.push('+');
+        }
+
+        if let Err(e) = scope.compile(ctx, buf) {
+            return Err(InstructionError::ArgumentScopeError(scope.from.clone().into_owned(), Box::new(e)))
+        }
+
+        move_pointer_to(buf, ctx, variable);
+        for _ in 0..compared {
+            buf.push('-');
+        }
+        buf.push(']');
+        for _ in 0..compared {
+            buf.push('+');
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+struct In;
+impl Instruction for In {
+    fn arguments(&self) -> &[ArgumentKind] {
+        &[ArgumentKind::Operand]
+    }
+
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope<'_>>]) -> Result<(), InstructionError> {
+        let pos1 = *args[0].as_ref().unwrap_left();
+
+        move_pointer_to(buf, ctx, pos1);
+        buf.push(',');
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+struct Out;
+impl Instruction for Out {
+    fn arguments(&self) -> &[ArgumentKind] {
+        &[ArgumentKind::Operand]
+    }
+
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope<'_>>]) -> Result<(), InstructionError> {
+        let pos1 = *args[0].as_ref().unwrap_left();
+
+        move_pointer_to(buf, ctx, pos1);
+        buf.push('.');
+
+        Ok(())
     }
 }
 
@@ -189,7 +342,6 @@ impl<'a> Instruction for MetaInstruction<'a> {
             scope_ctx.add_alias(name.clone(), args[i].clone().unwrap_left());
         }
 
-        let mut scope_ctx = ctx.build_scope();
         let normalized = NormalizedScope::new(self.from.contents.clone(), &mut scope_ctx);
 
         let res = match normalized {
@@ -204,8 +356,8 @@ impl<'a> Instruction for MetaInstruction<'a> {
         }
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope<'_>>]) {
-        self.compile_checked(buf, ctx, args).unwrap();
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope<'_>>]) -> Result<(), InstructionError> {
+        self.compile_checked(buf, ctx, args)
     }
 }
 
@@ -256,4 +408,6 @@ pub enum InstructionError {
     CouldNotInlineMeta(MetaField<'static>, Box<CompilerError>),
     #[error("the alis statement is malformed")]
     MalformedAlis,
+    #[error("error in argument scope: {1}")]
+    ArgumentScopeError(Scope<'static>, Box<CompilerError>),
 }

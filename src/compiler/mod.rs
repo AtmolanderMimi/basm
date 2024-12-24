@@ -199,6 +199,7 @@ impl CompilerErrorTrait for CompilerError {
             CompilerError::Instruction(ie, instruction) => {
                 match ie {
                     InstructionError::CouldNotInlineMeta(_, e) => return e.lint(),
+                    InstructionError::ArgumentScopeError(_, e) => return e.lint(),
                     _ => instruction.slice(),
                 }
             },
