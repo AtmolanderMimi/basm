@@ -10,7 +10,6 @@ fn main() {
         .unwrap();
     let (tokens, errors) = basm::lex_file(&sf);
     println!("------------------ [ TOKENS ] ------------------");
-    println!("{:#?}", tokens);
     if !errors.is_empty() {
         println!("\n------------------ [ ERRORS ] ------------------");
         for e in errors {
@@ -19,8 +18,10 @@ fn main() {
     }
 
     println!("\n------------------ [ PARSED ] ------------------");
-    let program = parse_tokens(&tokens).unwrap();
-    println!("{program:#?}");
+    let program = match parse_tokens(&tokens) {
+        Ok(p) => p,
+        Err(e) => { println!("{}", e.description()); panic!() },
+    };
 
     println!("\n------------------ [ COMPILED ] ------------------");
     let program = match compile(&program) {

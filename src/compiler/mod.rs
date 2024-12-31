@@ -172,9 +172,11 @@ impl Compiler {
         // TODO: not a big fan of using static for every meta instruction, especially since the
         // current implementation of into_owned copies the whole file for every token,
         // that's *kinda alright* for errors, but totally inaceptable for meta-instructions.
-        let meta = MetaInstruction::new(meta.clone().into_owned())?;
+        let meta_ins = MetaInstruction::new(meta.clone().into_owned())?;
 
-        self.context.add_instruction(meta.name(), meta.clone());
+        if self.context.add_instruction(meta_ins.name(), meta_ins.clone()) {
+            return Err(CompilerError::DoubleDeclaration(meta.clone().into_owned()))
+        };
 
         Ok(())
     }
@@ -182,8 +184,8 @@ impl Compiler {
 
 #[derive(Debug, Clone, Error)]
 pub enum CompilerError {
-    //#[error("meta-instruction was defined twice")]
-    //DoubleDeclaration,
+    #[error("instruction was already defined")]
+    DoubleDeclaration(MetaField<'static>),
     #[error("{0}")]
     Instruction(InstructionError, ParsedInstruction<'static>),
     #[error("alias was not defined")]
@@ -204,6 +206,7 @@ impl CompilerErrorTrait for CompilerError {
                 }
             },
             CompilerError::InstructionNotDefined(i) => i.slice(),
+            CompilerError::DoubleDeclaration(f) => f.name.slice(),
         };
 
         // FIXME: It would be way simpler if i just leaked the files at the start of the

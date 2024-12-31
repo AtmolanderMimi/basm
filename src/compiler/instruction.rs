@@ -1,7 +1,7 @@
 //! Declares many objects relative to built-in and meta-instructions.
 //! Refer to `syntax-draft` for documentation about built-in instructions.
 
-use std::{collections::HashMap, fmt::{Debug, Write}, rc::Rc};
+use std::{collections::HashMap, fmt::Debug, rc::Rc};
 
 use either::Either;
 
@@ -16,10 +16,12 @@ pub fn built_in() -> HashMap<String, Rc<dyn SendSyncInstruction>> {
     map.insert("ALIS", Rc::new(Alis::default()) as Rc<dyn SendSyncInstruction>);
     map.insert("ZERO", Rc::new(Zero::default()) as Rc<dyn SendSyncInstruction>);
     map.insert("INCR", Rc::new(Incr::default()) as Rc<dyn SendSyncInstruction>);
+    map.insert("DECR", Rc::new(Decr::default()) as Rc<dyn SendSyncInstruction>);
     map.insert("COPY", Rc::new(Copy::default()) as Rc<dyn SendSyncInstruction>);
     map.insert("ADDP", Rc::new(Addp::default()) as Rc<dyn SendSyncInstruction>);
-    map.insert("IN", Rc::new(In::default()) as Rc<dyn SendSyncInstruction>);
-    map.insert("OUT", Rc::new(Out::default()) as Rc<dyn SendSyncInstruction>);
+    map.insert("SUBP", Rc::new(Subp::default()) as Rc<dyn SendSyncInstruction>);
+    map.insert("IN"  , Rc::new(In  ::default()) as Rc<dyn SendSyncInstruction>);
+    map.insert("OUT" , Rc::new(Out ::default()) as Rc<dyn SendSyncInstruction>);
     map.insert("WHNE", Rc::new(Whne::default()) as Rc<dyn SendSyncInstruction>);
 
     map.into_iter().map(|(l, b)| (l.to_string(), b)).collect()
@@ -133,6 +135,26 @@ impl Instruction for Incr {
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
+struct Decr;
+impl Instruction for Decr {
+    fn arguments(&self) -> &[ArgumentKind] {
+        &[ArgumentKind::Operand, ArgumentKind::Operand]
+    }
+
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope<'_>>]) -> Result<(), InstructionError> {
+        let pos = *args[0].as_ref().unwrap_left();
+        let incrementation = *args[1].as_ref().unwrap_left();
+
+        move_pointer_to(buf, ctx, pos);
+        for _ in 0..incrementation {
+            buf.push('-');
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
 struct Copy;
 impl Instruction for Copy {
     fn arguments(&self) -> &[ArgumentKind] {
@@ -175,6 +197,30 @@ impl Instruction for Addp {
 
         move_pointer_to(buf, ctx, pos1);
         buf.push('+');
+
+        move_pointer_to(buf, ctx, pos2);
+        buf.push(']');
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+struct Subp;
+impl Instruction for Subp {
+    fn arguments(&self) -> &[ArgumentKind] {
+        &[ArgumentKind::Operand, ArgumentKind::Operand]
+    }
+
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope<'_>>]) -> Result<(), InstructionError> {
+        let pos1 = *args[0].as_ref().unwrap_left();
+        let pos2 = *args[1].as_ref().unwrap_left();
+
+        move_pointer_to(buf, ctx, pos2);
+        buf.push_str("[-");
+
+        move_pointer_to(buf, ctx, pos1);
+        buf.push('-');
 
         move_pointer_to(buf, ctx, pos2);
         buf.push(']');
