@@ -1,4 +1,4 @@
-use std::{any::Any, ops::{Add, Sub}, usize};
+use std::{any::Any, io::{self, Read, Write}, ops::{Add, Sub}, usize};
 
 use num::{traits::{ConstOne, ConstZero, NumOps, SaturatingAdd, SaturatingSub, WrappingAdd, WrappingMul, WrappingSub}, CheckedAdd, CheckedSub, Num, NumCast};
 use thiserror::Error;
@@ -127,7 +127,8 @@ impl<T: NumOpsPlus + Default + Clone + 'static> InterpreterTrait for Interpreter
             '.' => {
                 let value = self.get_mut_cell_or_insert_default()?;
                 let ch = char::from_u32(value.to_u32().unwrap_or(65_533)).unwrap_or('�');
-                println!("{ch}");
+                print!("{ch}");
+                io::stdout().flush();
             },
 
             ',' => {
@@ -367,12 +368,13 @@ pub enum InterpreterError {
 }
 
 fn read_char_input() -> Option<char> {
-    print!("?: ");
+    print!("\n?: ");
+    io::stdout().flush();
     let mut buf = String::new();
     std::io::stdin().read_line(&mut buf);
 
     // we skip the first few we printed ourselves
-    buf.chars().nth(3)
+    buf.chars().nth(1)
 }
 
 #[cfg(test)]

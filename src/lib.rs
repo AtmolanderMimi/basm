@@ -17,6 +17,8 @@
 )]
 
 pub mod error;
+use std::path;
+
 pub use error::{CompilerError, Lint};
 pub mod lexer;
 pub use lexer::lex_file;
@@ -25,8 +27,29 @@ pub mod utils;
 pub mod parser;
 pub mod compiler;
 pub mod interpreter;
+pub mod clap_cli;
+pub use clap_cli::Cli;
+use source::SourceFile;
 
 /// Transpiles bfu source code into bf.
-pub fn transpile(source: &str) -> &str {
-    todo!()
+pub fn transpile<'a>(sf: &'a SourceFile) -> Result<String, Vec<Box<dyn CompilerError + 'a>>> {
+    let (tokens, errors) = lexer::lex_file(&sf);
+    if !errors.is_empty() {
+        let boxed_errs = errors.into_iter()
+            .map(|e| Box::new(e) as Box<dyn CompilerError>)
+            .collect();
+        return Err(boxed_errs)
+    }
+
+    let program = match parser::parse_tokens(&tokens) {
+        Ok(p) => p,
+        Err(e) => return Err(vec![Box::new(e)]),
+    };
+
+    let program = match compiler::compile(&program) {
+        Ok(p) => p,
+        Err(e) => return Err(vec![Box::new(e)])
+    };
+    
+    Ok(program)
 }
