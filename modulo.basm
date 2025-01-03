@@ -1,5 +1,5 @@
 // Copy conservative, from is still valid after use
-@[COPC from to sp] [
+[@COPC from to sp] [
 ALIS tmp sp;
 
 COPY from to tmp;
