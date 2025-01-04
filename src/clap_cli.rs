@@ -1,23 +1,17 @@
-use clap::{command, Args, Parser, Subcommand};
+use clap::{command, Args, Parser};
 
-/// The clap cli interface.
+/// The clap cli interface commands.
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 #[derive(Debug, PartialEq, Clone)]
-pub struct Cli {
-    #[command(subcommand)]
-    pub command: Commands,
-}
-
-#[derive(Subcommand)]
-#[derive(Debug, PartialEq, Clone)]
-pub enum Commands {
+pub enum CliCommand {
     /// Compiles the program and writes it to file
     Compile(CompileArgs),
     /// Compiles and interprets the program
     Run(RunArgs),
 }
 
+/// Arguments for the `run` command.
 #[derive(Args)]
 #[derive(Debug, PartialEq, Clone)]
 pub struct RunArgs {
@@ -49,6 +43,7 @@ pub struct RunArgs {
     pub raw: bool,
 }
 
+/// Arguments for the `compile` command.
 #[derive(Args)]
 #[derive(Debug, PartialEq, Clone)]
 pub struct CompileArgs {

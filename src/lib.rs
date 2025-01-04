@@ -28,7 +28,7 @@ pub mod parser;
 pub mod compiler;
 pub mod interpreter;
 pub mod clap_cli;
-pub use clap_cli::Cli;
+pub use clap_cli::CliCommand;
 use source::SourceFile;
 
 /// Transpiles bfu source code into bf.

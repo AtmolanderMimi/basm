@@ -1,6 +1,6 @@
 use std::{fs, io::Write, path::absolute};
 
-use basm::{clap_cli::{Commands, CompileArgs}, interpreter::InterpreterBuilder, source::SourceFile, transpile, Cli, CompilerError};
+use basm::{clap_cli::CompileArgs, interpreter::InterpreterBuilder, source::SourceFile, transpile, CliCommand, CompilerError};
 use clap::Parser;
 
 const MALFORMED_INPUT: &str = "the input path is malformed";
@@ -12,19 +12,19 @@ const UNWRITEABLE_OUTPUT: &str = "failed to write to output file";
 const INVALID_CELL_SIZE: &str = "invalid cell size, must be 8, 16, or 32";
 
 fn main() {
-    let cli = Cli::parse();
+    let cli = CliCommand::parse();
     
-    let file_path = match &cli.command {
-        Commands::Compile(args) => &args.file_path,
-        Commands::Run(args) => &args.file_path,
+    let file_path = match &cli {
+        CliCommand::Compile(args) => &args.file_path,
+        CliCommand::Run(args) => &args.file_path,
     };
 
     let abs_path = absolute(file_path)
         .unwrap_or_else(|_| error_out(MALFORMED_INPUT));
 
-    let is_basm_file = match &cli.command {
-        Commands::Compile(args) => true,
-        Commands::Run(args) => !args.raw,
+    let is_basm_file = match &cli {
+        CliCommand::Compile(_) => true,
+        CliCommand::Run(args) => !args.raw,
     };
 
     // transpiling (or not)
@@ -50,9 +50,9 @@ fn main() {
     };
 
     // show (if necessary)
-    let show = match &cli.command {
-        Commands::Compile(args) => args.show,
-        Commands::Run(args) => args.show,
+    let show = match &cli {
+        CliCommand::Compile(args) => args.show,
+        CliCommand::Run(args) => args.show,
     };
 
     if show {
@@ -60,7 +60,7 @@ fn main() {
     }
 
     // writing to output file (if necessary)
-    if let Commands::Compile(CompileArgs { out, .. }) = &cli.command {
+    if let CliCommand::Compile(CompileArgs { out, .. }) = &cli {
         let out_path = out.clone().unwrap_or_else(|| {
             let mut file_path = abs_path.clone();
             file_path.set_extension("bf");
@@ -76,7 +76,7 @@ fn main() {
     }
 
     // interpreting (if necessary)
-    let run_args = if let Commands::Run(args) = cli.command {
+    let run_args = if let CliCommand::Run(args) = cli {
         // okay
         args
     } else {

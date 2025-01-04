@@ -1,9 +1,10 @@
-use std::{any::Any, io::{self, Read, Write}, ops::{Add, Sub}, usize};
+use std::{any::Any, io::{self, Write}, usize};
 
-use num::{traits::{ConstOne, ConstZero, NumOps, SaturatingAdd, SaturatingSub, WrappingAdd, WrappingMul, WrappingSub}, CheckedAdd, CheckedSub, Num, NumCast};
+use num::{traits::{ConstOne, ConstZero, SaturatingAdd, SaturatingSub, WrappingAdd, WrappingSub}, CheckedAdd, CheckedSub, Num, NumCast};
 use thiserror::Error;
 
 
+/// Interpreter for brainfuck programs.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Interpreter<T> {
     config: InterpreterConfig,
@@ -32,20 +33,20 @@ impl<T> Interpreter<T> {
     }
 }
 
-impl<T: Default> Interpreter<T> {
+impl<T: Default + Clone> Interpreter<T> {
     fn get_mut_cell_or_insert_default(&mut self) -> Result<&mut T, InterpreterError> {
-        let old_len = self.tape.len();
-        if let Some(needed_extention) = (self.tape_pointer+1).checked_sub(self.tape.len()) {
-            // if the cell would be oob
-            let lenght_limit = self.config.lenght_limit.unwrap_or(usize::MAX);
-            if self.instruction_pointer > lenght_limit {
-                return Err(InterpreterError::TapeLimitExceded { limit: lenght_limit, tried: self.instruction_pointer });
-            }
-
-            self.tape.reserve(needed_extention);
-            unsafe { self.tape.set_len(self.tape_pointer+1) };
-            (&mut self.tape[old_len..]).into_iter().for_each(|c| *c = T::default());
+        if self.tape.len() > self.tape_pointer {
+            return Ok(self.tape.get_mut(self.tape_pointer).unwrap());
         }
+
+        // if we get here then the tape is not long enough for our index
+        let extention = (self.tape_pointer+1) - self.tape.len();
+        let lenght_limit = self.config.lenght_limit.unwrap_or(usize::MAX);
+        if self.tape_pointer+1 > lenght_limit {
+            return Err(InterpreterError::TapeLimitExceded { limit: lenght_limit, tried: self.tape_pointer+1 });
+        }
+
+        self.tape.extend(vec![T::default(); extention]);
 
         Ok(self.tape.get_mut(self.tape_pointer).unwrap())
     }
@@ -128,7 +129,7 @@ impl<T: NumOpsPlus + Default + Clone + 'static> InterpreterTrait for Interpreter
                 let value = self.get_mut_cell_or_insert_default()?;
                 let ch = char::from_u32(value.to_u32().unwrap_or(65_533)).unwrap_or('�');
                 print!("{ch}");
-                io::stdout().flush();
+                let _ = io::stdout().flush();
             },
 
             ',' => {
@@ -350,28 +351,39 @@ impl<T> NumOpsPlus for T
 where T: WrappingAdd + WrappingSub + CheckedAdd + CheckedSub + SaturatingAdd + SaturatingSub
     + Num + ConstOne + ConstZero + NumCast {}
 
+/// An error that is relative to interpreting a brainfuck program.
 #[derive(Debug, Clone, PartialEq, Error)]
 pub enum InterpreterError {
+    /// The tape size limitor is smaller that what the program tried to allocate.
+    /// Allocation is implicit, it happens when trying to write or read for a cell. (e.g.: every operation execept `>` and `<`)
     #[error("the tape size limit was exceded, tried to expand to {tried:?}, but limit is {limit:?}")]
     TapeLimitExceded {
+        /// The tape size limit.
         limit: usize,
+        /// The cell index that was requested for reading/writing.
         tried: usize,
     },
+    /// The tape pointer is not within the range of valid values. (e.g `0..=usize::MAX`)
     #[error("the tape pointer has gone into negatives")]
     TapePointerOob,
+    /// The instruction pointer is not within the range of valid values. (e.g `0..=usize::MAX`)
+    /// It is most likely that this is because there was an unmatched `]` cause the instruction pointer to go into negatives.
     #[error("the instruction pointer has gone into negatives")]
     InstructionPointerOob,
+    /// The program over/under-flowed a cell.
+    /// This error only happens if the interpreter was configured to abort on overflow.
     #[error("aborted due to overflow at cell {at:?}")]
     AbortedDueToOverflow {
+        /// The index of the cell that over/under-flowed.
         at: usize,
     },
 }
 
 fn read_char_input() -> Option<char> {
     print!("\n?: ");
-    io::stdout().flush();
+    let _ = io::stdout().flush();
     let mut buf = String::new();
-    std::io::stdin().read_line(&mut buf);
+    let _ = std::io::stdin().read_line(&mut buf);
 
     // we skip the first few we printed ourselves
     buf.chars().nth(1)
@@ -382,10 +394,185 @@ mod tests {
     use super::*;
 
     #[test]
-    fn multiply_interpreter() {
-        let mut inter = InterpreterBuilder::new("++++++++++++>++++<[->>+<<]>[>[->+<<<+>>]>[-<+>]<<-]").finish();
+    fn interpreter_multiply() {
+        let mut inter = InterpreterBuilder::new("++++++++++++>++++<[->>+<<]>[>[->+<<<+>>]>[-<+>]<<-]")
+            .with_u8()
+            .finish();
         inter.complete().unwrap();
-        let tape = *inter.tape().downcast_ref::<&[u8]>().unwrap();
+        let tape = inter.tape().downcast_ref::<Vec<u8>>().unwrap();
         assert_eq!(tape[0], 48);
+    }
+
+    #[test]
+    fn interpreter_fibonacci() {
+        let mut inter = InterpreterBuilder::new(include_str!("../../test-resources/fib.bf"))
+            .with_u8()
+            .finish();
+        inter.complete().unwrap();
+        let tape = inter.tape().downcast_ref::<Vec<u8>>().unwrap();
+        assert_eq!(tape[1], 144);
+    }
+
+    #[test]
+    fn interpreter_cell_types() {
+        // u8
+        let mut inter = InterpreterBuilder::new(include_str!("../../test-resources/fib.bf"))
+            .with_u8()
+            .finish();
+        inter.complete().unwrap();
+        let tape = inter.tape().downcast_ref::<Vec<u8>>().unwrap();
+        assert_eq!(tape[1], 144_u8);
+
+        // i8 (should overflow)
+        let mut inter = InterpreterBuilder::new(include_str!("../../test-resources/fib.bf"))
+            .with_i8()
+            .with_aborting_behaviour()
+            .finish();
+        inter.complete().unwrap_err();
+        
+        // u16
+        let mut inter = InterpreterBuilder::new(include_str!("../../test-resources/fib.bf"))
+        .with_u16()
+        .finish();
+        inter.complete().unwrap();
+        let tape = inter.tape().downcast_ref::<Vec<u16>>().unwrap();
+        assert_eq!(tape[1], 144_u16);
+
+        // i16
+        let mut inter = InterpreterBuilder::new(include_str!("../../test-resources/fib.bf"))
+        .with_i16()
+        .finish();
+        inter.complete().unwrap();
+        let tape = inter.tape().downcast_ref::<Vec<i16>>().unwrap();
+        assert_eq!(tape[1], 144_i16);
+
+        // u32
+        let mut inter = InterpreterBuilder::new(include_str!("../../test-resources/fib.bf"))
+        .with_u32()
+        .finish();
+        inter.complete().unwrap();
+        let tape = inter.tape().downcast_ref::<Vec<u32>>().unwrap();
+        assert_eq!(tape[1], 144_u32);
+
+        // i32
+        let mut inter = InterpreterBuilder::new(include_str!("../../test-resources/fib.bf"))
+        .with_i32()
+        .finish();
+        inter.complete().unwrap();
+        let tape = inter.tape().downcast_ref::<Vec<i32>>().unwrap();
+        assert_eq!(tape[1], 144_i32);
+    }
+
+    #[test]
+    fn interpreter_behaviour() {
+        // -- wrapping
+        // overflow
+        let plus_256: String = ["+"; 257].concat();
+        let mut inter = InterpreterBuilder::new(&plus_256)
+            .with_u8()
+            .with_wrapping_behaviour()
+            .finish();
+        inter.complete().unwrap();
+        let tape = inter.tape().downcast_ref::<Vec<u8>>().unwrap();
+        assert_eq!(tape[0], 1);
+
+        // underflow
+        let mut inter = InterpreterBuilder::new("---")
+            .with_u8()
+            .with_wrapping_behaviour()
+            .finish();
+        inter.complete().unwrap();
+        let tape = inter.tape().downcast_ref::<Vec<u8>>().unwrap();
+        assert_eq!(tape[0], 253);
+
+        // -- abort
+        // overflow
+        let plus_256: String = ["+"; 256].concat();
+        let mut inter = InterpreterBuilder::new(&plus_256)
+            .with_u8()
+            .with_aborting_behaviour()
+            .finish();
+        inter.complete().unwrap_err();
+
+        // underflow
+        let mut inter = InterpreterBuilder::new("-")
+            .with_u8()
+            .with_aborting_behaviour()
+            .finish();
+        inter.complete().unwrap_err();
+
+        // -- saturating
+        // overflow
+        let plus_256: String = ["+"; 1024].concat();
+        let mut inter = InterpreterBuilder::new(&plus_256)
+            .with_u8()
+            .with_saturating_behaviour()
+            .finish();
+        inter.complete().unwrap();
+        let tape = inter.tape().downcast_ref::<Vec<u8>>().unwrap();
+        assert_eq!(tape[0], u8::MAX);
+
+        // underflow
+        let mut inter = InterpreterBuilder::new("---")
+            .with_u8()
+            .with_saturating_behaviour()
+            .finish();
+        inter.complete().unwrap();
+        let tape = inter.tape().downcast_ref::<Vec<u8>>().unwrap();
+        assert_eq!(tape[0], 0);
+    }
+
+    #[test]
+    fn interpreter_limitor() {
+        let mut heavy_program = [">"; 1293].concat();
+        heavy_program.push('+');
+
+        // no limitor
+        let mut inter = InterpreterBuilder::new(&heavy_program)
+            .finish();
+        inter.complete().unwrap();
+
+        // with limitor, but big enough
+        let mut inter = InterpreterBuilder::new(&heavy_program)
+            .with_tape_leght(4096)
+            .finish();
+        inter.complete().unwrap();
+
+        // with small limitor
+        let mut inter = InterpreterBuilder::new(&heavy_program)
+            .with_tape_leght(256)
+            .finish();
+        match inter.complete() {
+            Err(InterpreterError::TapeLimitExceded { .. }) => (), // good
+            other => panic!("got other {other:?}"),
+        };
+    }
+
+    #[test]
+    fn interpreter_tape_only_takes_necessary() {
+        let mut program = [">"; 1293].concat();
+        program.push_str(&["<"; 1200].concat());
+
+        // takes nothing
+        let mut inter = InterpreterBuilder::new(&program)
+            .with_tape_leght(0)
+            .finish();
+        inter.complete().unwrap();
+
+        // allocates what is needed, and is big enough
+        program.push('+');
+        let mut inter = InterpreterBuilder::new(&program)
+            .with_tape_leght(256)
+            .finish();
+        inter.complete().unwrap();
+
+        // allocates what is needed, but is too small
+        let mut inter = InterpreterBuilder::new(&program)
+            .with_tape_leght(64)
+            .finish();
+        match inter.complete() {
+            Err(InterpreterError::TapeLimitExceded { .. }) => (), // good
+            other => panic!("got other {other:?}"),
+        };
     }
 }
