@@ -74,9 +74,9 @@ impl<T: Instruction + Send + Sync> SendSyncInstruction for T {}
 /// Defines the expected argument kind.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ArgumentKind {
-    /// An operand, e.g a value. (3, my_alis, sp+2)
+    /// An operand, e.g a value. (3, `my_alis`, `sp+2`)
     Operand,
-    /// A scope. "[...]"
+    /// A scope. "\[ ... \]"
     Scope,
 }
 

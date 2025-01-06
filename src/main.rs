@@ -71,7 +71,7 @@ fn main() {
         let mut output_file = fs::File::create(&out_path)
         .unwrap_or_else(|_| error_out(INACCESSIBLE_OUTPUT));
 
-        output_file.write(program.as_bytes())
+        output_file.write_all(program.as_bytes())
         .unwrap_or_else(|_| error_out(UNWRITEABLE_OUTPUT));
     }
 

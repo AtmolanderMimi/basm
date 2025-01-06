@@ -14,6 +14,9 @@
     clippy::to_string_in_format_args,
     clippy::missing_panics_doc,
     clippy::missing_errors_doc,
+    clippy::struct_excessive_bools,
+    clippy::cast_sign_loss,
+    clippy::cast_lossless,
 )]
 
 pub mod error;
@@ -32,7 +35,7 @@ use source::SourceFile;
 
 /// Transpiles bfu source code into bf.
 pub fn transpile<'a>(sf: &'a SourceFile) -> Result<String, Vec<Box<dyn CompilerError + 'a>>> {
-    let (tokens, errors) = lexer::lex_file(&sf);
+    let (tokens, errors) = lexer::lex_file(sf);
     if !errors.is_empty() {
         let boxed_errs = errors.into_iter()
             .map(|e| Box::new(e) as Box<dyn CompilerError>)
