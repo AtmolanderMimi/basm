@@ -9,13 +9,13 @@ use thiserror::Error;
 pub struct Interpreter<T> {
     config: InterpreterConfig,
     tape: Vec<T>,
-    instructions: Vec<char>,
+    instructions: Vec<ByteCode>,
     tape_pointer: usize,
     instruction_pointer: usize,
 }
 
 impl<T> Interpreter<T> {
-    fn new(instructions: Vec<char>, config: InterpreterConfig) -> Interpreter<T> {
+    fn new(instructions: Vec<ByteCode>, config: InterpreterConfig) -> Interpreter<T> {
         Interpreter {
             config,
             instructions,
@@ -72,7 +72,8 @@ pub trait InterpreterTrait {
     fn tape(&self) -> &dyn Any;
 }
 
-impl<T: NumOpsPlus + Default + Clone + 'static + Debug + FromStr> InterpreterTrait for Interpreter<T> {
+impl<T: NumOpsPlus + Default + Clone + 'static + Debug + FromStr + TryFrom<i8>> InterpreterTrait for Interpreter<T>
+where <T as TryFrom<i8>>::Error: Debug {
     fn advance(&mut self) -> Result<bool, InterpreterError> {
         let instruction = if let Some(i) = self.instructions.get(self.instruction_pointer) {
             i
@@ -81,51 +82,62 @@ impl<T: NumOpsPlus + Default + Clone + 'static + Debug + FromStr> InterpreterTra
         };
 
         match instruction {
-            '+' => {
+            ByteCode::Add(n) => {
+                let recurence_t = T::try_from(*n)
+                    .expect("Since recurence is i8 and should be positive, it should be always be able to be stored as T");
+
                 let overflow_behaviour = self.config.overflow_behaviour.clone();
 
                 let value = self.get_mut_cell_or_insert_default()?;
                 match overflow_behaviour {
                     OverflowBehaviour::Abort => {
-                        if let Some(nval) = value.checked_add(&T::ONE) {
+                        if let Some(nval) = value.checked_add(&recurence_t) {
                             *value = nval;
                         } else {
                             return Err(InterpreterError::AbortedDueToOverflow { at: self.tape_pointer })
                         }
                     },
-                    OverflowBehaviour::Saturate => *value = value.saturating_add(&T::ONE),
-                    OverflowBehaviour::Wrap => *value = value.wrapping_add(&T::ONE),
+                    OverflowBehaviour::Saturate => *value = value.saturating_add(&recurence_t),
+                    OverflowBehaviour::Wrap => *value = value.wrapping_add(&recurence_t),
                 }
             },
 
-            '-' => {
+            ByteCode::Sub(n) => {
+                let recurence_t = T::try_from(*n)
+                    .expect("Since recurence is i8 and should be positive, it should be always be able to be stored as T");
+
                 let overflow_behaviour = self.config.overflow_behaviour.clone();
 
                 let value = self.get_mut_cell_or_insert_default()?;
                 match overflow_behaviour {
                     OverflowBehaviour::Abort => {
-                        if let Some(nval) = value.checked_sub(&T::ONE) {
+                        if let Some(nval) = value.checked_sub(&recurence_t) {
                             *value = nval;
                         } else {
                             return Err(InterpreterError::AbortedDueToOverflow { at: self.tape_pointer })
                         }
                     },
-                    OverflowBehaviour::Saturate => *value = value.saturating_sub(&T::ONE),
-                    OverflowBehaviour::Wrap => *value = value.wrapping_sub(&T::ONE),
+                    OverflowBehaviour::Saturate => *value = value.saturating_sub(&recurence_t),
+                    OverflowBehaviour::Wrap => *value = value.wrapping_sub(&recurence_t),
                 }
             },
 
-            '>' => self.tape_pointer += 1,
+            ByteCode::PointerAdd(n) => {
+                let recurence_t = *n as usize;
+                self.tape_pointer += recurence_t;
+            },
 
-            '<' => {
-                if let Some(npoint) = self.tape_pointer.checked_sub(1) {
+            ByteCode::PointerSub(n) => {
+                let recurence_t = *n as usize;
+
+                if let Some(npoint) = self.tape_pointer.checked_sub(recurence_t) {
                     self.tape_pointer = npoint;
                 } else {
                     return Err(InterpreterError::TapePointerOob)
                 }
             },
 
-            '.' => {
+            ByteCode::Out => {
                 let value = self.get_mut_cell_or_insert_default()?.clone();
                 if self.config.output_as_number {
                     print!("{value:?} ")
@@ -137,7 +149,7 @@ impl<T: NumOpsPlus + Default + Clone + 'static + Debug + FromStr> InterpreterTra
                 let _ = io::stdout().flush();
             },
 
-            ',' => {
+            ByteCode::In => {
                 let input_as_number = self.config.input_as_number;
 
                 let cell = self.get_mut_cell_or_insert_default()?;
@@ -163,7 +175,7 @@ impl<T: NumOpsPlus + Default + Clone + 'static + Debug + FromStr> InterpreterTra
                 };
             },
 
-            '[' => {
+            ByteCode::LeftBracket => {
                 if *self.get_mut_cell_or_insert_default()? != T::ZERO {
                 
                 } else {
@@ -171,8 +183,8 @@ impl<T: NumOpsPlus + Default + Clone + 'static + Debug + FromStr> InterpreterTra
                     self.instruction_pointer += 1;
                     while let Some(nch) = self.instructions.get(self.instruction_pointer) {
                         match *nch {
-                            ']' => bracket_count -= 1,
-                            '[' => bracket_count += 1,
+                            ByteCode::RightBracket => bracket_count -= 1,
+                            ByteCode::LeftBracket => bracket_count += 1,
                             _ => (),
                         }
 
@@ -185,7 +197,7 @@ impl<T: NumOpsPlus + Default + Clone + 'static + Debug + FromStr> InterpreterTra
                 }
             },
 
-            ']' => {
+            ByteCode::RightBracket => {
                 if *self.get_mut_cell_or_insert_default()? == T::ZERO {
                 
                 } else {
@@ -198,8 +210,8 @@ impl<T: NumOpsPlus + Default + Clone + 'static + Debug + FromStr> InterpreterTra
 
                     while let Some(nch) = self.instructions.get(self.instruction_pointer) {
                         match *nch {
-                            ']' => bracket_count += 1,
-                            '[' => bracket_count -= 1,
+                            ByteCode::RightBracket => bracket_count += 1,
+                            ByteCode::LeftBracket => bracket_count -= 1,
                             _ => (),
                         }
 
@@ -232,14 +244,14 @@ impl<T: NumOpsPlus + Default + Clone + 'static + Debug + FromStr> InterpreterTra
 /// Builder for [`Interpreter`].
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct InterpreterBuilder {
-    instructions: Vec<char>,
+    instructions: Vec<ByteCode>,
     inner: InterpreterConfig,
 }
 
 impl InterpreterBuilder {
     /// Creates a new [`InterpreterBuilder`].
     pub fn new(instructions: &str) -> Self {
-        let instructions = instructions.chars().filter(|c| {
+        let (mut instructions, remaining) = instructions.chars().filter(|c| {
             *c == '+'
             || *c == '-'
             || *c == '<'
@@ -249,7 +261,121 @@ impl InterpreterBuilder {
             || *c == '['
             || *c == ']'
         }
-        ).collect();
+        ).fold((Vec::new(), None),|(mut acc, mut state), ch| {
+            // transforming the operator string into clumped byte codes to reduce redundent operations
+            match ch {
+                '+' => {
+                    if let Some(ByteCode::Add(val)) = state {
+                        // we check if we overflow, if we do
+                        // we simply push the current instruction and
+                        // create another one to hold what would overflow the last
+                        if let Some(nval) = val.checked_add(1) {
+                            state = Some(ByteCode::Add(nval));
+                        } else {
+                            acc.push(ByteCode::Add(val));
+                            state = Some(ByteCode::Add(1))
+                        }
+                    } else if let Some(b) = state {
+                        acc.push(b);
+                        state = Some(ByteCode::Add(1));
+                    } else {
+                        state = Some(ByteCode::Add(1));
+                    }
+                },
+                '-' => {
+                    if let Some(ByteCode::Sub(val)) = state {
+                        if let Some(nval) = val.checked_add(1) {
+                            state = Some(ByteCode::Sub(nval));
+                        } else {
+                            acc.push(ByteCode::Sub(val));
+                            state = Some(ByteCode::Sub(1));
+                        }
+                    } else if let Some(b) = state {
+                        acc.push(b);
+                        state = Some(ByteCode::Sub(1));
+                    } else {
+                        state = Some(ByteCode::Sub(1));
+                    }
+                },
+                '>' => {
+                    if let Some(ByteCode::PointerAdd(val)) = state {
+                        if let Some(nval) = val.checked_add(1) {
+                            state = Some(ByteCode::PointerAdd(nval));
+                        } else {
+                            acc.push(ByteCode::PointerAdd(val));
+                            state = Some(ByteCode::PointerAdd(1));
+                        }
+                    } else if let Some(b) = state {
+                        acc.push(b);
+                        state = Some(ByteCode::PointerAdd(1));
+                    } else {
+                        state = Some(ByteCode::PointerAdd(1));
+                    }
+                },
+                '<' => {
+                    if let Some(ByteCode::PointerSub(val)) = state {
+                        if let Some(nval) = val.checked_add(1) {
+                            state = Some(ByteCode::PointerSub(nval));
+                        } else {
+                            acc.push(ByteCode::PointerSub(val));
+                            state = Some(ByteCode::PointerSub(1));
+                        }
+                    } else if let Some(b) = state {
+                        acc.push(b);
+                        state = Some(ByteCode::PointerSub(1));
+                    } else {
+                        state = Some(ByteCode::PointerSub(1));
+                    }
+                },
+                '[' => {
+                    if let Some(b) = state {
+                        state = None;
+
+                        acc.push(b);
+                        acc.push(ByteCode::LeftBracket);
+                    } else {
+                        acc.push(ByteCode::LeftBracket);
+                    }
+                },
+                ']' => {
+                    if let Some(b) = state {
+                        state = None;
+                        
+                        acc.push(b);
+                        acc.push(ByteCode::RightBracket);
+                    } else {
+                        acc.push(ByteCode::RightBracket);
+                    }
+                },
+                ',' => {
+                    if let Some(b) = state {
+                        state = None;
+                        
+                        acc.push(b);
+                        acc.push(ByteCode::In);
+                    } else {
+                        acc.push(ByteCode::In);
+                    }
+                },
+                '.' => {
+                    if let Some(b) = state {
+                        state = None;
+                        
+                        acc.push(b);
+                        acc.push(ByteCode::Out);
+                    } else {
+                        acc.push(ByteCode::Out);
+                    }
+                },
+                other => panic!("did not expect instruction {other}")
+            }
+
+            (acc, state)
+        });
+
+        if let Some(b) = remaining {
+            instructions.push(b);
+        }
 
         InterpreterBuilder {
             instructions,
@@ -368,6 +494,31 @@ struct InterpreterConfig {
 
     input_as_number: bool,
     output_as_number: bool,
+}
+
+/// Clumped operation byte codes.
+/// We use i8 since it is the smallest supported cell type.
+/// This means that we can cast the value without fearing that it cannot
+/// fit within the cell's type whichever it is.
+/// The recurence value is should always be above zero, despite the type.
+#[derive(Debug, Clone, PartialEq)]
+enum ByteCode {
+    /// The '>' operator `self.0` times.
+    PointerAdd(i8),
+    /// The '<' operator `self.0` times.
+    PointerSub(i8),
+    /// The '+' operator `self.0` times.
+    Add(i8),
+    /// The '-' operator `self.0` times.
+    Sub(i8),
+    /// The '[' operator.
+    LeftBracket,
+    /// The ']' operator.
+    RightBracket,
+    /// The ',' operator.
+    In,
+    /// The '.' operator.
+    Out,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]

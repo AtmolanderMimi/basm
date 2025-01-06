@@ -83,6 +83,7 @@ fn main() {
         return
     };
 
+
     let builder = InterpreterBuilder::new(&program);
 
     // cell type
