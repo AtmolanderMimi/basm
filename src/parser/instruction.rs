@@ -21,10 +21,36 @@ pub struct InstructionPattern<'a>(
 );
 
 /// An instruction.
+/// Even if situated at the end of a scope and even if the last instruction is a scope,
+/// instruction must always be concluded by a `;`.
+/// Arguments are not seperated by anything other than whitespaces.
+/// Because of course, to be identified as different tokens they need no be fused.
+/// Although common sense would steer you towards writing instructions in a one line per fashion,
+/// there is not restriction on whitespaces and how they are used.
+/// 
+/// Here is an example of a valid [`Instruction`]:
+/// Normal
+/// ```basm
+/// WHNE 4 0 [
+/// ZERO 4;
+/// ];
+/// ```
+/// 
+/// Also valid, but unorthodox
+/// ```basm
+/// WHNE          4
+/// 0 [
+/// 
+///  ZERO  
+///    4   ];
+/// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct Instruction<'a> {
+    #[allow(missing_docs)]
     pub name: Ident<'a>,
+    #[allow(missing_docs)]
     pub arguments: Vec<Either<Expression<'a>, Scope<'a>>>,
+    #[allow(missing_docs)]
     pub semicolon: Semicolon<'a>,
 }
 

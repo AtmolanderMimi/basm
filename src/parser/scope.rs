@@ -19,11 +19,19 @@ pub struct ScopePattern<'a>(
     Box<Then<'a, LeftSquarePattern, Then<'a, Many<'a, Or<'a, InstructionPattern<'a>, ScopePattern<'a>>>, RightSquarePattern>>>
 );
 
-/// An instruction.
+/// A scope.
+/// A scope is simply a block of square brackets, like so: `[]`.
+/// Scopes can contain zero or more instructions or other scopes simultaniously.
+/// (although as shown above an empty scope is still valid)
+/// Because of that definition, `[main]` is not a scope since
+/// it contains tokens that are not valid instructions or scopes.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Scope<'a> {
+    #[allow(missing_docs)]
     pub left_bracket: LeftSquare<'a>,
+    #[allow(missing_docs)]
     pub contents: Vec<Either<Instruction<'a>, Scope<'a>>>,
+    #[allow(missing_docs)]
     pub right_bracket: RightSquare<'a>,
 }
 

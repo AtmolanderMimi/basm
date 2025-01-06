@@ -22,11 +22,14 @@ struct ValuePattern<'a>(
     Or<'a, IdentPattern, Or<'a, NumLitPattern, CharLitPattern>>,
 );
 
-/// Something that represents a value.
+/// Something that represents a static value which can be gotten at compile-time.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ValueRepresentation<'a> {
+    /// An ident, in this case it is an alias.
     Ident(Ident<'a>),
+    /// A number literal.
     NumLit(NumLit<'a>),
+    /// A character literal.
     CharLit(CharLit<'a>),
 }
 
@@ -126,9 +129,13 @@ impl<'a> Pattern<'a> for ExpressionPattern<'a> {
 }
 
 /// Represents an expression.
+/// An expression is simply a [`ValueRepresentation`] which is can be offset by one or more others.
+/// These offsets are [`Mod`]'s.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Expression<'a> {
+    #[allow(missing_docs)]
     pub base: ValueRepresentation<'a>,
+    #[allow(missing_docs)]
     pub mods: Vec<Mod<'a>>,
 }
 

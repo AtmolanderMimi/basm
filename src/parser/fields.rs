@@ -1,12 +1,8 @@
-//! Defines fields like [main] and [@META(arg)].
-
-use either::Either;
+//! Defines the parsing process for fields like [main] and [@META(arg)].
 
 use crate::lexer::token::Token;
 use crate::source::SfSlice;
 
-use super::instruction::Instruction;
-use super::instruction::InstructionPattern;
 use super::scope::Scope;
 use super::scope::ScopePattern;
 use super::terminals::*;
@@ -26,11 +22,23 @@ pub struct MainFieldPattern<'a>(
 );
 
 /// The `[main]` field.
+/// A `[main]` field, even if empty must always be followed by a scope.
+/// 
+/// For example:
+/// ```basm
+/// [main] [
+/// // nothing here
+/// ]
+/// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct MainField<'a> {
+    #[allow(missing_docs)]
     pub left_bracket: LeftSquare<'a>,
+    #[allow(missing_docs)]
     pub main: MainIdent<'a>,
+    #[allow(missing_docs)]
     pub right_bracket: RightSquare<'a>,
+    #[allow(missing_docs)]
     pub contents: Scope<'a>,
 }
 
@@ -70,13 +78,27 @@ pub struct MetaFieldPattern<'a>(
 );
 
 /// A `[@META arg]` field.
+/// A `[@META]` field, even if empty must always be followed by a scope.
+/// 
+/// For example:
+/// ```basm
+/// [@NOTHING] [
+/// // nothing here
+/// ]
+/// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct MetaField<'a> {
+    #[allow(missing_docs)]
     pub left_bracket: LeftSquare<'a>,
+    #[allow(missing_docs)]
     pub at: At<'a>,
+    #[allow(missing_docs)]
     pub name: Ident<'a>,
+    #[allow(missing_docs)]
     pub arguments: Vec<Ident<'a>>,
+    #[allow(missing_docs)]
     pub right_bracket: RightSquare<'a>,
+    #[allow(missing_docs)]
     pub contents: Scope<'a>,
 }
 

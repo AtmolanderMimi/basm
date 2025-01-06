@@ -63,11 +63,17 @@ impl<T> Advancement<T> {
     }
 }
 
+/// Error happening during the parsing process.
+/// Language item parsers will throw this error
+/// when encountering a pattern in the tokens that doesn't match their expectation.
 #[derive(Debug, Clone, PartialEq, Error)]
 pub enum PatternMatchingError {
+    /// A token was not expected, it is invalid for the pattern.
     #[error("expected {expected:?} token, got {got:?}")] // got got :3
     UnexpectedToken {
+        /// The token that would have been valid.
         expected: TokenType,
+        /// The token that was gotten.
         got: Token<'static>, // TODO: i didn't want to deal with more lifetimes
     },
 }
@@ -84,7 +90,7 @@ impl CompilerError for PatternMatchingError {
     }
 }
 
-/// Feeds a pattern with tokens, implements backtracking with when overeaching.
+/// Feeds a pattern with tokens, implements backtracking when overeaching in the tokens.
 #[derive(Debug, Clone, PartialEq)]
 struct PatternFeeder<'a, 'b, T: Pattern<'a>> {
     pattern: T,
@@ -133,9 +139,13 @@ struct ProgramPattern<'a>(
 );
 
 /// A whole, parsed, basm program.
+/// A basm program only needs a valid [`MainField`], to be considered complete,
+/// but it can be augmented by any one or more [`MetaField`] before the `[main]`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParsedProgram<'a> {
+    #[allow(missing_docs)]
     pub meta_instructions: Vec<MetaField<'a>>,
+    #[allow(missing_docs)]
     pub main_field: MainField<'a>,
 }
 
@@ -165,6 +175,8 @@ impl<'a> Pattern<'a> for ProgramPattern<'a> {
 
 /// A generic trait to be implemented onto each language item.
 pub trait LanguageItem<'a> {
+    /// The owned variant of `Self`.
+    /// In most cases this is simply `Self<'static>` when `Self` is bound by a lifetime.
     type Owned;
 
     /// A slice defining the position of the language item.
