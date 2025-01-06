@@ -231,10 +231,7 @@ where <T as TryFrom<i8>>::Error: Debug {
                     }
                 }
             },
-
-            _ => panic!("Unrecognised"),
         }
-
         self.instruction_pointer += 1;
 
         Ok(true)
