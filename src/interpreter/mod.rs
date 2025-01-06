@@ -35,8 +35,10 @@ impl<T> Interpreter<T> {
 
 impl<T: Default + Clone> Interpreter<T> {
     fn get_mut_cell_or_insert_default(&mut self) -> Result<&mut T, InterpreterError> {
-        if self.tape.len() > self.tape_pointer {
-            return Ok(self.tape.get_mut(self.tape_pointer).unwrap());
+        unsafe {
+            if self.tape.len() > self.tape_pointer {
+                return Ok(self.tape.get_unchecked_mut(self.tape_pointer));
+            }
         }
 
         // if we get here then the tape is not long enough for our index
@@ -48,7 +50,9 @@ impl<T: Default + Clone> Interpreter<T> {
 
         self.tape.extend(vec![T::default(); extention]);
 
-        Ok(self.tape.get_mut(self.tape_pointer).unwrap())
+        unsafe {
+            Ok(self.tape.get_unchecked_mut(self.tape_pointer))
+        }
     }
 }
 
