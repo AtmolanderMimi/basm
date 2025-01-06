@@ -80,8 +80,6 @@ pub enum ArgumentKind {
     Scope,
 }
 
-// TODO: Test the correctness of these implementations
-
 #[derive(Debug, Clone, Default, PartialEq)]
 struct Alis;
 impl Instruction for Alis {

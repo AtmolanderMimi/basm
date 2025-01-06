@@ -182,14 +182,21 @@ impl Compiler {
     }
 }
 
+/// Error happening during the compilation process.
 #[derive(Debug, Clone, Error)]
 pub enum CompilerError {
+    /// A meta instruction was defined twice,
+    /// or a meta instruction had the same name as a built-in one.
     #[error("instruction was already defined")]
     DoubleDeclaration(MetaField<'static>),
+    /// An error relative to an instruction. See the inner [`InstructionError`].
     #[error("{0}")]
     Instruction(InstructionError, ParsedInstruction<'static>),
+    /// An alias which was is not defined in scope is present.
     #[error("alias was not defined")]
     AliasNotDefined(Expression<'static>),
+    /// An instruction which is was not defined, yet or will never be defined is present.
+    /// Note that meta-instructions can use another meta-instruction, but only if it was defined higher.
     #[error("instruction is not defined")]
     InstructionNotDefined(Ident<'static>),
 }

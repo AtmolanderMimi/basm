@@ -4,7 +4,7 @@ use either::Either;
 
 use crate::{lexer::token::TokenType, parser::{Expression, Instruction as ParsedInstruction, LanguageItem as _, Scope as ParsedScope, ValueRepresentation}};
 
-use super::{instruction::{ArgumentKind, Instruction, InstructionError, SendSyncInstruction}, CompilerError, MainContext, ScopeContext};
+use super::{instruction::{InstructionError, SendSyncInstruction}, CompilerError, MainContext, ScopeContext};
 
 /// An instruction with all arguments normalized.
 #[derive(Clone)]
