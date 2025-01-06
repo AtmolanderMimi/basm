@@ -1,3 +1,5 @@
+//! A fairly naive implementation of a brainfuck interpreter.
+
 use std::{any::Any, fmt::Debug, io::{self, Write}, str::FromStr, usize};
 
 use num::{traits::{ConstOne, ConstZero, SaturatingAdd, SaturatingSub, WrappingAdd, WrappingSub}, CheckedAdd, CheckedSub, Num, NumCast};
@@ -613,7 +615,7 @@ mod tests {
 
     #[test]
     fn interpreter_fibonacci() {
-        let mut inter = InterpreterBuilder::new(include_str!("../../test-resources/fib.bf"))
+        let mut inter = InterpreterBuilder::new(include_str!("../test-resources/fib.bf"))
             .with_u8()
             .finish();
         inter.complete().unwrap();
@@ -624,7 +626,7 @@ mod tests {
     #[test]
     fn interpreter_cell_types() {
         // u8
-        let mut inter = InterpreterBuilder::new(include_str!("../../test-resources/fib.bf"))
+        let mut inter = InterpreterBuilder::new(include_str!("../test-resources/fib.bf"))
             .with_u8()
             .finish();
         inter.complete().unwrap();
@@ -632,14 +634,14 @@ mod tests {
         assert_eq!(tape[1], 144_u8);
 
         // i8 (should overflow)
-        let mut inter = InterpreterBuilder::new(include_str!("../../test-resources/fib.bf"))
+        let mut inter = InterpreterBuilder::new(include_str!("../test-resources/fib.bf"))
             .with_i8()
             .with_aborting_behaviour()
             .finish();
         inter.complete().unwrap_err();
         
         // u16
-        let mut inter = InterpreterBuilder::new(include_str!("../../test-resources/fib.bf"))
+        let mut inter = InterpreterBuilder::new(include_str!("../test-resources/fib.bf"))
         .with_u16()
         .finish();
         inter.complete().unwrap();
@@ -647,7 +649,7 @@ mod tests {
         assert_eq!(tape[1], 144_u16);
 
         // i16
-        let mut inter = InterpreterBuilder::new(include_str!("../../test-resources/fib.bf"))
+        let mut inter = InterpreterBuilder::new(include_str!("../test-resources/fib.bf"))
         .with_i16()
         .finish();
         inter.complete().unwrap();
@@ -655,7 +657,7 @@ mod tests {
         assert_eq!(tape[1], 144_i16);
 
         // u32
-        let mut inter = InterpreterBuilder::new(include_str!("../../test-resources/fib.bf"))
+        let mut inter = InterpreterBuilder::new(include_str!("../test-resources/fib.bf"))
         .with_u32()
         .finish();
         inter.complete().unwrap();
@@ -663,7 +665,7 @@ mod tests {
         assert_eq!(tape[1], 144_u32);
 
         // i32
-        let mut inter = InterpreterBuilder::new(include_str!("../../test-resources/fib.bf"))
+        let mut inter = InterpreterBuilder::new(include_str!("../test-resources/fib.bf"))
         .with_i32()
         .finish();
         inter.complete().unwrap();

@@ -17,7 +17,6 @@
 )]
 
 pub mod error;
-use std::path;
 
 pub use error::{CompilerError, Lint};
 pub mod lexer;

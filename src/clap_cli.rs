@@ -1,3 +1,5 @@
+//! The cli parser defined via the clap crate and its tooling.
+
 use clap::{command, Args, Parser};
 
 /// The clap cli interface commands.

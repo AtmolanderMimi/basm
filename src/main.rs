@@ -1,10 +1,10 @@
-use std::{fs, io::Write, path::absolute};
+use std::{fs, io::Write, path};
 
-use basm::{clap_cli::CompileArgs, interpreter::InterpreterBuilder, source::SourceFile, transpile, CliCommand, CompilerError};
+use basm::{clap_cli::CompileArgs, interpreter::InterpreterBuilder, source::SourceFile, CliCommand, CompilerError};
 use clap::Parser;
 
 const MALFORMED_INPUT: &str = "the input path is malformed";
-const MALFORMED_OUTPUT: &str = "the output path is malformed";
+//const MALFORMED_OUTPUT: &str = "the output path is malformed";
 const INACCESSIBLE_INPUT: &str = "failed to access input";
 const INACCESSIBLE_OUTPUT: &str = "failed to access output";
 const UNWRITEABLE_OUTPUT: &str = "failed to write to output file";
@@ -19,7 +19,7 @@ fn main() {
         CliCommand::Run(args) => &args.file_path,
     };
 
-    let abs_path = absolute(file_path)
+    let abs_path = path::absolute(file_path)
         .unwrap_or_else(|_| error_out(MALFORMED_INPUT));
 
     let is_basm_file = match &cli {
@@ -32,7 +32,7 @@ fn main() {
         let sf = SourceFile::from_file(&abs_path)
             .unwrap_or_else(|_| error_out(INACCESSIBLE_INPUT));
 
-        let program = match transpile(&sf) {
+        let program = match basm::transpile(&sf) {
             Err(errors) => {
                 println!("\n------------------ [ ERRORS ] ------------------");
                 for e in errors {
