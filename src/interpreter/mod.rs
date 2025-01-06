@@ -1,4 +1,4 @@
-use std::{any::Any, io::{self, Write}, usize};
+use std::{any::Any, fmt::Debug, io::{self, Write}, str::FromStr, usize};
 
 use num::{traits::{ConstOne, ConstZero, SaturatingAdd, SaturatingSub, WrappingAdd, WrappingSub}, CheckedAdd, CheckedSub, Num, NumCast};
 use thiserror::Error;
@@ -72,7 +72,7 @@ pub trait InterpreterTrait {
     fn tape(&self) -> &dyn Any;
 }
 
-impl<T: NumOpsPlus + Default + Clone + 'static> InterpreterTrait for Interpreter<T> {
+impl<T: NumOpsPlus + Default + Clone + 'static + Debug + FromStr> InterpreterTrait for Interpreter<T> {
     fn advance(&mut self) -> Result<bool, InterpreterError> {
         let instruction = if let Some(i) = self.instructions.get(self.instruction_pointer) {
             i
@@ -126,24 +126,41 @@ impl<T: NumOpsPlus + Default + Clone + 'static> InterpreterTrait for Interpreter
             },
 
             '.' => {
-                let value = self.get_mut_cell_or_insert_default()?;
-                let ch = char::from_u32(value.to_u32().unwrap_or(65_533)).unwrap_or('�');
-                print!("{ch}");
+                let value = self.get_mut_cell_or_insert_default()?.clone();
+                if self.config.output_as_number {
+                    print!("{value:?} ")
+                } else {
+                    let ch = char::from_u32(value.to_u32().unwrap_or(65_533)).unwrap_or('�');
+                    print!("{ch}")
+                }
+
                 let _ = io::stdout().flush();
             },
 
             ',' => {
+                let input_as_number = self.config.input_as_number;
+
                 let cell = self.get_mut_cell_or_insert_default()?;
 
-                loop {
-                    let something = read_char_input();
-                    if let Some(nch) = something {
-                        if let Some(ncell) = T::from(nch as u32) {
-                            *cell = ncell;
-                            break
-                        };
+                if input_as_number {
+                    loop {
+                        let something = read_int_input();
+                        if let Some(nval) = something {
+                            *cell = nval;
+                            break;
+                        }
                     }
-                }
+                } else {
+                    loop {
+                        let something = read_char_input();
+                        if let Some(nch) = something {
+                            if let Some(ncell) = T::from(nch as u32) {
+                                *cell = ncell;
+                                break
+                            };
+                        }
+                    }
+                };
             },
 
             '[' => {
@@ -306,6 +323,30 @@ impl InterpreterBuilder {
         self
     }
 
+    /// Sets the input mode to treat the input as an integer number.
+    pub fn with_input_as_number(mut self) -> Self {
+        self.inner.input_as_number = true;
+        self
+    }
+
+    /// Sets the input mode to treat the input as an character.
+    pub fn with_input_as_character(mut self) -> Self {
+        self.inner.input_as_number = false;
+        self
+    }
+
+    /// Sets the output mode to treat the output as an integer number.
+    pub fn with_output_as_number(mut self) -> Self {
+        self.inner.output_as_number = true;
+        self
+    }
+
+    /// Sets the output mode to treat the output as an character.
+    pub fn with_output_as_character(mut self) -> Self {
+        self.inner.output_as_number = false;
+        self
+    }
+
     /// Finishes the building process.
     pub fn finish(self) -> Box<dyn InterpreterTrait> {
         match self.inner.cell_kind {
@@ -324,6 +365,9 @@ struct InterpreterConfig {
     cell_kind: CellKind,
     lenght_limit: Option<usize>,
     overflow_behaviour: OverflowBehaviour,
+
+    input_as_number: bool,
+    output_as_number: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -387,6 +431,18 @@ fn read_char_input() -> Option<char> {
 
     // we skip the first few we printed ourselves
     buf.chars().nth(1)
+}
+
+fn read_int_input<T: FromStr + Debug>() -> Option<T> {
+    print!("\n?: ");
+    let _ = io::stdout().flush();
+    let mut buf = String::new();
+    let _ = std::io::stdin().read_line(&mut buf);
+
+    // we skip the first few we printed ourselves
+    buf[0..].trim()
+        .parse()
+        .map_or(None, |s| Some(s))
 }
 
 #[cfg(test)]

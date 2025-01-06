@@ -34,13 +34,21 @@ pub struct RunArgs {
     #[arg(long, short)]
     pub tape_limit: Option<usize>,
 
+    /// Treats the input as integer numbers rather than characters.
+    #[arg(long, short = 'n', default_value_t = false)]
+    pub number_input: bool,
+
+    /// Treats the output as integer numbers rather than characters.
+    #[arg(long, short = 'm', default_value_t = false)]
+    pub number_output: bool,
+
+    /// Interprets the file as brainfuck, skips the compiling process
+    #[arg(long, short, default_value_t = false)]
+    pub raw: bool,
+
     /// Print the transpiled brainfuck
     #[arg(long, short = 'p', default_value_t = false)]
     pub show: bool,
-
-    /// Interprets the file as brainfuck, not basm
-    #[arg(long, short, default_value_t = false)]
-    pub raw: bool,
 }
 
 /// Arguments for the `compile` command.

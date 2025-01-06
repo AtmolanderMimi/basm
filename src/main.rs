@@ -110,6 +110,20 @@ fn main() {
         builder.without_tape_lenght()
     };
 
+    // input type
+    let builder = if run_args.number_input {
+        builder.with_input_as_number()
+    } else {
+        builder.with_input_as_character()
+    };
+
+    // output type
+    let builder = if run_args.number_output {
+        builder.with_output_as_number()
+    } else {
+        builder.with_output_as_character()
+    };
+
     let mut interpreter = builder.finish();
     match interpreter.complete() {
         Ok(()) => (),

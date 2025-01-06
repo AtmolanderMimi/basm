@@ -1,0 +1,54 @@
+[@MOVE from to] [
+ZERO to;
+ADDP to from;
+]
+
+[@COPC from to sp] [
+ALIS tmp sp;
+COPY from to tmp;
+ADDP from tmp;
+]
+
+[@SUBC lhs rhs to sp] [
+ALIS lhsc to;
+ALIS rhsc sp;
+ALIS sp sp+1;
+
+COPC lhs lhsc sp;
+COPC rhs rhsc sp;
+
+SUBP lhsc rhsc;
+]
+
+[main] [
+ALIS Pi 0;
+
+ALIS Pa 1;
+INCR Pa 1;
+ALIS Pb 2;
+INCR Pb 0;
+
+ALIS Plimit 3;
+IN Plimit;
+DECR Plimit 1;
+
+ALIS Pdiff 4;
+ALIS sp 5;
+
+SUBC Plimit Pi Pdiff sp;
+WHNE Pdiff 0 [
+    COPY Pa sp sp+1;
+    MOVE sp+1 Pa;
+    ADDP Pa Pb;
+    
+    MOVE sp Pb;
+    // OUT  Pa;
+
+    INCR Pi 1;
+
+    ZERO Pdiff;
+    SUBC Plimit Pi Pdiff sp;
+];
+
+OUT Pa;
+]
