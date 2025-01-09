@@ -55,3 +55,38 @@ pub fn transpile<'a>(sf: &'static SourceFile) -> Result<String, Vec<Box<dyn Comp
     
     Ok(program)
 }
+
+#[cfg(test)]
+#[allow(unused_imports)]
+mod tests {
+        use std::{hint::black_box, path::PathBuf, time::Instant};
+        
+        use super::*;
+
+    #[test]
+    #[ignore = "compute intensive (needs release)"]
+    fn compile_performance_reading_alot_of_data() {
+        #[cfg(debug_assertions)]
+        panic!("please run as release");
+
+        #[cfg(not(debug_assertions))]
+        {
+            // TODO: big-file is not big enough to justify this
+            const ACCEPTABLE_TIME: f32 = 1.0;
+            
+            let timer = Instant::now();
+            let sf = SourceFile::from_raw_parts(
+                PathBuf::from("./../test-resources/big-file.basm"),
+                include_str!("./../test-resources/big-file.basm").to_string()
+            ).leak();
+
+            // the file is supposed to error, so we don't unwrap
+            let _ = black_box(transpile(sf));
+
+            let duration = timer.elapsed();
+            if duration.as_secs_f32() > ACCEPTABLE_TIME {
+                panic!("transpiling took {}", duration.as_secs_f32());
+            }
+        }
+    }
+}
