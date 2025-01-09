@@ -53,7 +53,7 @@ pub trait CompilerError: Error {
             out.push_str(&format!(" → {}\n", &self.to_string().underline().bold()));
 
             // -- context --
-            if let Either::Left(ref slice) = l.slice {
+            if let Either::Left(slice) = l.slice {
                 let source = slice.source();
                 let pre_context_range = slice.start().saturating_sub(CONTEXT_WINDOW)..slice.start();
                 let post_context_range = if (slice.end() + CONTEXT_WINDOW) > source.char_lenght() {
@@ -80,15 +80,15 @@ pub trait CompilerError: Error {
 
 #[derive(Debug, Clone, PartialEq)]
 /// A lint in the source code
-pub struct Lint<'a> {
+pub struct Lint {
     gravity: LintGravity,
     /// range in the source code file, or the whole file
-    slice: Either<SfSlice<'a>, &'a SourceFile>
+    slice: Either<SfSlice, &'static SourceFile>
 }
 
-impl Lint<'_> {
+impl Lint {
     /// Creates a new [`Lint`] with the gravity of error.
-    pub fn new_error(source: &SourceFile) -> Lint {
+    pub fn new_error(source: &'static SourceFile) -> Lint {
         Lint {
             gravity: LintGravity::Error,
             slice: Either::Right(source)
@@ -97,7 +97,7 @@ impl Lint<'_> {
 
     /// Creates a new [`Lint`] with the gravity of error as the slice of the file.
     /// `range` is in characters, not bytes.
-    pub fn new_error_range(source: &SourceFile, range: Range<usize>) -> Option<Lint> {
+    pub fn new_error_range(source: &'static SourceFile, range: Range<usize>) -> Option<Lint> {
         let l = Lint {
             gravity: LintGravity::Error,
             slice: Either::Left(source.char_slice(range)?)
@@ -107,7 +107,7 @@ impl Lint<'_> {
     }
 
     /// Creates a new [`Lint`] with the gravity of warning.
-    pub fn new_warning(source: &SourceFile) -> Lint {
+    pub fn new_warning(source: &'static SourceFile) -> Lint {
         Lint {
             gravity: LintGravity::Warning,
             slice: Either::Right(source)
@@ -116,7 +116,7 @@ impl Lint<'_> {
 
     /// Creates a new [`Lint`] with the gravity of warning as the slice of the file.
     /// `range` is in characters, not bytes.
-    pub fn new_warning_range(source: &SourceFile, range: Range<usize>) -> Option<Lint> {
+    pub fn new_warning_range(source: &'static SourceFile, range: Range<usize>) -> Option<Lint> {
         let l = Lint {
             gravity: LintGravity::Warning,
             slice: Either::Left(source.char_slice(range)?)

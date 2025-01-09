@@ -34,7 +34,7 @@ pub use clap_cli::CliCommand;
 use source::SourceFile;
 
 /// Transpiles bfu source code into bf.
-pub fn transpile<'a>(sf: &'a SourceFile) -> Result<String, Vec<Box<dyn CompilerError + 'a>>> {
+pub fn transpile<'a>(sf: &'static SourceFile) -> Result<String, Vec<Box<dyn CompilerError + 'a>>> {
     let (tokens, errors) = lexer::lex_file(sf);
     if !errors.is_empty() {
         let boxed_errs = errors.into_iter()

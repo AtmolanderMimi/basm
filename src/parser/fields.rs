@@ -14,11 +14,11 @@ use super::Pattern;
 
 /// Pattern for constructing an [`MainField`].
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct MainFieldPattern<'a>(
+pub struct MainFieldPattern(
     // header
-    Then<'a, LeftSquarePattern, Then<'a, MainIdentPattern, Then<'a, RightSquarePattern,
+    Then<LeftSquarePattern, Then<MainIdentPattern, Then<RightSquarePattern,
     // contents
-    ScopePattern<'a>>>>
+    ScopePattern>>>
 );
 
 /// The `[main]` field.
@@ -31,21 +31,21 @@ pub struct MainFieldPattern<'a>(
 /// ]
 /// ```
 #[derive(Debug, Clone, PartialEq)]
-pub struct MainField<'a> {
+pub struct MainField {
     #[allow(missing_docs)]
-    pub left_bracket: LeftSquare<'a>,
+    pub left_bracket: LeftSquare,
     #[allow(missing_docs)]
-    pub main: MainIdent<'a>,
+    pub main: MainIdent,
     #[allow(missing_docs)]
-    pub right_bracket: RightSquare<'a>,
+    pub right_bracket: RightSquare,
     #[allow(missing_docs)]
-    pub contents: Scope<'a>,
+    pub contents: Scope,
 }
 
-impl<'a> Pattern<'a> for MainFieldPattern<'a> {
-    type ParseResult = MainField<'a>;
+impl Pattern for MainFieldPattern {
+    type ParseResult = MainField;
 
-    fn advance(&mut self, token: &'a Token) -> Advancement<Self::ParseResult> {
+    fn advance(&mut self, token: &Token) -> Advancement<Self::ParseResult> {
         let adv = self.0.advance(token);
         let overeach = adv.overeach;
 
@@ -68,12 +68,12 @@ impl<'a> Pattern<'a> for MainFieldPattern<'a> {
 
 /// Pattern for constructing an [`MetaField`].
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct MetaFieldPattern<'a>(
+pub struct MetaFieldPattern(
     // python users getting a stroke from reading the blinding genious that is my use of the type system
     // header
-    Then<'a, LeftSquarePattern, Then<'a, AtPattern, Then<'a, IdentPattern, Then<'a, Many<'a, IdentPattern>, Then<'a, RightSquarePattern,
+    Then<LeftSquarePattern, Then<AtPattern, Then<IdentPattern, Then<Many<IdentPattern>, Then<RightSquarePattern,
     // contents
-    ScopePattern<'a>
+    ScopePattern
     >>>>>
 );
 
@@ -87,25 +87,25 @@ pub struct MetaFieldPattern<'a>(
 /// ]
 /// ```
 #[derive(Debug, Clone, PartialEq)]
-pub struct MetaField<'a> {
+pub struct MetaField {
     #[allow(missing_docs)]
-    pub left_bracket: LeftSquare<'a>,
+    pub left_bracket: LeftSquare,
     #[allow(missing_docs)]
-    pub at: At<'a>,
+    pub at: At,
     #[allow(missing_docs)]
-    pub name: Ident<'a>,
+    pub name: Ident,
     #[allow(missing_docs)]
-    pub arguments: Vec<Ident<'a>>,
+    pub arguments: Vec<Ident>,
     #[allow(missing_docs)]
-    pub right_bracket: RightSquare<'a>,
+    pub right_bracket: RightSquare,
     #[allow(missing_docs)]
-    pub contents: Scope<'a>,
+    pub contents: Scope,
 }
 
-impl<'a> Pattern<'a> for MetaFieldPattern<'a> {
-    type ParseResult = MetaField<'a>;
+impl Pattern for MetaFieldPattern {
+    type ParseResult = MetaField;
 
-    fn advance(&mut self, token: &'a Token) -> Advancement<Self::ParseResult> {
+    fn advance(&mut self, token: &Token) -> Advancement<Self::ParseResult> {
         let adv = self.0.advance(token);
         let overeach = adv.overeach;
 
@@ -128,21 +128,8 @@ impl<'a> Pattern<'a> for MetaFieldPattern<'a> {
     }
 }
 
-impl<'a> LanguageItem<'a> for MainField<'a> {
-    type Owned = MainField<'static>;
-
-    fn into_owned(self) -> Self::Owned {
-        let contents = self.contents.into_owned();
-
-        MainField {
-            left_bracket: self.left_bracket.into_owned(),
-            main: self.main.into_owned(),
-            right_bracket: self.right_bracket.into_owned(),
-            contents,
-        }
-    }
-
-    fn slice(&self) -> SfSlice<'a> {
+impl LanguageItem for MainField {
+    fn slice(&self) -> SfSlice {
         let start = self.left_bracket.0.slice.start();
         let end = self.contents.slice().end();
 
@@ -150,23 +137,8 @@ impl<'a> LanguageItem<'a> for MainField<'a> {
     }
 }
 
-impl<'a> LanguageItem<'a> for MetaField<'a> {
-    type Owned = MetaField<'static>;
-
-    fn into_owned(self) -> Self::Owned {
-        let contents = self.contents.into_owned();
-
-        MetaField {
-            left_bracket: self.left_bracket.into_owned(),
-            at: self.at.into_owned(),
-            name: self.name.into_owned(),
-            right_bracket: self.right_bracket.into_owned(),
-            contents,
-            arguments: self.arguments.into_iter().map(|a| a.into_owned()).collect()
-        }
-    }
-
-    fn slice(&self) -> SfSlice<'a> {
+impl LanguageItem for MetaField {
+    fn slice(&self) -> SfSlice {
         let start = self.left_bracket.0.slice.start();
         let end = self.contents.slice().end();
 
@@ -180,7 +152,7 @@ mod tests {
 
     use super::*;
 
-    fn bogus_token(t_type: TokenType) -> Token<'static> {
+    fn bogus_token(t_type: TokenType) -> Token {
         Token::new(t_type, SfSlice::new_bogus("fishg"))
     }
 

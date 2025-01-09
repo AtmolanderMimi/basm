@@ -30,9 +30,10 @@ fn main() {
     // transpiling (or not)
     let program = if is_basm_file {
         let sf = SourceFile::from_file(&abs_path)
-            .unwrap_or_else(|_| error_out(INACCESSIBLE_INPUT));
+            .unwrap_or_else(|_| error_out(INACCESSIBLE_INPUT))
+            .leak();
 
-        let program = match basm::transpile(&sf) {
+        let program = match basm::transpile(sf) {
             Err(errors) => {
                 println!("\n------------------ [ ERRORS ] ------------------");
                 for e in errors {

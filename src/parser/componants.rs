@@ -1,6 +1,6 @@
 //! Componant patterns, these are generic util patterns used to make other patterns.
 
-use std::{marker::PhantomData, mem};
+use std::mem;
 
 use either::Either;
 
@@ -12,18 +12,17 @@ use super::{Advancement, AdvancementState as AdvState, Pattern};
 /// Requires one of the patterns to be valid.
 /// If both are valid, then the first one to be completed gets returned.
 /// If both are completed at the same time, then the pattern `T` is prioritised.
-pub(super) struct Or<'a, T, U>
-where T: Pattern<'a>, U: Pattern<'a> {
-    _phantom: PhantomData<&'a ()>,
+pub(super) struct Or<T, U>
+where T: Pattern, U: Pattern {
     t: T,
     u: Option<U>, // only loads u if it is needed
 }
 
-impl<'a, T, U> Pattern<'a> for Or<'a, T, U>
-where T: Pattern<'a>, U: Pattern<'a> {
+impl<T, U> Pattern for Or<T, U>
+where T: Pattern, U: Pattern {
     type ParseResult = Either<T::ParseResult, U::ParseResult>;
 
-    fn advance(&mut self, token: &'a Token) -> Advancement<Self::ParseResult> {
+    fn advance(&mut self, token: &Token) -> Advancement<Self::ParseResult> {
         if let Some(u) = &mut self.u {
             let adv = u.advance(&token);
             let overeach = adv.overeach;
@@ -62,16 +61,16 @@ where T: Pattern<'a>, U: Pattern<'a> {
 
 #[derive(Debug, Clone, PartialEq)]
 /// Requires both patterns to be valid in order (`T` → `U`).
-pub(super) struct Then<'a, T, U>
-where T: Pattern<'a>, U: Pattern<'a> {
+pub(super) struct Then<T, U>
+where T: Pattern, U: Pattern {
     t: T,
     t_res: Option<T::ParseResult>,
     u: U,
     token_count: usize,
 }
 
-impl<'a, T, U> Default for Then<'a, T, U>
-where T: Pattern<'a>, U: Pattern<'a> {
+impl<T, U> Default for Then<T, U>
+where T: Pattern, U: Pattern {
     fn default() -> Self {
         Then {
             t: T::default(),
@@ -82,11 +81,11 @@ where T: Pattern<'a>, U: Pattern<'a> {
     }
 }
 
-impl<'a, T, U> Pattern<'a> for Then<'a, T, U>
-where T: Pattern<'a>, U: Pattern<'a> {
+impl<T, U> Pattern for Then<T, U>
+where T: Pattern, U: Pattern {
     type ParseResult = (T::ParseResult, U::ParseResult);
 
-    fn advance(&mut self, token: &'a Token) -> Advancement<Self::ParseResult> {
+    fn advance(&mut self, token: &Token) -> Advancement<Self::ParseResult> {
         self.token_count += 1;
 
         if let Some(t_res) = &self.t_res {
@@ -132,12 +131,12 @@ where T: Pattern<'a>, U: Pattern<'a> {
 
 /// Greedly matches the provided pattern zero or more times.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Many<'a, T: Pattern<'a>> {
+pub struct Many<T: Pattern> {
     t: T,
     results: Vec<T::ParseResult>,
 }
 
-impl<'a, T: Pattern<'a>> Default for Many<'a, T> {
+impl<T: Pattern> Default for Many<T> {
     fn default() -> Self {
         Many {
             t: T::default(),
@@ -146,10 +145,10 @@ impl<'a, T: Pattern<'a>> Default for Many<'a, T> {
     }
 }
 
-impl<'a, T: Pattern<'a>> Pattern<'a> for Many<'a, T> {
+impl<T: Pattern> Pattern for Many<T> {
     type ParseResult = Vec<T::ParseResult>;
 
-    fn advance(&mut self, token: &'a Token) -> Advancement<Self::ParseResult> {
+    fn advance(&mut self, token: &Token) -> Advancement<Self::ParseResult> {
         let adv = self.t.advance(token);
         let overeach = adv.overeach;
 
@@ -176,7 +175,7 @@ mod tests {
 
     use super::*;
 
-    fn bogus_token(t_type: TokenType) -> Token<'static> {
+    fn bogus_token(t_type: TokenType) -> Token {
         Token::new(t_type, SfSlice::new_bogus("fishg"))
     }
 

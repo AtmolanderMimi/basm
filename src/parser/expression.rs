@@ -18,25 +18,25 @@ use super::AdvancementState as AdvState;
 
 /// Pattern for building a [`ValueRepresentation`].
 #[derive(Debug, Clone, PartialEq, Default)]
-struct ValuePattern<'a>(
-    Or<'a, IdentPattern, Or<'a, NumLitPattern, CharLitPattern>>,
+struct ValuePattern(
+    Or<IdentPattern, Or<NumLitPattern, CharLitPattern>>,
 );
 
 /// Something that represents a static value which can be gotten at compile-time.
 #[derive(Debug, Clone, PartialEq)]
-pub enum ValueRepresentation<'a> {
+pub enum ValueRepresentation {
     /// An ident, in this case it is an alias.
-    Ident(Ident<'a>),
+    Ident(Ident),
     /// A number literal.
-    NumLit(NumLit<'a>),
+    NumLit(NumLit),
     /// A character literal.
-    CharLit(CharLit<'a>),
+    CharLit(CharLit),
 }
 
-impl<'a> Pattern<'a> for ValuePattern<'a> {
-    type ParseResult = ValueRepresentation<'a>;
+impl Pattern for ValuePattern {
+    type ParseResult = ValueRepresentation;
 
-    fn advance(&mut self, token: &'a Token) -> Advancement<Self::ParseResult> {
+    fn advance(&mut self, token: &Token) -> Advancement<Self::ParseResult> {
         let adv = self.0.advance(token);
         let overeach = adv.overeach;
 
@@ -58,14 +58,14 @@ impl<'a> Pattern<'a> for ValuePattern<'a> {
 
 /// Pattern for building a [`Mod`].
 #[derive(Debug, Clone, PartialEq, Default)]
-struct ModPattern<'a>(
-    Then<'a, Or<'a, PlusPattern, MinusPattern>, ValuePattern<'a>>
+struct ModPattern(
+    Then<Or<PlusPattern, MinusPattern>, ValuePattern>
 );
 
-impl<'a> Pattern<'a> for ModPattern<'a> {
-    type ParseResult = Mod<'a>;
+impl Pattern for ModPattern {
+    type ParseResult = Mod;
 
-    fn advance(&mut self, token: &'a Token) -> Advancement<Self::ParseResult> {
+    fn advance(&mut self, token: &Token) -> Advancement<Self::ParseResult> {
         let adv = self.0.advance(token);
         let overeach = adv.overeach;
 
@@ -86,30 +86,30 @@ impl<'a> Pattern<'a> for ModPattern<'a> {
 
 #[derive(Debug, Clone, PartialEq)]
 /// Represents a modification applied to a value. Like this: `+3`.
-pub enum Mod<'a> {
+pub enum Mod {
     Increment {
-        plus_token: Plus<'a>,
-        value: ValueRepresentation<'a>,
+        plus_token: Plus,
+        value: ValueRepresentation,
     },
     Decrement {
-        minus_token: Minus<'a>,
-        value: ValueRepresentation<'a>,
+        minus_token: Minus,
+        value: ValueRepresentation,
     },
 }
 
 /// Pattern for building a [`Expression`].
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct ExpressionPattern<'a>(
-    Then<'a,
-        ValuePattern<'a>,
-        Many<'a, ModPattern<'a>>
+pub struct ExpressionPattern(
+    Then<
+        ValuePattern,
+        Many<ModPattern>
     >
 );
 
-impl<'a> Pattern<'a> for ExpressionPattern<'a> {
-    type ParseResult = Expression<'a>;
+impl Pattern for ExpressionPattern {
+    type ParseResult = Expression;
 
-    fn advance(&mut self, token: &'a Token) -> Advancement<Self::ParseResult> {
+    fn advance(&mut self, token: &Token) -> Advancement<Self::ParseResult> {
         let adv = self.0.advance(token);
         let overeach = adv.overeach;
 
@@ -132,14 +132,14 @@ impl<'a> Pattern<'a> for ExpressionPattern<'a> {
 /// An expression is simply a [`ValueRepresentation`] which is can be offset by one or more others.
 /// These offsets are [`Mod`]'s.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Expression<'a> {
+pub struct Expression {
     #[allow(missing_docs)]
-    pub base: ValueRepresentation<'a>,
+    pub base: ValueRepresentation,
     #[allow(missing_docs)]
-    pub mods: Vec<Mod<'a>>,
+    pub mods: Vec<Mod>,
 }
 
-impl<'a> Expression<'a> {
+impl Expression {
     /// Evaluates the expression in the context.
     /// Returns `None` if an alias is not defined in the context.
     pub fn evaluate(&self, ctx: &ScopeContext<'_>) -> Option<u32> {
@@ -160,7 +160,7 @@ impl<'a> Expression<'a> {
     }
 }
 
-impl<'a> ValueRepresentation<'a> {
+impl ValueRepresentation {
     /// Evaluates the value in the context.
     /// Returns `None` if an alias is not defined in the context.
     pub fn evaluate(&self, ctx: &ScopeContext<'_>) -> Option<u32> {
@@ -192,18 +192,8 @@ impl<'a> ValueRepresentation<'a> {
     }
 }
 
-impl<'a> LanguageItem<'a> for ValueRepresentation<'a> {
-    type Owned = ValueRepresentation<'static>;
-
-    fn into_owned(self) -> Self::Owned {
-        match self {
-            Self::CharLit(c) => ValueRepresentation::CharLit(c.into_owned()),
-            Self::NumLit(c) => ValueRepresentation::NumLit(c.into_owned()),
-            Self::Ident(c) => ValueRepresentation::Ident(c.into_owned()),
-        }
-    }
-
-    fn slice(&self) -> SfSlice<'a> {
+impl LanguageItem for ValueRepresentation {
+    fn slice(&self) -> SfSlice {
         match self {
             Self::CharLit(c) => c.slice(),
             Self::NumLit(c) => c.slice(),
@@ -212,17 +202,8 @@ impl<'a> LanguageItem<'a> for ValueRepresentation<'a> {
     }
 }
 
-impl<'a> LanguageItem<'a> for Expression<'a> {
-    type Owned = Expression<'static>;
-
-    fn into_owned(self) -> Self::Owned {
-        Expression {
-            base: self.base.into_owned(),
-            mods: self.mods.into_iter().map(|m| m.into_owned()).collect(),
-        }
-    }
-
-    fn slice(&self) -> SfSlice<'a> {
+impl LanguageItem for Expression {
+    fn slice(&self) -> SfSlice {
         let start = self.base.slice().start();
         let end = self.mods.last()
             .map(|l| l.slice().end()).unwrap_or(self.base.slice().end());
@@ -230,23 +211,8 @@ impl<'a> LanguageItem<'a> for Expression<'a> {
     }
 }
 
-impl<'a> LanguageItem<'a> for Mod<'a> {
-    type Owned = Mod<'static>;
-
-    fn into_owned(self) -> Self::Owned {
-        match self {
-            Self::Increment { plus_token, value } => Mod::Increment {
-                plus_token: plus_token.into_owned(),
-                value: value.into_owned(),
-            },
-            Self::Decrement { minus_token, value } => Mod::Decrement {
-                minus_token: minus_token.into_owned(),
-                value: value.into_owned(),
-            },
-        }
-    }
-
-    fn slice(&self) -> SfSlice<'a> {
+impl LanguageItem for Mod {
+    fn slice(&self) -> SfSlice {
         match self {
             Self::Increment { plus_token, value } => {
                 let start = plus_token.slice().start();
@@ -270,7 +236,7 @@ mod tests {
 
     use super::*;
 
-    fn bogus_token(t_type: TokenType) -> Token<'static> {
+    fn bogus_token(t_type: TokenType) -> Token {
         Token::new(t_type, SfSlice::new_bogus("fishg"))
     }
 

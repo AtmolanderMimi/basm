@@ -14,9 +14,9 @@ use super::Pattern;
 
 /// Pattern for constructing an [`Scope`].
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct ScopePattern<'a>(
+pub struct ScopePattern(
     // boxed in because of the recursion
-    Box<Then<'a, LeftSquarePattern, Then<'a, Many<'a, Or<'a, InstructionPattern<'a>, ScopePattern<'a>>>, RightSquarePattern>>>
+    Box<Then<LeftSquarePattern, Then<Many<Or<InstructionPattern, ScopePattern>>, RightSquarePattern>>>
 );
 
 /// A scope.
@@ -26,19 +26,19 @@ pub struct ScopePattern<'a>(
 /// Because of that definition, `[main]` is not a scope since
 /// it contains tokens that are not valid instructions or scopes.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Scope<'a> {
+pub struct Scope {
     #[allow(missing_docs)]
-    pub left_bracket: LeftSquare<'a>,
+    pub left_bracket: LeftSquare,
     #[allow(missing_docs)]
-    pub contents: Vec<Either<Instruction<'a>, Scope<'a>>>,
+    pub contents: Vec<Either<Instruction, Scope>>,
     #[allow(missing_docs)]
-    pub right_bracket: RightSquare<'a>,
+    pub right_bracket: RightSquare,
 }
 
-impl<'a> Pattern<'a> for ScopePattern<'a> {
-    type ParseResult = Scope<'a>;
+impl Pattern for ScopePattern {
+    type ParseResult = Scope;
 
-    fn advance(&mut self, token: &'a Token) -> Advancement<Self::ParseResult> {
+    fn advance(&mut self, token: &Token) -> Advancement<Self::ParseResult> {
         let adv = self.0.advance(token);
         let overeach = adv.overeach;
 
@@ -58,21 +58,8 @@ impl<'a> Pattern<'a> for ScopePattern<'a> {
     }
 }
 
-impl<'a> LanguageItem<'a> for Scope<'a> {
-    type Owned = Scope<'static>;
-
-    fn into_owned(self) -> Self::Owned {
-        let contents = self.contents.into_iter().map(|c| c.map_either(|l| l.into_owned(), |r| r.into_owned()))
-            .collect();
-
-        Scope {
-            left_bracket: self.left_bracket.into_owned(),
-            right_bracket: self.right_bracket.into_owned(),
-            contents,
-        }
-    }
-
-    fn slice(&self) -> SfSlice<'a> {
+impl LanguageItem for Scope {
+    fn slice(&self) -> SfSlice {
         let start = self.left_bracket.0.slice.start();
         let end = self.right_bracket.0.slice.end();
         self.left_bracket.0.slice.reslice_char(start..end)
@@ -85,7 +72,7 @@ mod tests {
 
     use super::*;
 
-    fn bogus_token(t_type: TokenType) -> Token<'static> {
+    fn bogus_token(t_type: TokenType) -> Token {
         Token::new(t_type, SfSlice::new_bogus("fishg"))
     }
 

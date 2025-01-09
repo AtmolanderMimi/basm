@@ -7,7 +7,7 @@ use either::Either;
 
 use thiserror::Error;
 
-use crate::{lexer::token::TokenType, parser::{LanguageItem, MetaField, Scope}};
+use crate::{lexer::token::TokenType, parser::{MetaField, Scope}};
 
 use super::{normalized_items::NormalizedScope, CompilerError, MainContext};
 
@@ -34,7 +34,7 @@ pub trait Instruction {
 
     /// Compiles the given instruction into string format, checks the validity of the arguments passed in.
     /// Will return an error if the number of arguments does not match the one specified by [`Instruction::arguments`].
-    fn compile_checked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope<'_>>]) -> Result<(), InstructionError> {
+    fn compile_checked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope>]) -> Result<(), InstructionError> {
         if args.len() > self.arguments().len() {
             return Err(InstructionError::TooManyArguments { got: args.len(), expected: self.arguments().len() })
         } else if args.len() < self.arguments().len() {
@@ -65,7 +65,7 @@ pub trait Instruction {
     
     /// Compiles the given instructions into string format.
     /// It can be assummed that the arguments passed in are valid.
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope<'_>>]) -> Result<(), InstructionError>;
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope>]) -> Result<(), InstructionError>;
 }
 
 pub trait SendSyncInstruction: Instruction + Send + Sync {}
@@ -87,11 +87,11 @@ impl Instruction for Alis {
         &[]
     }
 
-    fn compile_checked(&self, _buf: &mut String, _ctx: &MainContext, _args: &[Either<u32, NormalizedScope<'_>>]) -> Result<(), InstructionError> {
+    fn compile_checked(&self, _buf: &mut String, _ctx: &MainContext, _args: &[Either<u32, NormalizedScope>]) -> Result<(), InstructionError> {
         //panic!("ALIS, cannot be compiled like other built-in's, it should be catched before")
         Ok(())
     }
-    fn compile_unchecked(&self, _buf: &mut String, _ctx: &MainContext, _args: &[Either<u32, NormalizedScope<'_>>]) -> Result<(), InstructionError> {
+    fn compile_unchecked(&self, _buf: &mut String, _ctx: &MainContext, _args: &[Either<u32, NormalizedScope>]) -> Result<(), InstructionError> {
         //panic!("ALIS, cannot be compiled like other built-in's, it should be catched before")
         Ok(())
     }
@@ -104,7 +104,7 @@ impl Instruction for Zero {
         &[ArgumentKind::Operand]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope<'_>>]) -> Result<(), InstructionError> {
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope>]) -> Result<(), InstructionError> {
         move_pointer_to(buf, ctx, *args[0].as_ref().unwrap_left());
         buf.push_str("[-]");
 
@@ -119,7 +119,7 @@ impl Instruction for Incr {
         &[ArgumentKind::Operand, ArgumentKind::Operand]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope<'_>>]) -> Result<(), InstructionError> {
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope>]) -> Result<(), InstructionError> {
         let pos = *args[0].as_ref().unwrap_left();
         let incrementation = *args[1].as_ref().unwrap_left();
 
@@ -139,7 +139,7 @@ impl Instruction for Decr {
         &[ArgumentKind::Operand, ArgumentKind::Operand]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope<'_>>]) -> Result<(), InstructionError> {
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope>]) -> Result<(), InstructionError> {
         let pos = *args[0].as_ref().unwrap_left();
         let incrementation = *args[1].as_ref().unwrap_left();
 
@@ -159,7 +159,7 @@ impl Instruction for Copy {
         &[ArgumentKind::Operand, ArgumentKind::Operand, ArgumentKind::Operand]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope<'_>>]) -> Result<(), InstructionError> {
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope>]) -> Result<(), InstructionError> {
         let origin = *args[0].as_ref().unwrap_left();
         let pos1 = *args[1].as_ref().unwrap_left();
         let pos2 = *args[2].as_ref().unwrap_left();
@@ -186,7 +186,7 @@ impl Instruction for Addp {
         &[ArgumentKind::Operand, ArgumentKind::Operand]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope<'_>>]) -> Result<(), InstructionError> {
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope>]) -> Result<(), InstructionError> {
         let pos1 = *args[0].as_ref().unwrap_left();
         let pos2 = *args[1].as_ref().unwrap_left();
 
@@ -210,7 +210,7 @@ impl Instruction for Subp {
         &[ArgumentKind::Operand, ArgumentKind::Operand]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope<'_>>]) -> Result<(), InstructionError> {
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope>]) -> Result<(), InstructionError> {
         let pos1 = *args[0].as_ref().unwrap_left();
         let pos2 = *args[1].as_ref().unwrap_left();
 
@@ -234,7 +234,7 @@ impl Instruction for Whne {
         &[ArgumentKind::Operand, ArgumentKind::Operand, ArgumentKind::Scope]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope<'_>>]) -> Result<(), InstructionError> {
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope>]) -> Result<(), InstructionError> {
         let variable = *args[0].as_ref().unwrap_left();
         let compared = *args[1].as_ref().unwrap_left();
         let scope = args[2].as_ref().unwrap_right();
@@ -249,7 +249,7 @@ impl Instruction for Whne {
         }
 
         if let Err(e) = scope.compile(ctx, buf) {
-            return Err(InstructionError::ArgumentScopeError(scope.from.clone().into_owned(), Box::new(e)))
+            return Err(InstructionError::ArgumentScopeError(scope.from.clone(), Box::new(e)))
         }
 
         move_pointer_to(buf, ctx, variable);
@@ -272,7 +272,7 @@ impl Instruction for In {
         &[ArgumentKind::Operand]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope<'_>>]) -> Result<(), InstructionError> {
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope>]) -> Result<(), InstructionError> {
         let pos1 = *args[0].as_ref().unwrap_left();
 
         move_pointer_to(buf, ctx, pos1);
@@ -289,7 +289,7 @@ impl Instruction for Out {
         &[ArgumentKind::Operand]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope<'_>>]) -> Result<(), InstructionError> {
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope>]) -> Result<(), InstructionError> {
         let pos1 = *args[0].as_ref().unwrap_left();
 
         move_pointer_to(buf, ctx, pos1);
@@ -302,16 +302,16 @@ impl Instruction for Out {
 /// Struct defining a meta-instruction.
 /// This is only a tool to make objects that implement [`Instruction`] at runtime.
 #[derive(Clone)]
-pub struct MetaInstruction<'a> {
-    from: MetaField<'a>,
+pub struct MetaInstruction {
+    from: MetaField,
     argument_names: Vec<String>,
     arguments: Vec<ArgumentKind>,
 }
 
-impl<'a> MetaInstruction<'a> {
+impl MetaInstruction {
     /// Creates a new [`MetaInstruction`].
     pub fn new(
-        meta_field: MetaField<'_>,
+        meta_field: MetaField,
     ) -> Result<MetaInstruction, CompilerError> {
         let arguments_iter = meta_field.arguments.iter().map(|i| {
             if let TokenType::Ident(name) = &i.0.t_type {
@@ -331,7 +331,7 @@ impl<'a> MetaInstruction<'a> {
         }
 
         Ok(MetaInstruction {
-            from: meta_field.into_owned(),
+            from: meta_field,
             argument_names,
             arguments,
         })
@@ -347,12 +347,12 @@ impl<'a> MetaInstruction<'a> {
     }
 }
 
-impl<'a> Instruction for MetaInstruction<'a> {
+impl Instruction for MetaInstruction {
     fn arguments(&self) -> &[ArgumentKind] {
         &self.arguments
     }
 
-    fn compile_checked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope<'_>>]) -> Result<(), InstructionError> {
+    fn compile_checked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope>]) -> Result<(), InstructionError> {
         if args.len() > self.arguments().len() {
             return Err(InstructionError::TooManyArguments { got: args.len(), expected: self.arguments().len() })
         } else if args.len() < self.arguments().len() {
@@ -390,22 +390,22 @@ impl<'a> Instruction for MetaInstruction<'a> {
 
         let res = match normalized {
             Ok(n) => n.compile(ctx, buf),
-            Err(e) => return Err(InstructionError::CouldNotInlineMeta(self.from.clone().into_owned(), Box::new(e)))
+            Err(e) => return Err(InstructionError::CouldNotInlineMeta(self.from.clone(), Box::new(e)))
         };
 
         if let Err(e) = res {
-            Err(InstructionError::CouldNotInlineMeta(self.from.clone().into_owned(), Box::new(e)))
+            Err(InstructionError::CouldNotInlineMeta(self.from.clone(), Box::new(e)))
         } else {
             Ok(())
         }
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope<'_>>]) -> Result<(), InstructionError> {
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope>]) -> Result<(), InstructionError> {
         self.compile_checked(buf, ctx, args)
     }
 }
 
-impl<'a> Debug for MetaInstruction<'a> {
+impl Debug for MetaInstruction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MetaInstruction").field("arguments", &self.arguments).finish()
     }
@@ -449,9 +449,9 @@ pub enum InstructionError {
         place: usize,
     },
     #[error("failed to inline meta-instruction, because {1}")]
-    CouldNotInlineMeta(MetaField<'static>, Box<CompilerError>),
+    CouldNotInlineMeta(MetaField, Box<CompilerError>),
     #[error("the alis statement is malformed")]
     MalformedAlis,
     #[error("error in argument scope: {1}")]
-    ArgumentScopeError(Scope<'static>, Box<CompilerError>),
+    ArgumentScopeError(Scope, Box<CompilerError>),
 }

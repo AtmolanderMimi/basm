@@ -1,6 +1,6 @@
 //! Utilities to handle the provenance of string back to it orignal file (aka its source).
 
-use std::{borrow::Cow, fmt::{Debug, Display}, fs, io, ops::Range, path::{Path, PathBuf}};
+use std::{fmt::{Debug, Display}, fs, io, ops::Range, path::{Path, PathBuf}};
 
 use thiserror::Error;
 
@@ -50,15 +50,22 @@ impl SourceFile {
         })
     }
 
+    /// Leaks the [`SourceFile`] into the heap, returning a static reference to it.
+    pub fn leak(self) -> &'static SourceFile {
+        let heap = Box::new(self);
+        Box::leak(heap)
+    }
+
     /// returns the lenght in bytes of the file.
     pub fn byte_lenght(&self) -> usize {
         self.contents.len()
     }
 
     /// returns the lenght in chars of the file.
-    pub fn char_lenght(&self) -> usize {
+    pub fn char_lenght(&'static self) -> usize {
         let full_slice = self.byte_slice(0..self.byte_lenght())
             .unwrap();
+
         full_slice.end()
     }
 
@@ -68,24 +75,24 @@ impl SourceFile {
     }
 }
 
-impl<'a> CharOps<'a> for SourceFile {
-    type SliceType = SfSlice<'a>;
+impl CharOps for &'static SourceFile {
+    type SliceType = SfSlice;
 
-    fn byte_slice(&'a self, byte_range: Range<usize>) -> Option<Self::SliceType> {
+    fn byte_slice(&self, byte_range: Range<usize>) -> Option<Self::SliceType> {
         let char_range = self.byte_to_char_range(byte_range)?;
         SfSlice::from_source(self, char_range)
     }
 
-    fn char_slice(&'a self, char_range: Range<usize>) -> Option<Self::SliceType> {
+    fn char_slice(&self, char_range: Range<usize>) -> Option<Self::SliceType> {
         SfSlice::from_source(self, char_range)
     }
 
     fn byte_to_char_range(&self, byte_range: Range<usize>) -> Option<Range<usize>> {
-        self.contents.byte_to_char_range(byte_range)
+        (&self.contents).byte_to_char_range(byte_range)
     }
 
     fn char_to_byte_range(&self, char_range: Range<usize>) -> Option<Range<usize>> {
-        self.contents.char_to_byte_range(char_range)
+        (&self.contents).char_to_byte_range(char_range)
     }
 }
 
@@ -103,49 +110,47 @@ impl AsRef<str> for SourceFile {
 
 /// A slice of a [`SourceFile`]. It contains information about its position.
 #[derive(Clone, PartialEq)]
-pub struct SfSlice<'a> {
-    source: Cow<'a, SourceFile>,
+pub struct SfSlice {
+    source: &'static SourceFile,
     slice_char_range: Range<usize>,
-    // will be none if source is owned, because we can't reference self in self
-    slice: Option<&'a str>,
 }
 
-impl SfSlice<'_> {
+impl SfSlice {
     /// Creates a [`SfSlice`] from a [`SourceFile`].
     /// The `range` is by characters, not bytes.
-    pub fn from_source(source: &SourceFile, char_range: Range<usize>) -> Option<SfSlice> {
-        let slice = source.contents.char_slice(char_range.clone())?;
+    /// Returns `None` if the `char_range` is not valid.
+    pub fn from_source(source: &'static SourceFile, char_range: Range<usize>) -> Option<SfSlice> {
+        // checks if the char_range is valid
+        if char_range.start > char_range.end {
+            return None;
+        }
+
+        let valid_chars = 0..=(source.contents.chars().count());
+        if !valid_chars.contains(&char_range.start) {
+            return None;
+        } else if !valid_chars.contains(&char_range.end) {
+            return None;
+        }
 
         Some(SfSlice {
-            source: Cow::Borrowed(source),
+            source: source,
             slice_char_range: char_range,
-            slice: Some(slice),
         })
     }
 
     #[cfg(test)]
     /// Creates a new slice, just for testing purposes.
-    pub fn new_bogus(contents: &str) -> SfSlice<'static> {
+    pub fn new_bogus(contents: &str) -> SfSlice {
         let sf = SourceFile::from_raw_parts(PathBuf::new(), contents.to_string());
+        let sf = sf.leak();
         let slice = sf.char_slice(0..(contents.chars().count())).unwrap();
-        slice.into_owned()
+
+        slice
     }
 
     /// Returns the offset from the start of the source file this slice is referencing.
     pub fn offset(&self) -> usize {
         self.slice_char_range.start
-    }
-
-    /// Transforms this type into its owned form ('static).
-    pub fn into_owned(self) -> SfSlice<'static> {
-        let owned_source = self.source.into_owned();
-        let slice_char_range = self.slice_char_range;
-
-        SfSlice {
-            source: Cow::Owned(owned_source),
-            slice_char_range,
-            slice: None,
-        }
     }
 
     /// Returns the range of characters into the source of
@@ -183,18 +188,13 @@ impl SfSlice<'_> {
 
     /// Returns the equivalent string slice.
     pub fn inner_slice(&self) -> &str {
-        match self.slice {
-            Some(s) => s,
-            None => {
-                self.source.contents.char_slice(self.char_range())
-                    .expect("char_range should always be a valid substring of the source")
-            }
-        }
+        (&self.source.contents).char_slice(self.char_range())
+            .expect("char_range should always be a valid substring of the source")
     }
 
     /// Returns the [`SourceFile`] from which this [`SfSlice`] was referenced.
-    pub fn source(&self) -> &SourceFile {
-        &self.source
+    pub fn source(&self) -> &'static SourceFile {
+        self.source
     }
 
     /// Transforms a relative range into this slice into an absolute range of the source file.
@@ -229,7 +229,6 @@ impl SfSlice<'_> {
     pub fn reslice_char(&self, char_range: Range<usize>) -> Self {
         let mut nslice = self.clone();
         nslice.slice_char_range = char_range;
-        nslice.slice = None;
         nslice
     }
 
@@ -238,21 +237,19 @@ impl SfSlice<'_> {
     pub fn reslice_byte(&self, byte_range: Range<usize>) -> Self {
         let mut nslice = self.clone();
         nslice.slice_char_range = self.byte_to_char_range(byte_range).unwrap();
-        nslice.slice = None;
         nslice
     }
 }
 
-impl<'a, 'b> CharOps<'a> for SfSlice<'b> {
-    type SliceType = SfSlice<'b>;
+impl CharOps for SfSlice {
+    type SliceType = SfSlice;
 
-    fn byte_slice(&'a self, byte_range: Range<usize>) -> Option<Self::SliceType> {
+    fn byte_slice(&self, byte_range: Range<usize>) -> Option<Self::SliceType> {
         let sub_range = self.relative_byte_to_absolute_range(byte_range)?;
 
         Some(SfSlice {
-            source: self.source.clone(),
+            source: &self.source,
             slice_char_range: sub_range,
-            slice: None,
         })
     }
 
@@ -265,23 +262,22 @@ impl<'a, 'b> CharOps<'a> for SfSlice<'b> {
     }
 }
 
-impl AsRef<str> for SfSlice<'_> {
+impl AsRef<str> for SfSlice {
     fn as_ref(&self) -> &str {
         self.inner_slice()
     }
 }
 
-impl Debug for SfSlice<'_> {
+impl Debug for SfSlice {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SfSlice")
             .field("source", &self.source.absolute_path)
             .field("char_range", &self.char_range())
-            .field("slice", &self.inner_slice())
             .finish()
     }
 }
 
-impl Display for SfSlice<'_> {
+impl Display for SfSlice {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.inner_slice())
     }
@@ -341,12 +337,12 @@ mod tests {
             .expect_err("fish");
     }
 
-    fn test_file() -> SourceFile {
+    fn test_file() -> &'static SourceFile {
         let path = path::absolute(PathBuf::from("./test-resources/fib.basm")).unwrap();
         let sf = SourceFile::from_file(path)
             .unwrap();
 
-        sf
+        sf.leak()
     }
 
     #[test]
@@ -369,7 +365,7 @@ mod tests {
         let sf = SourceFile::from_raw_parts(
             PathBuf::new(),
             "【 ▯▯▯▯】 ∴  ╔▌▯▯⇭ ▕▚".to_string(),
-        );
+        ).leak();
 
         let sfs = sf.char_slice(0..2).unwrap();
         assert_eq!(sfs.inner_slice(), "【 ");
@@ -385,7 +381,7 @@ mod tests {
         let sf = SourceFile::from_raw_parts(
             PathBuf::new(),
             "【 ▯▯▯▯】 ∴  ╔▌▯▯⇭ ▕▚".to_string(),
-        );
+        ).leak();
 
         let sfs = sf.char_slice(0..3).unwrap();
         assert_eq!(sfs.byte_to_char_range(3..7), Some(1..3));
@@ -397,7 +393,7 @@ mod tests {
         let sf = SourceFile::from_raw_parts(
             PathBuf::new(),
             "【 ▯▯▯▯】 ∴  ╔▌▯▯⇭ ▕▚".to_string(),
-        );
+        ).leak();
 
         let sfs = sf.char_slice(2..8).unwrap();
         assert_eq!(sfs.relative_char_to_absolute_range(1..2), Some(3..4));
@@ -410,7 +406,7 @@ mod tests {
         let sf = SourceFile::from_raw_parts(
             PathBuf::new(),
             "【 ▯▯▯▯】 ∴  ╔▌▯▯⇭ ▕▚".to_string(),
-        );
+        ).leak();
 
         let sfs = sf.char_slice(0..7)
             .unwrap();

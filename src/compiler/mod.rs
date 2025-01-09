@@ -71,7 +71,7 @@ impl MainContext {
     }
 
     /// Tries to find a defined instruction with the matching identifier.
-    pub fn find_instruction<'a>(&'a self, ident: &str) -> Option<Rc<dyn SendSyncInstruction>> {
+    pub fn find_instruction(&self, ident: &str) -> Option<Rc<dyn SendSyncInstruction>> {
         self.0.lock().unwrap().instructions.get(ident).map(|i| {
             Rc::clone(i)
         })
@@ -168,14 +168,14 @@ impl Compiler {
     }
 
     /// Evaluates a meta-instruction.
-    pub fn walk_meta_instruction_declaration<'a>(&mut self, meta: &MetaField<'a>) -> Result<(), CompilerError> {
+    pub fn walk_meta_instruction_declaration(&mut self, meta: &MetaField) -> Result<(), CompilerError> {
         // TODO: not a big fan of using static for every meta instruction, especially since the
         // current implementation of into_owned copies the whole file for every token,
         // that's *kinda alright* for errors, but totally inaceptable for meta-instructions.
-        let meta_ins = MetaInstruction::new(meta.clone().into_owned())?;
+        let meta_ins = MetaInstruction::new(meta.clone())?;
 
         if self.context.add_instruction(meta_ins.name(), meta_ins.clone()) {
-            return Err(CompilerError::DoubleDeclaration(meta.clone().into_owned()))
+            return Err(CompilerError::DoubleDeclaration(meta.clone()))
         };
 
         Ok(())
@@ -188,17 +188,17 @@ pub enum CompilerError {
     /// A meta instruction was defined twice,
     /// or a meta instruction had the same name as a built-in one.
     #[error("instruction was already defined")]
-    DoubleDeclaration(MetaField<'static>),
+    DoubleDeclaration(MetaField),
     /// An error relative to an instruction. See the inner [`InstructionError`].
     #[error("{0}")]
-    Instruction(InstructionError, ParsedInstruction<'static>),
+    Instruction(InstructionError, ParsedInstruction),
     /// An alias which was is not defined in scope is present.
     #[error("alias was not defined")]
-    AliasNotDefined(Expression<'static>),
+    AliasNotDefined(Expression),
     /// An instruction which is was not defined, yet or will never be defined is present.
     /// Note that meta-instructions can use another meta-instruction, but only if it was defined higher.
     #[error("instruction is not defined")]
-    InstructionNotDefined(Ident<'static>),
+    InstructionNotDefined(Ident),
 }
 
 impl CompilerErrorTrait for CompilerError {

@@ -16,8 +16,8 @@ use super::Pattern;
 
 /// Pattern for constructing an [`Ìnstruction`].
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct InstructionPattern<'a>(
-    Then<'a, IdentPattern, Then<'a, Many<'a, Or<'a, ExpressionPattern<'a>, ScopePattern<'a>>>, SemicolonPattern>>
+pub struct InstructionPattern(
+    Then<IdentPattern, Then<Many<Or<ExpressionPattern, ScopePattern>>, SemicolonPattern>>
 );
 
 /// An instruction.
@@ -45,19 +45,19 @@ pub struct InstructionPattern<'a>(
 ///    4   ];
 /// ```
 #[derive(Debug, Clone, PartialEq)]
-pub struct Instruction<'a> {
+pub struct Instruction {
     #[allow(missing_docs)]
-    pub name: Ident<'a>,
+    pub name: Ident,
     #[allow(missing_docs)]
-    pub arguments: Vec<Either<Expression<'a>, Scope<'a>>>,
+    pub arguments: Vec<Either<Expression, Scope>>,
     #[allow(missing_docs)]
-    pub semicolon: Semicolon<'a>,
+    pub semicolon: Semicolon,
 }
 
-impl<'a> Pattern<'a> for InstructionPattern<'a> {
-    type ParseResult = Instruction<'a>;
+impl Pattern for InstructionPattern {
+    type ParseResult = Instruction;
 
-    fn advance(&mut self, token: &'a Token) -> Advancement<Self::ParseResult> {
+    fn advance(&mut self, token: &Token) -> Advancement<Self::ParseResult> {
         let adv = self.0.advance(token);
         let overeach = adv.overeach;
 
@@ -77,21 +77,8 @@ impl<'a> Pattern<'a> for InstructionPattern<'a> {
     }
 }
 
-impl<'a> LanguageItem<'a> for Instruction<'a> {
-    type Owned = Instruction<'static>;
-
-    fn into_owned(self) -> Self::Owned {
-        let arguments = self.arguments.into_iter().map(|c| c.map_either(|l| l.into_owned(), |r| r.into_owned()))
-            .collect();
-
-        Instruction {
-            name: self.name.into_owned(),
-            semicolon: self.semicolon.into_owned(),
-            arguments,
-        }
-    }
-
-    fn slice(&self) -> SfSlice<'a> {
+impl LanguageItem for Instruction {
+    fn slice(&self) -> SfSlice {
         let start = self.name.0.slice.start();
         let end = self.semicolon.0.slice.end();
         self.name.0.slice.reslice_char(start..end)
@@ -104,7 +91,7 @@ mod tests {
 
     use super::*;
 
-    fn bogus_token(t_type: TokenType) -> Token<'static> {
+    fn bogus_token(t_type: TokenType) -> Token {
         Token::new(t_type, SfSlice::new_bogus("fishg"))
     }
 

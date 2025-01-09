@@ -8,14 +8,14 @@ use super::LiteralError;
 
 #[derive(Debug, Clone, PartialEq)]
 /// A syntactic token
-pub struct Token<'a> {
+pub struct Token {
     /// The type of that token. Aka "What's that?".
     pub t_type: TokenType,
     /// The slice of the token. Should include the whole token and only the token.
-    pub slice: SfSlice<'a>,
+    pub slice: SfSlice,
 }
 
-impl Token<'_> {
+impl Token {
     /// Creates a new [`Token`].
     pub fn new(t_type: TokenType, slice: SfSlice) -> Token {
         Token {
@@ -27,14 +27,6 @@ impl Token<'_> {
     /// Returns the range in characters that contains this character
     pub fn char_range(&self) -> Range<usize> {
         self.slice.char_range()
-    }
-
-    /// Creates an owned version of this [`Token`] by copying the contents of the source file.
-    pub fn into_owned(self) -> Token<'static> {
-        Token {
-            t_type: self.t_type,
-            slice: self.slice.into_owned(),
-        }
     }
 }
 
@@ -104,7 +96,7 @@ impl TokenType {
     }
 }
 
-impl<'a> Token<'a> {
+impl<'a> Token {
     // beware, trash ahead. also:
     //   /---\  /-----\     /---|_ _|/--\|-|
     //   \    \/     O \    |   /| | |  /| |
@@ -113,7 +105,7 @@ impl<'a> Token<'a> {
     //   \---/  \-----/     |_| |_ _|< _/| | |
     /// Returns a [`Token`] and it's position in the string, **EXCEPT FOR IDENTS/LITS**
     /// The token's range postion is absolute.
-    pub fn parse_token_non_lit(sf_slice: &SfSlice<'a>) -> Option<Token<'a>> {
+    pub fn parse_token_non_lit(sf_slice: &SfSlice) -> Option<Token> {
         let slice = sf_slice.inner_slice();
         let mut matches = vec![];
 
@@ -190,7 +182,7 @@ impl<'a> Token<'a> {
     /// string that contains a **FULL LITERAL/IDENT AND NOTHING ELSE**, because it might
     /// detect alphanumeric tokens (ex: "let") as idents.
     /// The tokens' range positions are absolute.
-    pub fn parse_token_lit(sf_slice: &SfSlice<'a>) -> Result<Option<Token<'a>>, LiteralError<'a>> {
+    pub fn parse_token_lit(sf_slice: &SfSlice) -> Result<Option<Token>, LiteralError> {
         let string = sf_slice.inner_slice();
         let trim_str = string.trim();
         let trim_str_start = string.find(trim_str)
@@ -320,7 +312,7 @@ mod tests {
     }
 
     /// new SfSlice, but shorter name
-    fn sfs(contents: &str) -> SfSlice<'static> {
+    fn sfs(contents: &str) -> SfSlice {
         SfSlice::new_bogus(contents)
     }
 

@@ -10,15 +10,15 @@ use token::{Token, TokenType};
 
 use crate::{error::{CompilerError, Lint}, source::{SfSlice, SourceFile}, utils::CharOps};
 
-struct Lexer<'a> {
+struct Lexer {
     range: Range<usize>,
-    source: &'a SourceFile,
-    tokens: Vec<Token<'a>>,
+    source: &'static SourceFile,
+    tokens: Vec<Token>,
     comment_mode: bool,
 }
 
-impl<'a> Lexer<'a> {
-    pub fn new(source_file: &SourceFile) -> Lexer {
+impl Lexer {
+    pub fn new(source_file: &'static SourceFile) -> Lexer {
         Lexer {
             range: 0..0,
             source: source_file,
@@ -27,7 +27,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    pub fn advance(&mut self) -> Result<Advancement, LexerError<'a>> {
+    pub fn advance(&mut self) -> Result<Advancement, LexerError> {
         self.range.end += 1;
 
         if self.range.end > self.source.char_lenght() {
@@ -86,7 +86,7 @@ impl<'a> Lexer<'a> {
 /// This is why the return type on this function is `(Vec<Token>, <Vec<LexerError>)`.
 /// Although errors are not fatal, they should be investigated since an error means
 /// that a token could not be correctly formed and as thus the token list is partially invalid.
-pub fn lex_file(source_file: &SourceFile) -> (Vec<Token>, Vec<LexerError>) {
+pub fn lex_file(source_file: &'static SourceFile) -> (Vec<Token>, Vec<LexerError>) {
     let mut errors = Vec::new();
     let mut lexer = Lexer::new(source_file);
     loop {
@@ -113,13 +113,13 @@ enum Advancement {
 
 /// An error that occured during the lexing process.
 #[derive(Error, Debug)]
-pub enum LexerError<'a> {
+pub enum LexerError {
     /// There was an error while forming a literal.
     #[error("{0}")]
-    InvalidLiteral(LiteralError<'a>),
+    InvalidLiteral(LiteralError),
 }
 
-impl CompilerError for LexerError<'_> {
+impl CompilerError for LexerError {
     fn lint(&self) -> Option<Lint> {
         match self {
             LexerError::InvalidLiteral(e) => e.lint()
@@ -127,8 +127,8 @@ impl CompilerError for LexerError<'_> {
     }
 }
 
-impl<'a> From<LiteralError<'a>> for LexerError<'a> {
-    fn from(value: LiteralError<'a>) -> Self {
+impl From<LiteralError> for LexerError {
+    fn from(value: LiteralError) -> Self {
         LexerError::InvalidLiteral(value)
     }
 }
@@ -140,24 +140,24 @@ const ITALIC_END: &str = "\x1B[23m";
 /// An error encounted while trying to parse for a literal syntax token.
 /// 
 /// *`"Yo... This is literally an error, man..."`*
-pub enum LiteralError<'a> {
+pub enum LiteralError {
     /// Number is invalid, because it is not within the range that bf can store.
     #[error("number {0} could not be parsed, probably too big")]
-    InvalidNumber(SfSlice<'a>),
+    InvalidNumber(SfSlice),
     /// Char is invalid, because it does not contain a character. It should look like this: ''.
     #[error("character literals cannot be empty")]
-    EmptyChar(SfSlice<'a>),
+    EmptyChar(SfSlice),
     /// Char is invalid, because it contains more than one character. Can be misleading, because an accented
     /// character is represented as two Rust char's. For example ë would look like ¨ e.
     #[error("character {0} is invalid. Character literals can only hold one character (maybe you want a string: \"...\"?)")]
-    TooFullChar(SfSlice<'a>),
+    TooFullChar(SfSlice),
     /// No valid token type was found for this substring even ident,
     /// which are just alphanumeric sequences with underscores.
     #[error("could not parse this substring \"{ITALIC_START}{0}{ITALIC_END}\" (neither ident, nor other token)")]
-    Unparseable(SfSlice<'a>),
+    Unparseable(SfSlice),
 }
 
-impl CompilerError for LiteralError<'_> {
+impl CompilerError for LiteralError {
     fn lint(&self) -> Option<Lint> {
         let slice = match self {
             Self::EmptyChar(s, ..) |
@@ -183,11 +183,11 @@ mod tests {
 
     #[test]
     fn lexing_does_not_panic() {
-        lex_file(&test_file());
+        lex_file(test_file().leak());
     }
 
     #[test]
     fn lexing_does_not_error() {
-        assert_eq!(lex_file(&test_file()).1.len(), 0);
+        assert_eq!(lex_file(test_file().leak()).1.len(), 0);
     }
 }

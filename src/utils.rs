@@ -6,7 +6,7 @@ use std::ops::Range;
 /// Trait that implements operations which allows operations on characters
 /// rather than on bytes.
 /// As thus treating string as arrays of characters, instead of bytes.
-pub trait CharOps<'a>: AsRef<str> {
+pub trait CharOps: AsRef<str> {
     /// The type to which `Self` can be sliced.
     /// Should be &str for most uses.
     type SliceType: AsRef<str>;
@@ -15,11 +15,11 @@ pub trait CharOps<'a>: AsRef<str> {
     /// slice types, this method *exists*,
     /// also for parity with the char version.
     /// Returns `None`, if the range is out of bounds.
-    fn byte_slice(&'a self, byte_range: Range<usize>) -> Option<Self::SliceType>;
+    fn byte_slice(&self, byte_range: Range<usize>) -> Option<Self::SliceType>;
     /// Creates a slice from a string.
     /// The `char_range` is a range of **characters**, not bytes like `get`.
     /// Returns `None`, if the range is out of bounds.
-    fn char_slice(&'a self, char_range: Range<usize>) -> Option<Self::SliceType> {
+    fn char_slice(&self, char_range: Range<usize>) -> Option<Self::SliceType> {
         let byte_range = self.char_to_byte_range(char_range)?;
         self.byte_slice(byte_range)
     }
@@ -31,7 +31,7 @@ pub trait CharOps<'a>: AsRef<str> {
     fn char_to_byte_range(&self, char_range: Range<usize>) -> Option<Range<usize>>;
 }
 
-impl<'a> CharOps<'a> for str {
+impl<'a> CharOps for &'a str {
     type SliceType = &'a str;
 
     fn char_to_byte_range(&self, char_range: Range<usize>) -> Option<Range<usize>> {
@@ -73,7 +73,7 @@ impl<'a> CharOps<'a> for str {
         }
     }
 
-    fn byte_slice(&'a self, byte_range: Range<usize>) -> Option<Self::SliceType> {
+    fn byte_slice(&self, byte_range: Range<usize>) -> Option<Self::SliceType> {
         self.get(byte_range)
     }
 
@@ -115,10 +115,10 @@ impl<'a> CharOps<'a> for str {
     }
 }
 
-impl<'a> CharOps<'a> for String {
+impl<'a> CharOps for &'a String {
     type SliceType = &'a str;
 
-    fn byte_slice(&'a self, byte_range: Range<usize>) -> Option<Self::SliceType> {
+    fn byte_slice(&self, byte_range: Range<usize>) -> Option<Self::SliceType> {
         self.as_str().byte_slice(byte_range)
     }
 
@@ -133,7 +133,7 @@ impl<'a> CharOps<'a> for String {
 
 /// Trait implementing utilities to find the `(ln, col)` char position
 /// of an element in a string.
-pub trait FindLnCol<'a>: CharOps<'a> {
+pub trait FindLnCol: CharOps {
     /// Returns the `(ln, col)` position in char of the `nth` byte.
     /// May return `None` if the character is not in the string.
     /// # Note
@@ -178,7 +178,7 @@ pub trait FindLnCol<'a>: CharOps<'a> {
     }
 }
 
-impl<'a, T: CharOps<'a> + ?Sized> FindLnCol<'a> for T {}
+impl<T: CharOps + ?Sized> FindLnCol for T {}
 
 /// Allows to check whether or not something is alphanumeric, alphabetic or numeric.
 pub trait IsAlphanumeric {

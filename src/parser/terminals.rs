@@ -9,18 +9,12 @@ macro_rules! single_token_pattern {
         /// Newtype wrapper over a token of the type specified by it's name.
         /// The inner token it **guarentied** to be the same as the name implies.
         #[derive(Debug, Clone, PartialEq)]
-        pub struct $r<'a>(
-            pub Token<'a>
+        pub struct $r(
+            pub Token
         );
 
-        impl<'a> LanguageItem<'a> for $r<'a> {
-            type Owned = $r<'static>;
-
-            fn into_owned(self) -> Self::Owned {
-                $r(self.0.into_owned())
-            }
-        
-            fn slice(&self) -> SfSlice<'a> {
+        impl LanguageItem for $r {
+            fn slice(&self) -> SfSlice {
                 self.0.slice.clone()
             }
         }
@@ -29,16 +23,16 @@ macro_rules! single_token_pattern {
         #[derive(Debug, Clone, PartialEq, Default)]
         pub(super) struct $b;
 
-        impl<'a> Pattern<'a> for $b {
-            type ParseResult = $r<'a>;
-            fn advance(&mut self, token: &'a Token) -> Advancement<Self::ParseResult> {
+        impl Pattern for $b {
+            type ParseResult = $r;
+            fn advance(&mut self, token: &Token) -> Advancement<Self::ParseResult> {
                 if let $p = token.t_type {
                     let result = $r(token.clone());
                     return Advancement::new_no_overeach(AdvancementState::Done(result));
                 } else {
                     Advancement::new(AdvancementState::Error(PatternMatchingError::UnexpectedToken {
                             expected: $e,
-                            got: token.clone().into_owned(),
+                            got: token.clone(),
                         }),
                         1,
                     )
@@ -116,12 +110,12 @@ pub struct MainIdentPattern;
 
 /// An ident token of value `main`.
 #[derive(Debug, Clone, PartialEq)]
-pub struct MainIdent<'a>(Token<'a>);
+pub struct MainIdent(Token);
 
-impl<'a> Pattern<'a> for MainIdentPattern {
-    type ParseResult = MainIdent<'a>;
+impl Pattern for MainIdentPattern {
+    type ParseResult = MainIdent;
 
-    fn advance(&mut self, token: &'a Token) -> Advancement<Self::ParseResult> {
+    fn advance(&mut self, token: &Token) -> Advancement<Self::ParseResult> {
         if let TokenType::Ident(s) = &token.t_type {
             if s == "main" {
                 let out = MainIdent(token.clone());
@@ -131,20 +125,14 @@ impl<'a> Pattern<'a> for MainIdentPattern {
 
         let error = PatternMatchingError::UnexpectedToken {
             expected: TokenType::Ident("main".to_string()),
-            got: token.clone().into_owned(),
+            got: token.clone(),
         };
         Advancement::new(AdvancementState::Error(error), 1)
     }
 }
 
-impl<'a> LanguageItem<'a> for MainIdent<'a> {
-    type Owned = MainIdent<'static>;
-
-    fn into_owned(self) -> Self::Owned {
-        MainIdent(self.0.into_owned())
-    }
-
-    fn slice(&self) -> SfSlice<'a> {
+impl LanguageItem for MainIdent {
+    fn slice(&self) -> SfSlice {
         self.0.slice.clone()
     }
 }
@@ -155,7 +143,7 @@ mod test {
 
     use super::*;
 
-    fn bogus_token(t_type: TokenType) -> Token<'static> {
+    fn bogus_token(t_type: TokenType) -> Token {
         Token::new(t_type, SfSlice::new_bogus("fishg"))
     }
 
