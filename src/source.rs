@@ -63,10 +63,10 @@ impl SourceFile {
 
     /// returns the lenght in chars of the file.
     pub fn char_lenght(&'static self) -> usize {
-        let full_slice = self.byte_slice(0..self.byte_lenght())
+        let full_slice = self.slice_byte(0..self.byte_lenght())
             .unwrap();
 
-        full_slice.end()
+        full_slice.end_char()
     }
 
     /// Returns the absolute path of the source file.
@@ -78,13 +78,12 @@ impl SourceFile {
 impl CharOps for &'static SourceFile {
     type SliceType = SfSlice;
 
-    fn byte_slice(&self, byte_range: Range<usize>) -> Option<Self::SliceType> {
-        let char_range = self.byte_to_char_range(byte_range)?;
-        SfSlice::from_source(self, char_range)
+    fn slice_byte(&self, byte_range: Range<usize>) -> Option<Self::SliceType> {
+        SfSlice::from_source_byte(self, byte_range)
     }
 
-    fn char_slice(&self, char_range: Range<usize>) -> Option<Self::SliceType> {
-        SfSlice::from_source(self, char_range)
+    fn slice_char(&self, char_range: Range<usize>) -> Option<Self::SliceType> {
+        SfSlice::from_source_char(self, char_range)
     }
 
     fn byte_to_char_range(&self, byte_range: Range<usize>) -> Option<Range<usize>> {
@@ -112,6 +111,8 @@ impl AsRef<str> for SourceFile {
 #[derive(Clone, PartialEq)]
 pub struct SfSlice {
     source: &'static SourceFile,
+    slice_byte_range: Range<usize>,
+    // we store it so that we don't have to recompute it every time
     slice_char_range: Range<usize>,
 }
 
@@ -119,7 +120,7 @@ impl SfSlice {
     /// Creates a [`SfSlice`] from a [`SourceFile`].
     /// The `range` is by characters, not bytes.
     /// Returns `None` if the `char_range` is not valid.
-    pub fn from_source(source: &'static SourceFile, char_range: Range<usize>) -> Option<SfSlice> {
+    pub fn from_source_char(source: &'static SourceFile, char_range: Range<usize>) -> Option<SfSlice> {
         // checks if the char_range is valid
         if char_range.start > char_range.end {
             return None;
@@ -132,8 +133,38 @@ impl SfSlice {
             return None;
         }
 
+        let byte_range = source.char_to_byte_range(char_range.clone())
+            .expect("the checks should guarenty that the char range is valid");
+
         Some(SfSlice {
-            source: source,
+            source,
+            slice_byte_range: byte_range,
+            slice_char_range: char_range,
+        })
+    }
+
+    /// Creates a [`SfSlice`] from a [`SourceFile`].
+    /// The `range` is by bytes, not characters.
+    /// Returns `None` if the `byte_range` is not valid.
+    pub fn from_source_byte(source: &'static SourceFile, byte_range: Range<usize>) -> Option<SfSlice> {
+        // checks if the byte_range is valid
+        if byte_range.start > byte_range.end {
+            return None;
+        }
+
+        let valid_bytes = 0..=(source.contents.len());
+        if !valid_bytes.contains(&byte_range.start) {
+            return None;
+        } else if !valid_bytes.contains(&byte_range.end) {
+            return None;
+        }
+
+        // unlike for chars, a byte range is not guarentied to make a valid char range
+        let char_range = source.byte_to_char_range(byte_range.clone())?;
+
+        Some(SfSlice {
+            source,
+            slice_byte_range: byte_range,
             slice_char_range: char_range,
         })
     }
@@ -143,14 +174,21 @@ impl SfSlice {
     pub fn new_bogus(contents: &str) -> SfSlice {
         let sf = SourceFile::from_raw_parts(PathBuf::new(), contents.to_string());
         let sf = sf.leak();
-        let slice = sf.char_slice(0..(contents.chars().count())).unwrap();
+        let slice = sf.slice_char(0..(contents.chars().count())).unwrap();
 
         slice
     }
 
-    /// Returns the offset from the start of the source file this slice is referencing.
-    pub fn offset(&self) -> usize {
+    /// Returns the offset from the start of the source file this slice is referencing
+    /// in characters.
+    pub fn offset_char(&self) -> usize {
         self.slice_char_range.start
+    }
+
+    /// Returns the offset from the start of the source file this slice is referencing
+    /// in bytes.
+    pub fn offset_byte(&self) -> usize {
+        self.slice_byte_range.start
     }
 
     /// Returns the range of characters into the source of
@@ -166,15 +204,14 @@ impl SfSlice {
     /// This start char range is absolute from the original source file,
     /// not from it's originating subslice.
     pub fn byte_range(&self) -> Range<usize> {
-        self.char_to_byte_range(self.char_range())
-            .expect("SfSlices are assumed to be valid")
+        self.slice_byte_range.clone()
     }
 
     /// Returns the start index of the range of characters 
     /// into the source of this slice.
     /// This start position is absolute from the original source file,
     /// not from it's originating subslice.
-    pub fn start(&self) -> usize {
+    pub fn start_char(&self) -> usize {
         self.slice_char_range.start
     }
 
@@ -182,13 +219,29 @@ impl SfSlice {
     /// into the source of this slice.
     /// This end position is absolute from the original source file,
     /// not from it's originating subslice.
-    pub fn end(&self) -> usize {
+    pub fn end_char(&self) -> usize {
         self.slice_char_range.end
+    }
+
+    /// Returns the start index of the range of bytes 
+    /// into the source of this slice.
+    /// This start position is absolute from the original source file,
+    /// not from it's originating subslice.
+    pub fn start_byte(&self) -> usize {
+        self.slice_byte_range.start
+    }
+
+    /// Returns the end index of the range of bytes 
+    /// into the source of this slice.
+    /// This end position is absolute from the original source file,
+    /// not from it's originating subslice.
+    pub fn end_byte(&self) -> usize {
+        self.slice_byte_range.end
     }
 
     /// Returns the equivalent string slice.
     pub fn inner_slice(&self) -> &str {
-        (&self.source.contents).char_slice(self.char_range())
+        (&self.source.contents).slice_char(self.char_range())
             .expect("char_range should always be a valid substring of the source")
     }
 
@@ -199,58 +252,54 @@ impl SfSlice {
 
     /// Transforms a relative range into this slice into an absolute range of the source file.
     /// `rel_range` is in **characters**.
+    /// The return value is in characters.
     /// Returns `None` if  `rel_range` is not within the range of this slice.
-    pub fn relative_char_to_absolute_range(&self, rel_range: Range<usize>) -> Option<Range<usize>> {
-        let abs_end = rel_range.end + self.offset();
+    pub fn relative_char_to_absolute_range_char(&self, rel_range: Range<usize>) -> Option<Range<usize>> {
+        let abs_end = rel_range.end + self.offset_char();
         if abs_end > self.slice_char_range.end {
             return None;
         }
 
-        Some((rel_range.start+self.offset())..(rel_range.end+self.offset()))
+        Some((rel_range.start+self.offset_char())..(rel_range.end+self.offset_char()))
     }
 
     /// Transforms a byte range to a char range and then transforms that
     /// into an absolute range relative to the source file.
     /// `rel_byte_range` is in bytes and **the return value is in chars**.
-    pub fn relative_byte_to_absolute_range(
+    /// The return value is in characters.
+    pub fn relative_byte_to_absolute_range_char(
         &self,
         rel_byte_range: Range<usize>,
     ) -> Option<Range<usize>> {
         let rel_range = self.byte_to_char_range(rel_byte_range)?;
-        let abs_end = rel_range.end + self.offset();
+        let abs_end = rel_range.end + self.offset_char();
         if abs_end > self.slice_char_range.end {
             return None;
         }
 
-        Some((rel_range.start+self.offset())..(rel_range.end+self.offset()))
+        Some((rel_range.start+self.offset_char())..(rel_range.end+self.offset_char()))
     }
 
-    /// Reslices the source file with a new char range. The position is **absolute**.
-    pub fn reslice_char(&self, char_range: Range<usize>) -> Self {
-        let mut nslice = self.clone();
-        nslice.slice_char_range = char_range;
-        nslice
-    }
+    /// Transforms a relative range into this slice into an absolute range of the source file.
+    /// `rel_range` is in **bytes**.
+    /// The return value is in bytes.
+    /// Returns `None` if  `rel_range` is not within the range of this slice.
+    pub fn relative_byte_to_absolute_range_byte(&self, rel_range: Range<usize>) -> Option<Range<usize>> {
+        let abs_end = rel_range.end + self.offset_byte();
+        if abs_end > self.slice_byte_range.end {
+            return None;
+        }
 
-    /// Reslices the source file with a new bye range. The position is **absolute**.
-    /// Panics if the byte range is invalid.
-    pub fn reslice_byte(&self, byte_range: Range<usize>) -> Self {
-        let mut nslice = self.clone();
-        nslice.slice_char_range = self.byte_to_char_range(byte_range).unwrap();
-        nslice
+        Some((rel_range.start+self.offset_byte())..(rel_range.end+self.offset_byte()))
     }
 }
 
 impl CharOps for SfSlice {
     type SliceType = SfSlice;
 
-    fn byte_slice(&self, byte_range: Range<usize>) -> Option<Self::SliceType> {
-        let sub_range = self.relative_byte_to_absolute_range(byte_range)?;
-
-        Some(SfSlice {
-            source: &self.source,
-            slice_char_range: sub_range,
-        })
+    fn slice_byte(&self, byte_range: Range<usize>) -> Option<Self::SliceType> {
+        let abs_range = self.relative_byte_to_absolute_range_byte(byte_range)?;
+        SfSlice::from_source_byte(self.source, abs_range)
     }
 
     fn byte_to_char_range(&self, byte_range: Range<usize>) -> Option<Range<usize>> {
@@ -350,14 +399,14 @@ mod tests {
         let sf = test_file();
         
         // 012.345.6789
-        let sfs = sf.char_slice(3..6).unwrap();
-        assert_eq!(sfs.offset(), 3);
+        let sfs = sf.slice_char(3..6).unwrap();
+        assert_eq!(sfs.offset_char(), 3);
 
-        let sfs = sf.char_slice(84..124).unwrap();
-        assert_eq!(sfs.offset(), 84);
+        let sfs = sf.slice_char(84..124).unwrap();
+        assert_eq!(sfs.offset_char(), 84);
 
-        let sfs = sf.char_slice(0..29).unwrap();
-        assert_eq!(sfs.offset(), 0);
+        let sfs = sf.slice_char(0..29).unwrap();
+        assert_eq!(sfs.offset_char(), 0);
     }
 
     #[test]
@@ -367,12 +416,12 @@ mod tests {
             "【 ▯▯▯▯】 ∴  ╔▌▯▯⇭ ▕▚".to_string(),
         ).leak();
 
-        let sfs = sf.char_slice(0..2).unwrap();
+        let sfs = sf.slice_char(0..2).unwrap();
         assert_eq!(sfs.inner_slice(), "【 ");
 
-        let sfs = sf.char_slice(8..16).unwrap();
+        let sfs = sf.slice_char(8..16).unwrap();
         assert_eq!(sfs.inner_slice(), "∴  ╔▌▯▯⇭");
-        let sfs = sf.char_slice(15..19).unwrap();
+        let sfs = sf.slice_char(15..19).unwrap();
         assert_eq!(sfs.inner_slice(), "⇭ ▕▚");
     }
 
@@ -383,7 +432,7 @@ mod tests {
             "【 ▯▯▯▯】 ∴  ╔▌▯▯⇭ ▕▚".to_string(),
         ).leak();
 
-        let sfs = sf.char_slice(0..3).unwrap();
+        let sfs = sf.slice_char(0..3).unwrap();
         assert_eq!(sfs.byte_to_char_range(3..7), Some(1..3));
         assert_eq!(sf.contents.get(3..7), Some(" ▯"));
     }
@@ -395,10 +444,10 @@ mod tests {
             "【 ▯▯▯▯】 ∴  ╔▌▯▯⇭ ▕▚".to_string(),
         ).leak();
 
-        let sfs = sf.char_slice(2..8).unwrap();
-        assert_eq!(sfs.relative_char_to_absolute_range(1..2), Some(3..4));
-        assert_eq!(sfs.relative_char_to_absolute_range(0..4), Some(2..6));
-        assert_eq!(sfs.relative_char_to_absolute_range(0..10), None);
+        let sfs = sf.slice_char(2..8).unwrap();
+        assert_eq!(sfs.relative_char_to_absolute_range_char(1..2), Some(3..4));
+        assert_eq!(sfs.relative_char_to_absolute_range_char(0..4), Some(2..6));
+        assert_eq!(sfs.relative_char_to_absolute_range_char(0..10), None);
     }
 
     #[test]
@@ -408,25 +457,25 @@ mod tests {
             "【 ▯▯▯▯】 ∴  ╔▌▯▯⇭ ▕▚".to_string(),
         ).leak();
 
-        let sfs = sf.char_slice(0..7)
+        let sfs = sf.slice_char(0..7)
             .unwrap();
         assert_eq!(sfs.inner_slice(), "【 ▯▯▯▯】");
-        let ssfs = sfs.char_slice(2..7)
+        let ssfs = sfs.slice_char(2..7)
             .unwrap();
         assert_eq!(ssfs.inner_slice(), "▯▯▯▯】");
 
-        let sfs = sf.char_slice(8..19)
+        let sfs = sf.slice_char(8..19)
             .unwrap();
         assert_eq!(sfs.inner_slice(), "∴  ╔▌▯▯⇭ ▕▚");
-        let ssfs = sfs.char_slice(0..11)
+        let ssfs = sfs.slice_char(0..11)
             .unwrap();
         assert_eq!(ssfs.inner_slice(), "∴  ╔▌▯▯⇭ ▕▚");
 
-        let opt_sfs = sf.char_slice(0..732);
+        let opt_sfs = sf.slice_char(0..732);
         assert!(opt_sfs.is_none());
 
-        let sfs = sf.char_slice(0..10)
+        let sfs = sf.slice_char(0..10)
             .unwrap();
-        assert!(sfs.char_slice(25..12).is_none());
+        assert!(sfs.slice_char(25..12).is_none());
     }
 }

@@ -34,7 +34,7 @@ impl Lexer {
             return Ok(Advancement::Finished);
         }
 
-        let sf_slice = self.source.char_slice(self.range.clone())
+        let sf_slice = self.source.slice_char(self.range.clone())
             .unwrap();
 
         if self.comment_mode && sf_slice.inner_slice().contains('\n') {
@@ -48,11 +48,11 @@ impl Lexer {
         }
 
         if let Some(non_lit) = Token::parse_token_non_lit(&sf_slice) {
-            let possibly_lit_range = self.range.start..non_lit.slice.start();
-            let possibly_lit_slice = self.source.char_slice(possibly_lit_range)
+            let possibly_lit_range = self.range.start..non_lit.slice.start_char();
+            let possibly_lit_slice = self.source.slice_char(possibly_lit_range)
                 .unwrap();
 
-            self.range.start = non_lit.slice.end();
+            self.range.start = non_lit.slice.end_char();
 
             if let Some(lit) = Token::parse_token_lit(&possibly_lit_slice)? {
                 self.tokens.push(lit);
@@ -98,7 +98,7 @@ pub fn lex_file(source_file: &'static SourceFile) -> (Vec<Token>, Vec<LexerError
     }
 
     let file_lenght = source_file.char_lenght();
-    let eof_slice = source_file.char_slice(file_lenght..file_lenght)
+    let eof_slice = source_file.slice_char(file_lenght..file_lenght)
         .expect("slice should be valid");
     let eof = Token::new(TokenType::Eof, eof_slice);
     lexer.tokens.push(eof);

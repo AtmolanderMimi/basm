@@ -2,6 +2,7 @@ use either::Either;
 
 use crate::lexer::token::Token;
 use crate::source::SfSlice;
+use crate::utils::CharOps;
 
 use super::expression::Expression;
 use super::expression::ExpressionPattern;
@@ -79,9 +80,10 @@ impl Pattern for InstructionPattern {
 
 impl LanguageItem for Instruction {
     fn slice(&self) -> SfSlice {
-        let start = self.name.0.slice.start();
-        let end = self.semicolon.0.slice.end();
-        self.name.0.slice.reslice_char(start..end)
+        let start = self.name.0.slice.start_char();
+        let end = self.semicolon.0.slice.end_char();
+        self.name.0.slice.source().slice_char(start..end)
+            .unwrap()
     }
 }
 

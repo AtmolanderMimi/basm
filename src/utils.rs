@@ -15,13 +15,13 @@ pub trait CharOps: AsRef<str> {
     /// slice types, this method *exists*,
     /// also for parity with the char version.
     /// Returns `None`, if the range is out of bounds.
-    fn byte_slice(&self, byte_range: Range<usize>) -> Option<Self::SliceType>;
+    fn slice_byte(&self, byte_range: Range<usize>) -> Option<Self::SliceType>;
     /// Creates a slice from a string.
     /// The `char_range` is a range of **characters**, not bytes like `get`.
     /// Returns `None`, if the range is out of bounds.
-    fn char_slice(&self, char_range: Range<usize>) -> Option<Self::SliceType> {
+    fn slice_char(&self, char_range: Range<usize>) -> Option<Self::SliceType> {
         let byte_range = self.char_to_byte_range(char_range)?;
-        self.byte_slice(byte_range)
+        self.slice_byte(byte_range)
     }
     /// Returns the equivalent char range of a byte range on this string.
     /// May return `None` if the `byte_range` is out of bounds.
@@ -35,91 +35,39 @@ impl<'a> CharOps for &'a str {
     type SliceType = &'a str;
 
     fn char_to_byte_range(&self, char_range: Range<usize>) -> Option<Range<usize>> {
-        let mut byte_start_index = None;
-        let mut byte_end_index= None;
-        let mut char_index = 0;
-
-        if char_range.start == 0 {
-            byte_start_index = Some(0);
-        }
-
-        // okay... this is weird if this happens
-        if char_range.end == 0 {
-            return Some(0..0)
-        }
-
-        // NOTE: This may be laggy
-        for byte_index in 1..=self.as_bytes().len() {
-            if !self.is_char_boundary(byte_index) {
-                continue
-            }
-
-            char_index += 1;
-
-            if char_index == char_range.start {
-                byte_start_index = Some(byte_index);
-            }
-
-            if char_index == char_range.end {
-                byte_end_index = Some(byte_index);
-                break;
-            }
+        let num_chars = self.chars().count();
+        let start_index = if char_range.start == num_chars {
+            self.len()   
+        } else {
+            self.char_indices().nth(char_range.start).map(|(i, _)| i)?
         };
 
-        if let (Some(s), Some(e)) = (byte_start_index, byte_end_index) {
-            Some(s..e)
+        let end_index = if char_range.end == num_chars {
+            self.len()   
         } else {
-            None
-        }
+            self.char_indices().nth(char_range.end).map(|(i, _)| i)?
+        };
+
+        Some(start_index..end_index)
     }
 
-    fn byte_slice(&self, byte_range: Range<usize>) -> Option<Self::SliceType> {
+    fn slice_byte(&self, byte_range: Range<usize>) -> Option<Self::SliceType> {
         self.get(byte_range)
     }
 
     fn byte_to_char_range(&self, byte_range: Range<usize>) -> Option<Range<usize>> {
-        let mut char_start_index = None;
-        let mut char_end_index= None;
+        let offset = self.get(0..byte_range.start)?.chars().count();
+        let lenght = self.get(byte_range)?.chars().count();
 
-        if byte_range.end == 0 {
-            return Some(0..0)
-        }
-
-        // the enumerator does not go until the end so we do this check
-        if byte_range.end == self.len() {
-            char_end_index = Some(self.chars().count());
-        }
-
-        // NOTE: This may be laggy too
-        for (char_index, (byte_index, _)) in self.char_indices().enumerate() {
-            if byte_range.start == byte_index {
-                char_start_index = Some(char_index);
-            }
-
-            if byte_range.end == byte_index {
-                char_end_index = Some(char_index);
-                break;
-            }
-        };
-
-
-        let (char_start_index, char_end_index) = { 
-            if let (Some(s), Some(e)) = (char_start_index, char_end_index) {
-                (s, e)
-            } else {
-                return None;
-            }
-        };
-
-        Some(char_start_index..char_end_index)
+        Some(offset..(lenght+offset))
     }
 }
 
 impl<'a> CharOps for &'a String {
     type SliceType = &'a str;
 
-    fn byte_slice(&self, byte_range: Range<usize>) -> Option<Self::SliceType> {
-        self.as_str().byte_slice(byte_range)
+    fn slice_byte(&self, byte_range: Range<usize>) -> Option<Self::SliceType> {
+        self.as_str().slice_byte(byte_range)
     }
 
     fn byte_to_char_range(&self, byte_range: Range<usize>) -> Option<Range<usize>> {
@@ -237,20 +185,20 @@ mod tests {
 
     #[test]
     fn char_get_empty() {
-        assert_eq!("".char_slice(0..0), Some(""));
-        assert!("".char_slice(0..98).is_none())
+        assert_eq!("".slice_char(0..0), Some(""));
+        assert!("".slice_char(0..98).is_none())
     }
 
     #[test]
     fn char_get_oob() {
         assert_eq!(
             "my fw the love inside you will stop indefinitly and till then envisions the world that you wish to see and we will help in any way we can and we will help in anyway we cannn and we will will help in anyway we cannnn [music]"
-            .char_slice(50..732),
+            .slice_char(50..732),
             None
         );
         assert_eq!(
             "my fw the love inside you will stop indefinitly and till then envisions the world that you wish to see and we will help in any way we can and we will help in anyway we cannn and we will will help in anyway we cannnn [music]"
-            .char_slice(732..2024),
+            .slice_char(732..2024),
             None
         );
     }
@@ -258,13 +206,13 @@ mod tests {
     #[test]
     fn char_get_normal_behaviour() {
         assert_ne!("🇭ello, 🇭i!".get(0..5),      Some("🇭ello"));
-        assert_eq!("🇭ello, 🇭i!".char_slice(0..5), Some("🇭ello"));
+        assert_eq!("🇭ello, 🇭i!".slice_char(0..5), Some("🇭ello"));
 
-        assert_eq!("ĥello, ĥi!".char_slice(0..5), Some("ĥello"));
+        assert_eq!("ĥello, ĥi!".slice_char(0..5), Some("ĥello"));
 
         // from the str::get doc
-        assert_eq!("🗻∈🌏".char_slice(1..3), Some("∈🌏"));
-        assert_eq!("🗻∈🌏".char_slice(0..1), Some("🗻"))
+        assert_eq!("🗻∈🌏".slice_char(1..3), Some("∈🌏"));
+        assert_eq!("🗻∈🌏".slice_char(0..1), Some("🗻"))
     }
 
     #[test]

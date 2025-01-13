@@ -6,6 +6,7 @@ use crate::compiler::ScopeContext;
 use crate::lexer::token::Token;
 use crate::lexer::token::TokenType;
 use crate::source::SfSlice;
+use crate::utils::CharOps;
 
 use super::terminals::*;
 use super::componants::*;
@@ -204,10 +205,11 @@ impl LanguageItem for ValueRepresentation {
 
 impl LanguageItem for Expression {
     fn slice(&self) -> SfSlice {
-        let start = self.base.slice().start();
+        let start = self.base.slice().start_char();
         let end = self.mods.last()
-            .map(|l| l.slice().end()).unwrap_or(self.base.slice().end());
-        self.base.slice().reslice_char(start..end)
+            .map(|l| l.slice().end_char()).unwrap_or(self.base.slice().end_char());
+        self.base.slice().source().slice_char(start..end)
+            .unwrap()
     }
 }
 
@@ -215,14 +217,16 @@ impl LanguageItem for Mod {
     fn slice(&self) -> SfSlice {
         match self {
             Self::Increment { plus_token, value } => {
-                let start = plus_token.slice().start();
-                let end = value.slice().end();
-                plus_token.slice().reslice_char(start..end)
+                let start = plus_token.slice().start_char();
+                let end = value.slice().end_char();
+                plus_token.slice().source().slice_char(start..end)
+                    .unwrap()
             }
             Self::Decrement { minus_token, value } => {
-                let start = minus_token.slice().start();
-                let end = value.slice().end();
-                minus_token.slice().reslice_char(start..end)
+                let start = minus_token.slice().start_char();
+                let end = value.slice().end_char();
+                minus_token.slice().source().slice_char(start..end)
+                    .unwrap()
             }
         }
     }

@@ -55,19 +55,19 @@ pub trait CompilerError: Error {
             // -- context --
             if let Either::Left(slice) = l.slice {
                 let source = slice.source();
-                let pre_context_range = slice.start().saturating_sub(CONTEXT_WINDOW)..slice.start();
-                let post_context_range = if (slice.end() + CONTEXT_WINDOW) > source.char_lenght() {
-                    slice.end()..source.char_lenght()
+                let pre_context_range = slice.start_char().saturating_sub(CONTEXT_WINDOW)..slice.start_char();
+                let post_context_range = if (slice.end_char() + CONTEXT_WINDOW) > source.char_lenght() {
+                    slice.end_char()..source.char_lenght()
                 } else {
-                    slice.end()..(slice.end() + CONTEXT_WINDOW)
+                    slice.end_char()..(slice.end_char() + CONTEXT_WINDOW)
                 };
 
                 out.push_str(&"[...] ".black().to_string());
-                out.push_str(source.char_slice(pre_context_range).unwrap().as_ref());
+                out.push_str(source.slice_char(pre_context_range).unwrap().as_ref());
 
                 out.push_str(&slice.as_ref().color(gravity.associated_color()).underline().bold().to_string());
 
-                out.push_str(source.char_slice(post_context_range).unwrap().as_ref());
+                out.push_str(source.slice_char(post_context_range).unwrap().as_ref());
                 out.push_str(&" [...]".black().to_string());
             }
         } else {
@@ -100,7 +100,7 @@ impl Lint {
     pub fn new_error_range(source: &'static SourceFile, range: Range<usize>) -> Option<Lint> {
         let l = Lint {
             gravity: LintGravity::Error,
-            slice: Either::Left(source.char_slice(range)?)
+            slice: Either::Left(source.slice_char(range)?)
         };
 
         Some(l)
@@ -119,7 +119,7 @@ impl Lint {
     pub fn new_warning_range(source: &'static SourceFile, range: Range<usize>) -> Option<Lint> {
         let l = Lint {
             gravity: LintGravity::Warning,
-            slice: Either::Left(source.char_slice(range)?)
+            slice: Either::Left(source.slice_char(range)?)
         };
 
         Some(l)

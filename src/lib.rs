@@ -72,7 +72,7 @@ mod tests {
         #[cfg(not(debug_assertions))]
         {
             // TODO: big-file is not big enough to justify this
-            const ACCEPTABLE_TIME: f32 = 1.0;
+            const ACCEPTABLE_TIME: f32 = 0.3;
             
             let timer = Instant::now();
             let sf = SourceFile::from_raw_parts(

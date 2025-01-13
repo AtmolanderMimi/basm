@@ -2,6 +2,7 @@
 
 use crate::lexer::token::Token;
 use crate::source::SfSlice;
+use crate::utils::CharOps;
 
 use super::scope::Scope;
 use super::scope::ScopePattern;
@@ -130,19 +131,21 @@ impl Pattern for MetaFieldPattern {
 
 impl LanguageItem for MainField {
     fn slice(&self) -> SfSlice {
-        let start = self.left_bracket.0.slice.start();
-        let end = self.contents.slice().end();
+        let start = self.left_bracket.0.slice.start_char();
+        let end = self.contents.slice().end_char();
 
-        self.left_bracket.0.slice.reslice_char(start..end)
+        self.left_bracket.0.slice.source().slice_char(start..end)
+            .unwrap()
     }
 }
 
 impl LanguageItem for MetaField {
     fn slice(&self) -> SfSlice {
-        let start = self.left_bracket.0.slice.start();
-        let end = self.contents.slice().end();
+        let start = self.left_bracket.0.slice.start_char();
+        let end = self.contents.slice().end_char();
 
-        self.left_bracket.0.slice.reslice_char(start..end)
+        self.left_bracket.0.slice.source().slice_char(start..end)
+            .unwrap()
     }
 }
 

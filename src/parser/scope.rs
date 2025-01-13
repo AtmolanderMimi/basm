@@ -2,6 +2,7 @@ use either::Either;
 
 use crate::lexer::token::Token;
 use crate::source::SfSlice;
+use crate::utils::CharOps;
 
 use super::instruction::Instruction;
 use super::instruction::InstructionPattern;
@@ -60,9 +61,10 @@ impl Pattern for ScopePattern {
 
 impl LanguageItem for Scope {
     fn slice(&self) -> SfSlice {
-        let start = self.left_bracket.0.slice.start();
-        let end = self.right_bracket.0.slice.end();
-        self.left_bracket.0.slice.reslice_char(start..end)
+        let start = self.left_bracket.0.slice.start_char();
+        let end = self.right_bracket.0.slice.end_char();
+        self.left_bracket.0.slice.source().slice_char(start..end)
+            .unwrap()
     }
 }
 
