@@ -49,18 +49,52 @@ single_token_pattern!(
     TokenType::Ident("any".to_string())
 );
 
+impl Ident {
+    /// Returns the value of the inner ident.
+    pub fn value(&self) -> &str {
+        if let TokenType::Ident(s) = &self.0.t_type {
+            s
+        } else {
+            panic!("ident struct is ident token type invariant")
+        }
+    }
+}
+
 single_token_pattern!(
     NumLit,
     NumLitPattern,
     TokenType::NumLit(_),
     TokenType::NumLit(732)
 );
+
+impl NumLit {
+    /// Returns the value of the inner number literal.
+    pub fn value(&self) -> u32 {
+        if let TokenType::NumLit(n) = &self.0.t_type {
+            *n
+        } else {
+            panic!("numlit struct is num lit token type invariant")
+        }
+    }
+}
+
 single_token_pattern!(
     CharLit,
     CharLitPattern,
     TokenType::CharLit(_),
     TokenType::CharLit('e')
 );
+
+impl CharLit {
+    /// Returns the value of the inner character literal.
+    pub fn value(&self) -> char {
+        if let TokenType::CharLit(c) = &self.0.t_type {
+            *c
+        } else {
+            panic!("charlit struct is char lit token type invariant")
+        }
+    }
+}
 
 single_token_pattern!(
     Plus,

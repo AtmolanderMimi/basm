@@ -2,9 +2,9 @@ use std::{fmt::Debug, rc::Rc};
 
 use either::Either;
 
-use crate::{lexer::token::TokenType, parser::{Expression, Instruction as ParsedInstruction, Scope as ParsedScope, ValueRepresentation}};
+use crate::parser::{Expression, Instruction as ParsedInstruction, Scope as ParsedScope, ValueRepresentation};
 
-use super::{instruction::{InstructionError, SendSyncInstruction}, CompilerError, MainContext, ScopeContext};
+use super::{instruction::{InstructionError, SendSyncInstruction}, AlisValue, CompilerError, MainContext, ScopeContext};
 
 /// An instruction with all arguments normalized.
 #[derive(Clone)]
@@ -27,10 +27,12 @@ impl NormalizedInstruction {
         let arguments_impure = instruction.arguments.iter()
         .map(|a| match a {
             Either::Left(e) => {
-                if let Some(v) = e.evaluate(ctx) {
-                    Ok(Either::Left(v))
-                } else {
-                    Err(CompilerError::AliasNotDefined(e.clone()))
+                let res = e.evaluate(ctx);
+                match res {
+                    Some(Either::Left(v)) => Ok(Either::Left(v)),
+                    // TODO: remove this clone if possible
+                    Some(Either::Right(scp)) => Ok(Either::Right(scp.clone())),
+                    None => Err(CompilerError::AliasNotDefined(e.clone())),
                 }
             },
             Either::Right(s) => Ok(Either::Right(NormalizedScope::new(s.clone(), &mut ctx)?)),
@@ -38,7 +40,7 @@ impl NormalizedInstruction {
 
         // error handling my belobed
         // error handling my belobed
-        let arguments_impure =arguments_impure.collect::<Vec<_>>();
+        let arguments_impure = arguments_impure.collect::<Vec<_>>();
         for c in &arguments_impure {
             if let Err(error) = c {
                 return Err(error.clone())
@@ -49,11 +51,7 @@ impl NormalizedInstruction {
             .collect();
 
         // -- kind --
-        let instruction_ident = if let TokenType::Ident(i) = &instruction.name.0.t_type {
-            i
-        } else {
-            panic!("Ident should be Ident")
-        };
+        let instruction_ident = instruction.name.value();
         let kind = if let Some(k) = ctx.main.find_instruction(&instruction_ident) {
             k
         } else {
@@ -80,22 +78,20 @@ impl NormalizedInstruction {
 /// Scope with all items normalized.
 #[derive(Debug, Clone)]
 pub struct NormalizedScope {
+    #[allow(missing_docs)]
     pub from: ParsedScope,
     contents: Vec<Either<NormalizedInstruction, NormalizedScope>>,
 }
 
 impl NormalizedScope {
+    /// Tries to normalize a [`ParsedScope`] using `ctx`.
     pub fn new(scope: ParsedScope, ctx: &mut ScopeContext<'_>) -> Result<NormalizedScope, CompilerError> {
         // -- we normalize the arguments --
         let contents_impure = scope.contents.iter()
         .map(|a| match a {
             Either::Left(ins) => {
-                if let TokenType::Ident(name) = &ins.name.0.t_type {
-                    if name == "ALIS" {
-                        alis(ctx, ins.clone())?;
-                    }
-                } else {
-                    panic!("Should not reach because Ident is Ident")
+                if ins.name.value() == "ALIS" {
+                    alis(ctx, ins.clone())?;
                 }
 
                 let v = NormalizedInstruction::new(ins.clone(), ctx)?;
@@ -136,6 +132,7 @@ impl NormalizedScope {
 
 /// Here's our happy little ALIS implementation.
 fn alis(ctx: &mut ScopeContext<'_>, instruction: ParsedInstruction) -> Result<(), CompilerError> {
+    // check arguments, since this is not run as a normal instruction this is done manually
     if instruction.arguments.len() > 2 {
         let v = InstructionError::TooManyArguments { got: instruction.arguments.len(), expected: 2 };
         return Err(CompilerError::Instruction(v, instruction))
@@ -144,6 +141,7 @@ fn alis(ctx: &mut ScopeContext<'_>, instruction: ParsedInstruction) -> Result<()
         return Err(CompilerError::Instruction(v, instruction))
     }
 
+    // gets the name..
     let alis_name = if let Either::Left(Expression {
         base: ValueRepresentation::Ident(ident),
         mods,
@@ -153,28 +151,28 @@ fn alis(ctx: &mut ScopeContext<'_>, instruction: ParsedInstruction) -> Result<()
             return Err(CompilerError::Instruction(v, instruction))
         }
 
-        if let TokenType::Ident(alis_name) = &ident.0.t_type {
-            alis_name
-        } else {
-            panic!("Ident is Ident invariant, again...")
-        }
+        ident.value()
     } else {
         let v = InstructionError::MalformedAlis;
         return Err(CompilerError::Instruction(v, instruction))
     };
-
-    let alis_value = if let Either::Left(exp) = &instruction.arguments[1] {
-        if let Some(v) = exp.evaluate(ctx) {
-            v
-        } else {
-            return Err(CompilerError::AliasNotDefined(exp.clone()))
+    
+    // .. then the value
+    let alis_value = match &instruction.arguments[1] {
+        Either::Left(exp) => {
+            if let Some(v) = exp.evaluate_numeric(ctx) {
+                AlisValue::Value(v)
+            } else {
+                return Err(CompilerError::AliasNotDefined(exp.clone()))
+            } 
+        },
+        Either::Right(scp) => {
+            let val = NormalizedScope::new(scp.clone(), ctx)?;
+            AlisValue::Scope(val)
         }
-    } else {
-        let v = InstructionError::MalformedAlis;
-        return Err(CompilerError::Instruction(v, instruction))
     };
 
-    ctx.add_alias(alis_name.clone(), alis_value);
+    ctx.add_alias(alis_name.to_string(), alis_value);
 
     Ok(())
 }

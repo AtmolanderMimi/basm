@@ -6,9 +6,11 @@ mod expression;
 mod instruction;
 mod scope;
 mod fields;
+mod meta_field;
 
 use componants::{Many, Then};
-use fields::{MainFieldPattern, MetaFieldPattern};
+use fields::MainFieldPattern;
+use meta_field::MetaFieldPattern;
 use thiserror::Error;
 
 use crate::{lexer::token::{Token, TokenType}, source::SfSlice, CompilerError, Lint};
@@ -18,7 +20,9 @@ pub use terminals::{Ident, NumLit, CharLit, Plus, Minus, Semicolon, LeftSquare, 
 #[allow(unused_imports)]
 pub use expression::{Expression, ValueRepresentation};
 #[allow(unused_imports)]
-pub use fields::{MainField, MetaField};
+pub use fields::MainField;
+#[allow(unused_imports)]
+pub use meta_field::{MetaField, SignatureArgument};
 #[allow(unused_imports)]
 pub use instruction::Instruction;
 #[allow(unused_imports)]

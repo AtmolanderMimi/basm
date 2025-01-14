@@ -7,7 +7,7 @@ use either::Either;
 
 use thiserror::Error;
 
-use crate::{lexer::token::TokenType, parser::{MetaField, Scope}};
+use crate::parser::{MetaField, Scope, SignatureArgument};
 
 use super::{normalized_items::NormalizedScope, CompilerError, MainContext};
 
@@ -313,11 +313,20 @@ impl MetaInstruction {
     pub fn new(
         meta_field: MetaField,
     ) -> Result<MetaInstruction, CompilerError> {
-        let arguments_iter = meta_field.arguments.iter().map(|i| {
-            if let TokenType::Ident(name) = &i.0.t_type {
-                name
-            } else {
-                panic!("Ident is ident")
+        let arguments_iter = meta_field.arguments.iter().map(|arg| {
+            match arg {
+                SignatureArgument::Operand(i) => {
+                    let name = i.value();
+                    let kind = ArgumentKind::Operand;
+
+                    (name, kind)
+                },
+                SignatureArgument::Scope(s) => {
+                    let name = s.ident.value();
+                    let kind = ArgumentKind::Scope;
+
+                    (name, kind)
+                }
             }
         });
 
@@ -325,9 +334,9 @@ impl MetaInstruction {
         // whilst still keeping the order
         let mut argument_names = Vec::new();
         let mut arguments = Vec::new();
-        for name in arguments_iter {
-            argument_names.push(name.clone());
-            arguments.push(ArgumentKind::Operand);
+        for (name, kind) in arguments_iter {
+            argument_names.push(name.to_string());
+            arguments.push(kind);
         }
 
         Ok(MetaInstruction {
@@ -339,11 +348,7 @@ impl MetaInstruction {
 
     /// Returns the name of the meta-instruction.
     pub fn name(&self) -> &str {
-        if let TokenType::Ident(name) = &self.from.name.0.t_type {
-            name
-        } else {
-            panic!("Ident is ident, it is an invariant")
-        }
+        self.from.name.value()
     }
 }
 
@@ -382,8 +387,11 @@ impl Instruction for MetaInstruction {
 
         // we don't support scope as arguments to meta-instructions yet, so it is safe to say we can't
         // get it as an argument
-        for (i, name) in self.argument_names.iter().enumerate() {
-            scope_ctx.add_alias(name.clone(), args[i].clone().unwrap_left());
+        for ((i, name), kind) in self.argument_names.iter().enumerate().zip(self.arguments()) {
+            match kind {
+                ArgumentKind::Operand => scope_ctx.add_alias_numeric(name.clone(), args[i].clone().unwrap_left()),
+                ArgumentKind::Scope => scope_ctx.add_alias_scope(name.clone(), args[i].clone().unwrap_right()),
+            }
         }
 
         let normalized = NormalizedScope::new(self.from.contents.clone(), &mut scope_ctx);

@@ -2,7 +2,7 @@
 
 mod instruction;
 use instruction::{built_in, InstructionError, MetaInstruction, SendSyncInstruction};
-use normalized_items::NormalizedScope;
+pub use normalized_items::NormalizedScope;
 use thiserror::Error;
 mod normalized_items;
 use std::{collections::HashMap, fmt::Debug, rc::Rc, sync::Mutex};
@@ -83,7 +83,7 @@ impl MainContext {
 pub struct ScopeContext<'a> {
     main: &'a MainContext,
     parent: Option<&'a ScopeContext<'a>>,
-    local_aliases: Vec<(String, u32)>,
+    local_aliases: Vec<(String, AlisValue)>,
 }
 
 impl<'a> ScopeContext<'a> {
@@ -96,10 +96,10 @@ impl<'a> ScopeContext<'a> {
     /// 
     /// let mut main = MainContext::new();
     /// let mut parent = main.build_scope();
-    /// parent.add_alias("a".to_string(), 32);
+    /// parent.add_alias_numeric("a".to_string(), 32);
     /// 
     /// let mut child = parent.sub_scope();
-    /// child.add_alias("b".to_string(), 64);
+    /// child.add_alias_numeric("b".to_string(), 64);
     /// 
     /// assert!(child.find_alias("a").is_some());
     /// assert!(child.find_alias("b").is_some());
@@ -117,20 +117,32 @@ impl<'a> ScopeContext<'a> {
 
     /// Adds an alias onto the alias stack.
     /// Only this [`ScopeContext`] and those created from this one will be able to see it.
-    pub fn add_alias(&mut self, ident: String, value: u32) {
+    pub fn add_alias(&mut self, ident: String, value: AlisValue) {
         self.local_aliases.push((ident, value));
+    }
+
+    /// Adds an numeric alias onto the alias stack.
+    /// Only this [`ScopeContext`] and those created from this one will be able to see it.
+    pub fn add_alias_numeric(&mut self, ident: String, value: u32) {
+        self.add_alias(ident, AlisValue::Value(value));
+    }
+
+    /// Adds an scope alias onto the alias stack.
+    /// Only this [`ScopeContext`] and those created from this one will be able to see it.
+    pub fn add_alias_scope(&mut self, ident: String, value: NormalizedScope) {
+        self.add_alias(ident, AlisValue::Scope(value));
     }
 
     /// Finds the newest alias matching the `ident`.
     /// This means that if a `x` was aliased twice only the latest alised `x` will be taken.
-    /// (aliases shadow older ones)
+    /// (newer aliases shadow older ones)
     /// 
     /// May return `None` if there was no alias defined matching the ident.
-    pub fn find_alias(&self, ident: &str) -> Option<u32> {
+    pub fn find_alias(&self, ident: &str) -> Option<&AlisValue> {
         // we reverse so that we can prioritise oldest match
         let local_find = self.local_aliases.iter().rev()
             .find(|(a, _)| a == ident)
-            .map(|(_, v)| *v);
+            .map(|(_, v)| v);
 
         // if we did not find an alias in the current scope with keep searching down recusively
         if local_find.is_none() {
@@ -140,6 +152,45 @@ impl<'a> ScopeContext<'a> {
             local_find
         }
     }
+
+    /// Finds the newest alias matching the `ident`.
+    /// This means that if a `x` was aliased twice only the latest alised `x` will be taken.
+    /// (newer aliases shadow older ones)
+    /// 
+    /// May return `None` if there was no alias defined matching the ident.
+    /// This returns `None` even if a numeric alias was already defined earlier,
+    /// if it was overshadowed by an alias of other type.
+    pub fn find_alias_numeric(&self, ident: &str) -> Option<&u32> {
+        if let AlisValue::Value(v) = self.find_alias(ident)? {
+            Some(&v)
+        } else {
+            None
+        }
+    }
+
+    /// Finds the newest alias matching the `ident`.
+    /// This means that if a `x` was aliased twice only the latest alised `x` will be taken.
+    /// (newer aliases shadow older ones)
+    /// 
+    /// May return `None` if there was no alias defined matching the ident.
+    /// This returns `None` even if a numeric alias was already defined earlier,
+    /// if it was overshadowed by an alias of other type.
+    pub fn find_alias_scope(&self, ident: &str) -> Option<&NormalizedScope> {
+        if let AlisValue::Scope(s) = self.find_alias(ident)? {
+            Some(&s)
+        } else {
+            None
+        }
+    }
+}
+
+/// A value of alias, for now aliases can either be values or scopes.
+#[derive(Debug, Clone)]
+pub enum AlisValue {
+    /// The alias represents a static value.
+    Value(u32),
+    /// The alias represents a scope (which is normalized at compile time).
+    Scope(NormalizedScope),
 }
 
 /// The heart of the compilation logic. 732
@@ -169,9 +220,6 @@ impl Compiler {
 
     /// Evaluates a meta-instruction.
     pub fn walk_meta_instruction_declaration(&mut self, meta: &MetaField) -> Result<(), CompilerError> {
-        // TODO: not a big fan of using static for every meta instruction, especially since the
-        // current implementation of into_owned copies the whole file for every token,
-        // that's *kinda alright* for errors, but totally inaceptable for meta-instructions.
         let meta_ins = MetaInstruction::new(meta.clone())?;
 
         if self.context.add_instruction(meta_ins.name(), meta_ins.clone()) {
@@ -216,11 +264,7 @@ impl CompilerErrorTrait for CompilerError {
             CompilerError::DoubleDeclaration(f) => f.name.slice(),
         };
 
-        // FIXME: It would be way simpler if i just leaked the files at the start of the
-        // compilation so that we don't have to play with lifetimes the whole time.
-        // ALSO INTENTIONAL (BUT NOT PROUD) LEAK HERE
-        let source = Box::leak(Box::new(slice.source().clone()));
-        Some(Lint::new_error_range(Box::leak(Box::new(source)), slice.char_range()).unwrap())
+        Some(Lint::new_error_range(slice.source(), slice.char_range()).unwrap())
     }
 }
 
@@ -233,10 +277,10 @@ mod tests {
         // this test is here just to check if modification to the lifetimes would prevent compiling
         let main = MainContext::new();
         let mut parent = main.build_scope();
-        parent.add_alias("a".to_string(), 32);
+        parent.add_alias_numeric("a".to_string(), 32);
         {   
             let mut child = parent.sub_scope();
-            child.add_alias("b".to_string(), 64);
+            child.add_alias_numeric("b".to_string(), 64);
 
             assert!(child.find_alias("a").is_some());
             assert!(child.find_alias("b").is_some());
@@ -245,7 +289,7 @@ mod tests {
         assert!(parent.find_alias("a").is_some());
         assert!(parent.find_alias("b").is_none());
 
-        parent.add_alias("c".to_string(), 128);
+        parent.add_alias_numeric("c".to_string(), 128);
         assert!(parent.find_alias("c").is_some())
     }
 }
