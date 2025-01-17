@@ -161,8 +161,29 @@ These aliases can be used to name adresses or constants for example.
 Aliases automatically shadow other prior aliases with the same name, and get invalidated
 once they run out of the scope. In basm the only two elements creating scopes are `[]` blocks
 and meta-instruction. Higher scope aliases can go into lower scope, but lower scope aliases cannot reach higher scopes.
-The two alias types (being value and scope) both share the same alias names, meaning an alias aliasing a value can be
-overshadowed by a redefinition to a scope.
+The two alias types (being value and scope) both have a different name pool, meaning an alias both `val` and `[val]`
+can coexist.
+
+### Scope aliases
+Scope aliases are defined like value aliases at the exception that we alias to a scope. Like this:
+```basm
+ALIS my_scope [ INCR 0 1; ];
+```
+Scope aliases can then be used by surrounding the set alias identifier by a set of brackets.
+They can be used to pass into instructions that require scopes. Example:
+```basm
+[main] [
+ALIS i 0;
+ALIS my_scope [ INCR i 1; ];
+
+INCR i 80;
+// in this context this reads: while i is not 72, execute `my_scope` (which simply decreases i)
+WHNE i 72 [my_scope];
+
+// this should return 72 or ':' if not using number output
+OUT i;
+]
+```
 
 ## Language Items
 In basm, every instruction is formed by a sequence of language items.

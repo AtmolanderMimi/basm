@@ -12,6 +12,7 @@ use super::Advancement;
 use super::AdvancementState as AdvState;
 use super::LanguageItem;
 use super::Pattern;
+use super::instruction::{ScopeIdent, ScopeIdentPattern};
 
 /// Pattern for constructing an [`MetaField`].
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -85,50 +86,10 @@ impl LanguageItem for MetaField {
     }
 }
 
-/// Pattern to create [`ScopeArgument`].
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct ScopeArgumentPattern(
-    Then<LeftSquarePattern, Then<IdentPattern, RightSquarePattern>>,
-);
-
-/// A meta-instruction argument that is a scope.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ScopeArgument {
-    #[allow(missing_docs)]
-    pub left_bracket: LeftSquare,
-    #[allow(missing_docs)]
-    pub ident: Ident,
-    #[allow(missing_docs)]
-    pub right_bracket: RightSquare,    
-}
-
-impl Pattern for ScopeArgumentPattern {
-    type ParseResult = ScopeArgument;
-
-    fn advance(&mut self, token: &Token) -> Advancement<Self::ParseResult> {
-        let adv = self.0.advance(token);
-        let overeach = adv.overeach;
-
-        match adv.state {
-            AdvState::Advancing => Advancement::new(AdvState::Advancing, overeach),
-            AdvState::Done(res) => {
-                let val = ScopeArgument {
-                    left_bracket: res.0,
-                    ident: res.1.0,
-                    right_bracket: res.1.1,
-                };
-
-                Advancement::new(AdvState::Done(val), overeach)
-            },
-            AdvState::Error(e) => Advancement::new(AdvState::Error(e), overeach),
-        }
-    }
-}
-
 /// Pattern to create [`SignatureArgument`].
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct SignatureArgumentPattern(
-    Or<IdentPattern, ScopeArgumentPattern>,
+    Or<IdentPattern, ScopeIdentPattern>,
 );
 
 impl Pattern for SignatureArgumentPattern {
@@ -159,7 +120,7 @@ pub enum SignatureArgument {
     /// An argument expecting an operand.
     Operand(Ident),
     /// An agument expecting a scope.
-    Scope(ScopeArgument),
+    Scope(ScopeIdent),
 }
 
 #[cfg(test)]

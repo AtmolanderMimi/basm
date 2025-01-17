@@ -2,16 +2,16 @@ use std::{fmt::Debug, rc::Rc};
 
 use either::Either;
 
-use crate::parser::{Expression, Instruction as ParsedInstruction, Scope as ParsedScope, ValueRepresentation};
+use crate::parser::{Expression, Instruction as ParsedInstruction, Scope as ParsedScope, ValueRepresentation, Argument as ParsedArgument};
 
-use super::{instruction::{InstructionError, SendSyncInstruction}, AlisValue, CompilerError, MainContext, ScopeContext};
+use super::{instruction::{InstructionError, SendSyncInstruction}, Argument, CompilerError, MainContext, ScopeContext};
 
 /// An instruction with all arguments normalized.
 #[derive(Clone)]
 pub struct NormalizedInstruction {
     pub from: ParsedInstruction,
     kind: Rc<dyn SendSyncInstruction>, // not too glad about using dynamic dyspatch
-    arguments: Vec<Either<u32, NormalizedScope>>,
+    arguments: Vec<Argument>,
 }
 
 impl Debug for NormalizedInstruction {
@@ -23,19 +23,36 @@ impl Debug for NormalizedInstruction {
 impl NormalizedInstruction {
     /// Creates a new [`CompiledInstruction`] from a (parsed) [`Instruction`].
     pub fn new(instruction: ParsedInstruction, mut ctx: &mut ScopeContext<'_>) -> Result<NormalizedInstruction, CompilerError> {
+        // we skip normalizing arguments to ALIS
+        // since it is the whole point of ALIS to have undefined arguments.
+        // (specifically it's scope identifiers that mess it up because we try to 
+        // normalize it as a integer value)
+        if instruction.name.value() == "ALIS" {
+            return Ok(NormalizedInstruction {
+                from: instruction,
+                kind: ctx.main.find_instruction("ALIS").unwrap(),
+                arguments: Vec::new(),
+            })
+        }
+
         // -- we normalize the arguments --
         let arguments_impure = instruction.arguments.iter()
         .map(|a| match a {
-            Either::Left(e) => {
+            ParsedArgument::Expression(e) => {
                 let res = e.evaluate(ctx);
                 match res {
-                    Some(Either::Left(v)) => Ok(Either::Left(v)),
-                    // TODO: remove this clone if possible
-                    Some(Either::Right(scp)) => Ok(Either::Right(scp.clone())),
+                    Some(v) => Ok(Argument::Operand(v)),
                     None => Err(CompilerError::AliasNotDefined(e.clone())),
                 }
             },
-            Either::Right(s) => Ok(Either::Right(NormalizedScope::new(s.clone(), &mut ctx)?)),
+            ParsedArgument::Scope(s) => Ok(Argument::Scope(NormalizedScope::new(s.clone(), &mut ctx)?)),
+            ParsedArgument::ScopeIdent(i) => {
+                match ctx.find_scope_alias(i.ident.value()) {
+                    // TODO: remove this clone
+                    Some(v) => Ok(Argument::Scope(v.clone())),
+                    None => todo!("change CompilerError::AliasNotDefined to work off ident and not Expression"),
+                }
+            }
         });
 
         // error handling my belobed
@@ -142,37 +159,41 @@ fn alis(ctx: &mut ScopeContext<'_>, instruction: ParsedInstruction) -> Result<()
     }
 
     // gets the name..
-    let alis_name = if let Either::Left(Expression {
-        base: ValueRepresentation::Ident(ident),
-        mods,
-    }) = &instruction.arguments[0] {
-        if !mods.is_empty() {
-            let v = InstructionError::MalformedAlis;
-            return Err(CompilerError::Instruction(v, instruction))
-        }
-
-        ident.value()
-    } else {
-        let v = InstructionError::MalformedAlis;
-        return Err(CompilerError::Instruction(v, instruction))
+    let alis_name = match &instruction.arguments[0] {
+        ParsedArgument::Expression(Expression { base: ValueRepresentation::Ident(ident), mods }) => {
+            if !mods.is_empty() {
+                let v = InstructionError::MalformedAlis;
+                return Err(CompilerError::Instruction(v, instruction))
+            }
+    
+            ident.value()
+        },
+        _ => return Err(CompilerError::Instruction(InstructionError::MalformedAlis, instruction))
     };
     
     // .. then the value
-    let alis_value = match &instruction.arguments[1] {
-        Either::Left(exp) => {
-            if let Some(v) = exp.evaluate_numeric(ctx) {
-                AlisValue::Value(v)
+    match &instruction.arguments[1] {
+        ParsedArgument::Expression(exp) => {
+            if let Some(v) = exp.evaluate(ctx) {
+                ctx.add_value_alias(alis_name.to_string(), v);
             } else {
                 return Err(CompilerError::AliasNotDefined(exp.clone()))
             } 
         },
-        Either::Right(scp) => {
+        ParsedArgument::Scope(scp) => {
             let val = NormalizedScope::new(scp.clone(), ctx)?;
-            AlisValue::Scope(val)
+            ctx.add_scope_alias(alis_name.to_string(), val);
+        },
+        ParsedArgument::ScopeIdent(scpident) => {
+            let scp = if let Some(scp) = ctx.find_scope_alias(scpident.ident.value()) {
+                scp.clone()
+            } else {
+                todo!("add compilererror::aliasnotdefined for non expressions");
+                //return Err(CompilerError::AliasNotDefined(exp.clone()))
+            };
+            ctx.add_scope_alias(alis_name.to_string(), scp);
         }
     };
-
-    ctx.add_alias(alis_name.to_string(), alis_value);
 
     Ok(())
 }

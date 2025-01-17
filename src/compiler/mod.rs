@@ -49,7 +49,8 @@ impl MainContext {
         ScopeContext {
             main: self,
             parent: None,
-            local_aliases: Vec::new(),
+            local_value_aliases: Vec::new(),
+            local_scope_aliases: Vec::new(),
         }
     }
 
@@ -83,7 +84,8 @@ impl MainContext {
 pub struct ScopeContext<'a> {
     main: &'a MainContext,
     parent: Option<&'a ScopeContext<'a>>,
-    local_aliases: Vec<(String, AlisValue)>,
+    local_value_aliases: Vec<(String, u32)>,
+    local_scope_aliases: Vec<(String, NormalizedScope)>,
 }
 
 impl<'a> ScopeContext<'a> {
@@ -96,41 +98,36 @@ impl<'a> ScopeContext<'a> {
     /// 
     /// let mut main = MainContext::new();
     /// let mut parent = main.build_scope();
-    /// parent.add_alias_numeric("a".to_string(), 32);
+    /// parent.add_value_alias("a".to_string(), 32);
     /// 
     /// let mut child = parent.sub_scope();
-    /// child.add_alias_numeric("b".to_string(), 64);
+    /// child.add_value_alias("b".to_string(), 64);
     /// 
-    /// assert!(child.find_alias("a").is_some());
-    /// assert!(child.find_alias("b").is_some());
+    /// assert!(child.find_value_alias("a").is_some());
+    /// assert!(child.find_value_alias("b").is_some());
     /// drop(child);
-    /// assert!(parent.find_alias("a").is_some());
-    /// assert!(parent.find_alias("b").is_none());
+    /// assert!(parent.find_value_alias("a").is_some());
+    /// assert!(parent.find_value_alias("b").is_none());
     /// ```
     pub fn sub_scope(&'a self) -> ScopeContext<'a> {
         ScopeContext {
             main: &self.main,
             parent: Some(self),
-            local_aliases: Vec::new(),
+            local_value_aliases: Vec::new(),
+            local_scope_aliases: Vec::new(),
         }
-    }
-
-    /// Adds an alias onto the alias stack.
-    /// Only this [`ScopeContext`] and those created from this one will be able to see it.
-    pub fn add_alias(&mut self, ident: String, value: AlisValue) {
-        self.local_aliases.push((ident, value));
     }
 
     /// Adds an numeric alias onto the alias stack.
     /// Only this [`ScopeContext`] and those created from this one will be able to see it.
-    pub fn add_alias_numeric(&mut self, ident: String, value: u32) {
-        self.add_alias(ident, AlisValue::Value(value));
+    pub fn add_value_alias(&mut self, ident: String, value: u32) {
+        self.local_value_aliases.push((ident, value));
     }
 
     /// Adds an scope alias onto the alias stack.
     /// Only this [`ScopeContext`] and those created from this one will be able to see it.
-    pub fn add_alias_scope(&mut self, ident: String, value: NormalizedScope) {
-        self.add_alias(ident, AlisValue::Scope(value));
+    pub fn add_scope_alias(&mut self, ident: String, scope: NormalizedScope) {
+        self.local_scope_aliases.push((ident, scope));
     }
 
     /// Finds the newest alias matching the `ident`.
@@ -138,16 +135,18 @@ impl<'a> ScopeContext<'a> {
     /// (newer aliases shadow older ones)
     /// 
     /// May return `None` if there was no alias defined matching the ident.
-    pub fn find_alias(&self, ident: &str) -> Option<&AlisValue> {
+    /// This returns `None` even if a numeric alias was already defined earlier,
+    /// if it was overshadowed by an alias of other type.
+    pub fn find_value_alias(&self, ident: &str) -> Option<u32> {
         // we reverse so that we can prioritise oldest match
-        let local_find = self.local_aliases.iter().rev()
+        let local_find = self.local_value_aliases.iter().rev()
             .find(|(a, _)| a == ident)
-            .map(|(_, v)| v);
+            .map(|(_, v)| *v);
 
         // if we did not find an alias in the current scope with keep searching down recusively
         if local_find.is_none() {
             // goofy unwrap_or(None), but it works
-            self.parent.map(|p| p.find_alias(ident)).unwrap_or(None)
+            self.parent.map(|p| p.find_value_alias(ident)).unwrap_or(None)
         } else {
             local_find
         }
@@ -160,37 +159,20 @@ impl<'a> ScopeContext<'a> {
     /// May return `None` if there was no alias defined matching the ident.
     /// This returns `None` even if a numeric alias was already defined earlier,
     /// if it was overshadowed by an alias of other type.
-    pub fn find_alias_numeric(&self, ident: &str) -> Option<&u32> {
-        if let AlisValue::Value(v) = self.find_alias(ident)? {
-            Some(&v)
+    pub fn find_scope_alias(&self, ident: &str) -> Option<&NormalizedScope> {
+        // we reverse so that we can prioritise oldest match
+        let local_find = self.local_scope_aliases.iter().rev()
+            .find(|(a, _)| a == ident)
+            .map(|(_, v)| v);
+
+        // if we did not find an alias in the current scope with keep searching down recusively
+        if local_find.is_none() {
+            // goofy unwrap_or(None), but it works
+            self.parent.map(|p| p.find_scope_alias(ident)).unwrap_or(None)
         } else {
-            None
+            local_find
         }
     }
-
-    /// Finds the newest alias matching the `ident`.
-    /// This means that if a `x` was aliased twice only the latest alised `x` will be taken.
-    /// (newer aliases shadow older ones)
-    /// 
-    /// May return `None` if there was no alias defined matching the ident.
-    /// This returns `None` even if a numeric alias was already defined earlier,
-    /// if it was overshadowed by an alias of other type.
-    pub fn find_alias_scope(&self, ident: &str) -> Option<&NormalizedScope> {
-        if let AlisValue::Scope(s) = self.find_alias(ident)? {
-            Some(&s)
-        } else {
-            None
-        }
-    }
-}
-
-/// A value of alias, for now aliases can either be values or scopes.
-#[derive(Debug, Clone)]
-pub enum AlisValue {
-    /// The alias represents a static value.
-    Value(u32),
-    /// The alias represents a scope (which is normalized at compile time).
-    Scope(NormalizedScope),
 }
 
 /// The heart of the compilation logic. 732
@@ -227,6 +209,53 @@ impl Compiler {
         };
 
         Ok(())
+    }
+}
+
+/// An argument passed into an instruction.
+#[derive(Debug, Clone)]
+pub enum Argument {
+    /// An operand passed into an instruction
+    Operand(u32),
+    /// A scope passed into an instruction
+    Scope(NormalizedScope),
+}
+
+impl Argument {
+    /// Returns the inner `u32` if self is `Self::Operand`, else panic.
+    pub fn unwrap_operand(self) -> u32 {
+        if let Argument::Operand(v) = self {
+            v
+        } else {
+            panic!("Failed unwrap into operand.")
+        }
+    }
+
+    /// Returns the inner [`NormalizedScope`] if self is `Self::Scope`, else panic.
+    pub fn unwrap_scope(self) -> NormalizedScope {
+        if let Argument::Scope(s) = self {
+            s
+        } else {
+            panic!("Failed unwrap into scope.")
+        }
+    }
+
+    /// Returns `true` if self is `Self::Operand`.
+    pub fn is_operand(&self) -> bool {
+        if let Argument::Operand(_) = self {
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Returns `true` if self is `Self::Scope`.
+    pub fn is_scope(&self) -> bool {
+        if let Argument::Scope(_) = self {
+            true
+        } else {
+            false
+        }
     }
 }
 
@@ -277,19 +306,19 @@ mod tests {
         // this test is here just to check if modification to the lifetimes would prevent compiling
         let main = MainContext::new();
         let mut parent = main.build_scope();
-        parent.add_alias_numeric("a".to_string(), 32);
+        parent.add_value_alias("a".to_string(), 32);
         {   
             let mut child = parent.sub_scope();
-            child.add_alias_numeric("b".to_string(), 64);
+            child.add_value_alias("b".to_string(), 64);
 
-            assert!(child.find_alias("a").is_some());
-            assert!(child.find_alias("b").is_some());
+            assert!(child.find_value_alias("a").is_some());
+            assert!(child.find_value_alias("b").is_some());
             drop(child);
         }
-        assert!(parent.find_alias("a").is_some());
-        assert!(parent.find_alias("b").is_none());
+        assert!(parent.find_value_alias("a").is_some());
+        assert!(parent.find_value_alias("b").is_none());
 
-        parent.add_alias_numeric("c".to_string(), 128);
-        assert!(parent.find_alias("c").is_some())
+        parent.add_value_alias("c".to_string(), 128);
+        assert!(parent.find_value_alias("c").is_some())
     }
 }

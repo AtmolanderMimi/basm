@@ -3,13 +3,11 @@
 
 use std::{collections::HashMap, fmt::Debug, rc::Rc};
 
-use either::Either;
-
 use thiserror::Error;
 
 use crate::parser::{MetaField, Scope, SignatureArgument};
 
-use super::{normalized_items::NormalizedScope, CompilerError, MainContext};
+use super::{normalized_items::NormalizedScope, Argument, CompilerError, MainContext};
 
 pub fn built_in() -> HashMap<String, Rc<dyn SendSyncInstruction>> {
     let mut map = HashMap::new();
@@ -34,7 +32,7 @@ pub trait Instruction {
 
     /// Compiles the given instruction into string format, checks the validity of the arguments passed in.
     /// Will return an error if the number of arguments does not match the one specified by [`Instruction::arguments`].
-    fn compile_checked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope>]) -> Result<(), InstructionError> {
+    fn compile_checked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
         if args.len() > self.arguments().len() {
             return Err(InstructionError::TooManyArguments { got: args.len(), expected: self.arguments().len() })
         } else if args.len() < self.arguments().len() {
@@ -44,8 +42,8 @@ pub trait Instruction {
         // finds non-matching arguments
         let res = self.arguments().into_iter().enumerate().find(|(i, k)| {
             match k {
-                ArgumentKind::Operand => args[*i].is_right(),
-                ArgumentKind::Scope => args[*i].is_left(),
+                ArgumentKind::Operand => args[*i].is_scope(),
+                ArgumentKind::Scope => args[*i].is_operand(),
             }
         });
 
@@ -65,7 +63,7 @@ pub trait Instruction {
     
     /// Compiles the given instructions into string format.
     /// It can be assummed that the arguments passed in are valid.
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope>]) -> Result<(), InstructionError>;
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError>;
 }
 
 pub trait SendSyncInstruction: Instruction + Send + Sync {}
@@ -87,11 +85,11 @@ impl Instruction for Alis {
         &[]
     }
 
-    fn compile_checked(&self, _buf: &mut String, _ctx: &MainContext, _args: &[Either<u32, NormalizedScope>]) -> Result<(), InstructionError> {
+    fn compile_checked(&self, _buf: &mut String, _ctx: &MainContext, _args: &[Argument]) -> Result<(), InstructionError> {
         //panic!("ALIS, cannot be compiled like other built-in's, it should be catched before")
         Ok(())
     }
-    fn compile_unchecked(&self, _buf: &mut String, _ctx: &MainContext, _args: &[Either<u32, NormalizedScope>]) -> Result<(), InstructionError> {
+    fn compile_unchecked(&self, _buf: &mut String, _ctx: &MainContext, _args: &[Argument]) -> Result<(), InstructionError> {
         //panic!("ALIS, cannot be compiled like other built-in's, it should be catched before")
         Ok(())
     }
@@ -104,8 +102,8 @@ impl Instruction for Zero {
         &[ArgumentKind::Operand]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope>]) -> Result<(), InstructionError> {
-        move_pointer_to(buf, ctx, *args[0].as_ref().unwrap_left());
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+        move_pointer_to(buf, ctx, args[0].clone().unwrap_operand());
         buf.push_str("[-]");
 
         Ok(())
@@ -119,9 +117,9 @@ impl Instruction for Incr {
         &[ArgumentKind::Operand, ArgumentKind::Operand]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope>]) -> Result<(), InstructionError> {
-        let pos = *args[0].as_ref().unwrap_left();
-        let incrementation = *args[1].as_ref().unwrap_left();
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+        let pos = args[0].clone().unwrap_operand();
+        let incrementation = args[1].clone().unwrap_operand();
 
         move_pointer_to(buf, ctx, pos);
         for _ in 0..incrementation {
@@ -139,9 +137,9 @@ impl Instruction for Decr {
         &[ArgumentKind::Operand, ArgumentKind::Operand]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope>]) -> Result<(), InstructionError> {
-        let pos = *args[0].as_ref().unwrap_left();
-        let incrementation = *args[1].as_ref().unwrap_left();
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+        let pos = args[0].clone().unwrap_operand();
+        let incrementation = args[1].clone().unwrap_operand();
 
         move_pointer_to(buf, ctx, pos);
         for _ in 0..incrementation {
@@ -159,10 +157,10 @@ impl Instruction for Copy {
         &[ArgumentKind::Operand, ArgumentKind::Operand, ArgumentKind::Operand]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope>]) -> Result<(), InstructionError> {
-        let origin = *args[0].as_ref().unwrap_left();
-        let pos1 = *args[1].as_ref().unwrap_left();
-        let pos2 = *args[2].as_ref().unwrap_left();
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+        let origin = args[0].clone().unwrap_operand();
+        let pos1 = args[1].clone().unwrap_operand();
+        let pos2 = args[2].clone().unwrap_operand();
 
         move_pointer_to(buf, ctx, origin);
         buf.push_str("[-");
@@ -186,9 +184,9 @@ impl Instruction for Addp {
         &[ArgumentKind::Operand, ArgumentKind::Operand]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope>]) -> Result<(), InstructionError> {
-        let pos1 = *args[0].as_ref().unwrap_left();
-        let pos2 = *args[1].as_ref().unwrap_left();
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+        let pos1 = args[0].clone().unwrap_operand();
+        let pos2 = args[1].clone().unwrap_operand();
 
         move_pointer_to(buf, ctx, pos2);
         buf.push_str("[-");
@@ -210,9 +208,9 @@ impl Instruction for Subp {
         &[ArgumentKind::Operand, ArgumentKind::Operand]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope>]) -> Result<(), InstructionError> {
-        let pos1 = *args[0].as_ref().unwrap_left();
-        let pos2 = *args[1].as_ref().unwrap_left();
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+        let pos1 = args[0].clone().unwrap_operand();
+        let pos2 = args[1].clone().unwrap_operand();
 
         move_pointer_to(buf, ctx, pos2);
         buf.push_str("[-");
@@ -234,10 +232,10 @@ impl Instruction for Whne {
         &[ArgumentKind::Operand, ArgumentKind::Operand, ArgumentKind::Scope]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope>]) -> Result<(), InstructionError> {
-        let variable = *args[0].as_ref().unwrap_left();
-        let compared = *args[1].as_ref().unwrap_left();
-        let scope = args[2].as_ref().unwrap_right();
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+        let variable = args[0].clone().unwrap_operand();
+        let compared = args[1].clone().unwrap_operand();
+        let scope = args[2].clone().unwrap_scope();
 
         move_pointer_to(buf, ctx, variable);
         for _ in 0..compared {
@@ -272,8 +270,8 @@ impl Instruction for In {
         &[ArgumentKind::Operand]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope>]) -> Result<(), InstructionError> {
-        let pos1 = *args[0].as_ref().unwrap_left();
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+        let pos1 = args[0].clone().unwrap_operand();
 
         move_pointer_to(buf, ctx, pos1);
         buf.push(',');
@@ -289,8 +287,8 @@ impl Instruction for Out {
         &[ArgumentKind::Operand]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope>]) -> Result<(), InstructionError> {
-        let pos1 = *args[0].as_ref().unwrap_left();
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+        let pos1 = args[0].clone().unwrap_operand();
 
         move_pointer_to(buf, ctx, pos1);
         buf.push('.');
@@ -357,7 +355,7 @@ impl Instruction for MetaInstruction {
         &self.arguments
     }
 
-    fn compile_checked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope>]) -> Result<(), InstructionError> {
+    fn compile_checked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
         if args.len() > self.arguments().len() {
             return Err(InstructionError::TooManyArguments { got: args.len(), expected: self.arguments().len() })
         } else if args.len() < self.arguments().len() {
@@ -367,8 +365,8 @@ impl Instruction for MetaInstruction {
         // finds non-matching arguments
         let res = self.arguments().into_iter().enumerate().find(|(i, k)| {
             match k {
-                ArgumentKind::Operand => args[*i].is_right(),
-                ArgumentKind::Scope => args[*i].is_left(),
+                ArgumentKind::Operand => args[*i].is_scope(),
+                ArgumentKind::Scope => args[*i].is_operand(),
             }
         });
 
@@ -389,8 +387,8 @@ impl Instruction for MetaInstruction {
         // get it as an argument
         for ((i, name), kind) in self.argument_names.iter().enumerate().zip(self.arguments()) {
             match kind {
-                ArgumentKind::Operand => scope_ctx.add_alias_numeric(name.clone(), args[i].clone().unwrap_left()),
-                ArgumentKind::Scope => scope_ctx.add_alias_scope(name.clone(), args[i].clone().unwrap_right()),
+                ArgumentKind::Operand => scope_ctx.add_value_alias(name.clone(), args[i].clone().unwrap_operand()),
+                ArgumentKind::Scope => scope_ctx.add_scope_alias(name.clone(), args[i].clone().unwrap_scope()),
             }
         }
 
@@ -408,7 +406,7 @@ impl Instruction for MetaInstruction {
         }
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Either<u32, NormalizedScope>]) -> Result<(), InstructionError> {
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
         self.compile_checked(buf, ctx, args)
     }
 }

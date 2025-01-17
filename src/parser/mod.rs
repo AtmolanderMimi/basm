@@ -24,7 +24,7 @@ pub use fields::MainField;
 #[allow(unused_imports)]
 pub use meta_field::{MetaField, SignatureArgument};
 #[allow(unused_imports)]
-pub use instruction::Instruction;
+pub use instruction::{Instruction, Argument};
 #[allow(unused_imports)]
 pub use scope::Scope;
 

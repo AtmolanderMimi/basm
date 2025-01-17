@@ -2,8 +2,6 @@
 
 use either::Either;
 
-use crate::compiler::AlisValue;
-use crate::compiler::NormalizedScope;
 use crate::compiler::ScopeContext;
 use crate::lexer::token::Token;
 use crate::source::SfSlice;
@@ -143,67 +141,34 @@ pub struct Expression {
 
 impl Expression {
     /// Evaluates the expression in the context.
-    /// Returns `None` if an alias is not defined in the context or if the result is not numeric.
-    pub fn evaluate_numeric(&self, ctx: &ScopeContext<'_>) -> Option<u32> {
-        if let Either::Left(v) = self.evaluate(ctx)? {
-            Some(v)
-        } else {
-            None
-        }
-    }
-
-    /// Evaluates the expression in the context.
     /// Returns `None` if an alias is not defined in the context.
-    pub fn evaluate<'a>(&self, ctx: &'a ScopeContext<'_>) -> Option<Either<u32, &'a NormalizedScope>> {
-        match self.base.evaluate(ctx)? {
-            Either::Left(mut base) => {
-                for m in &self.mods {
-                    match m {
-                        Mod::Increment { value, .. } => {
-                            base = base.overflowing_add(value.evaluate_numeric(ctx)?).0;
-                        },
-                        Mod::Decrement { value, .. } => {
-                            base = base.overflowing_sub(value.evaluate_numeric(ctx)?).0;
-                        },
-                    }
-                }
+    pub fn evaluate<'a>(&self, ctx: &'a ScopeContext<'_>) -> Option<u32> {
+        let mut base = self.base.evaluate(ctx)?;
 
-                Some(Either::Left(base))
-            },
-            Either::Right(scp) => {
-                // we should not be able to add modifiers to a scope alis
-                if !self.mods.is_empty() {
-                    return None
-                }
-
-                Some(Either::Right(scp))
+        for m in &self.mods {
+            match m {
+                Mod::Increment { value, .. } => {
+                    base = base.overflowing_add(value.evaluate(ctx)?).0;
+                },
+                Mod::Decrement { value, .. } => {
+                    base = base.overflowing_sub(value.evaluate(ctx)?).0;
+                },
             }
         }
+
+        Some(base)
     }
 }
 
 impl ValueRepresentation {
-    /// Evaluates the numeric value in the context.
-    /// Returns `None` if an alias is not defined in the context or if the the alias is not numeric.
-    pub fn evaluate_numeric(&self, ctx: &ScopeContext<'_>) -> Option<u32> {
-        match self.evaluate(ctx)? {
-            Either::Left(v) => Some(v),
-            Either::Right(_) => None,
-        }
-    }
-
-    /// Evaluates the value in the context, may be a scope if it is an alis.
+    /// Evaluates the value in the context.
     /// Returns `None` if an alias is not defined in the context.
-    pub fn evaluate<'a>(&self, ctx: &'a ScopeContext<'_>) -> Option<Either<u32, &'a NormalizedScope>> {
+    pub fn evaluate<'a>(&self, ctx: &'a ScopeContext<'_>) -> Option<u32> {
         match self {
-            Self::NumLit(n) => Some(Either::Left(n.value())),
-            Self::CharLit(c) => Some(Either::Left(c.value().into())),
+            Self::NumLit(n) => Some(n.value()),
+            Self::CharLit(c) => Some(c.value().into()),
             Self::Ident(i) => {
-                let alias = ctx.find_alias(i.value())?;
-                Some(match alias {
-                    AlisValue::Value(v) => Either::Left(*v),
-                    AlisValue::Scope(s) => Either::Right(s)
-                })
+                ctx.find_value_alias(i.value())
             },
         }
     }
