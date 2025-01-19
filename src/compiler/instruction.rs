@@ -12,6 +12,7 @@ use super::{normalized_items::NormalizedScope, Argument, CompilerError, MainCont
 pub fn built_in() -> HashMap<String, Rc<dyn SendSyncInstruction>> {
     let mut map = HashMap::new();
     map.insert("ALIS", Rc::new(Alis::default()) as Rc<dyn SendSyncInstruction>);
+    map.insert("INLN", Rc::new(Inln::default()) as Rc<dyn SendSyncInstruction>);
     map.insert("ZERO", Rc::new(Zero::default()) as Rc<dyn SendSyncInstruction>);
     map.insert("INCR", Rc::new(Incr::default()) as Rc<dyn SendSyncInstruction>);
     map.insert("DECR", Rc::new(Decr::default()) as Rc<dyn SendSyncInstruction>);
@@ -91,6 +92,24 @@ impl Instruction for Alis {
     }
     fn compile_unchecked(&self, _buf: &mut String, _ctx: &MainContext, _args: &[Argument]) -> Result<(), InstructionError> {
         //panic!("ALIS, cannot be compiled like other built-in's, it should be catched before")
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+struct Inln;
+impl Instruction for Inln {
+    fn arguments(&self) -> &[ArgumentKind] {
+        &[ArgumentKind::Scope]
+    }
+
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+        let scope = args[0].clone().unwrap_scope();
+        let res = args[0].clone().unwrap_scope().compile(ctx, buf);
+        if let Err(cpm_err) = res {
+            return Err(InstructionError::CouldNotInlineScope(scope.from, Box::new(cpm_err)));
+        }
+
         Ok(())
     }
 }
@@ -456,8 +475,36 @@ pub enum InstructionError {
     },
     #[error("failed to inline meta-instruction, because {1}")]
     CouldNotInlineMeta(MetaField, Box<CompilerError>),
+    #[error("failed to inline scope, because: {1}")]
+    CouldNotInlineScope(Scope, Box<CompilerError>),
     #[error("the alis statement is malformed")]
     MalformedAlis,
     #[error("error in argument scope: {1}")]
     ArgumentScopeError(Scope, Box<CompilerError>),
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use crate::{interpreter::InterpreterBuilder, source::SourceFile, transpile};
+
+    /// Test implementing custom branch instructions like IFNE and IFEQ
+    /// and uses it to check wheter 9+10 == 19.
+    /// This makes sure scope aliasing and INLN work well.
+    #[test]
+    fn instruction_scopes_practical_implementation() {
+        let file = include_str!("../../test-resources/custom-conditionals.basm");
+        let sf = SourceFile::from_raw_parts(PathBuf::new(), file.to_string())
+            .leak();
+        let bf_code = transpile(sf).unwrap();
+        let mut interpreter = InterpreterBuilder::new(&bf_code).finish();
+        interpreter.complete().unwrap();
+
+        let tape = interpreter.tape().downcast_ref::<Vec<u8>>()
+            .unwrap();
+
+        // cell 2 is the cell telling us if 9+10 is equal to 19
+        assert_eq!(tape[1], 1);
+    }
 }

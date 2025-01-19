@@ -1,0 +1,80 @@
+// outputs a constant value
+[@OUTV val sp] [
+INCR sp val;
+OUT sp;
+ZERO sp;
+]
+
+[@IFNE addr val [scp] sp] [
+ALIS tmp sp;
+ALIS tmp2 sp+1;
+
+COPY addr tmp tmp2;
+ADDP addr tmp2;
+WHNE tmp val [
+	// we don't care about the value of tmp anymore
+	// and we don't want it interfering with the inlined scope
+	ZERO tmp;
+	
+	// at this point all values on the stack of this meta-instructions
+	// are zeroed out, which means it's like there is no overlap between the
+	// scope of the inlined scope and the values needed for conditionals.
+	INLN [scp];
+
+	// force exit
+	INCR tmp val;
+];
+
+// cleanup (in case the condition did not triger)
+ZERO tmp;
+]
+
+[@IFEQ addr val [scp] sp] [
+ALIS tmp sp;
+ALIS sp sp+1;
+
+// by default tmp is 0, but if it is not equal than it will be 1
+IFNE addr val [
+	INCR tmp 1;
+] sp;
+
+// this should read: if `addr` is not not equal to `value`
+// the "not not" cancels and so it makes: if `addr` is equal to `value`
+//
+// (once again the values on the meta-instruction stack will not interfer
+// with the scope because for the scope to execute our only stack cell
+// needs to be equal to 0)
+IFNE tmp 1 [scp] sp;
+]
+
+[main] [
+ALIS sum 0;
+ALIS is_accurate 1; // use this to check on the tape to test
+ALIS sp 2;
+
+ALIS print_right [
+	OUTV 'r' sp;
+	OUTV 'i' sp;
+	OUTV 'g' sp;
+	OUTV 'h' sp;
+	OUTV 't' sp;
+	INCR is_accurate 1;
+];
+ALIS print_wrong [
+	OUTV 'w' sp;
+	OUTV 'r' sp;
+	OUTV 'o' sp;
+	OUTV 'n' sp;
+	OUTV 'g' sp;
+    ZERO is_accurate;
+];
+
+// 9 + 10
+INCR sum 9;
+INCR sum 10;
+
+// despite using the stack these branch instructions
+// wont alias values in the scopes.
+IFEQ sum 19 [print_right] sp;
+IFNE sum 19 [print_wrong] sp;
+]
