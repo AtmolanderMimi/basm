@@ -56,7 +56,11 @@ To use a "consumed" cell you should use instructions.
 | Name | Arguments | Function |
 |-|-|-|
 | ALIS | ident, value | aliases a value or scope to an identifier, this instruction is purely abstraction |
-| INLN | ident (scope) | inlines an aliased scope |
+| INLN | [scope] | inlines a scope |
+| - | - | - |
+| RAW  | "str" | inlines the string in the transpiled code, this can be used to include brainfuck operators |
+| BBOX | addr | moves the tape pointer to the adress of `addr` |
+| ASUM | addr | tells to compiler to assume that the tape pointer is at `addr`, if that assumption is wrong all cells accesses will be offset |
 | - | - | - |
 | ZERO | addr | sets the value of `addr` to 0 |
 | COPY | addr1, addr2, addr3 | copies the value of `addr1` into `addr2` and `addr3` |
@@ -69,7 +73,7 @@ To use a "consumed" cell you should use instructions.
 | ADDP | addr1, addr2 | adds `addr2` to `addr1` in place |
 | SUBP | addr1, addr2 | substract `addr2` from `addr1` in place |
 | - | - | - |
-| WHNE | addr, value, [instruction] | while the value of `addr` cell is not equal to `value` runs the `[instruction]`. `addr` is not consumed |
+| WHNE | addr, value, [scope] | while the value of `addr` cell is not equal to `value` runs the `[scope]`. `addr` is not consumed |
 
 ### Example
 Fibonacci:
@@ -102,6 +106,7 @@ WHNE 0 3 [
  <<[-<+>]       | ADDP 2
  [-]            | ZERO 2
  >[-<+>]        | ADDP 3
+
  <<.            | OUT  1
  <---           | WHNE 0
 ]+++            | WHNE 0
@@ -185,13 +190,68 @@ OUT i;
 ]
 ```
 
+## Working with Raw Brainfuck
+Basm isn't great at some things (like adressing memory dynamically), which is why there exists
+three instructions to help you include brainfuck within basm code. They were already presented prior,
+but let's reintroduce them in more detail:
+* **RAW**: Takes in a string an includes it into the final transpiled code, we can use it to smuggle in brainfuck operators.
+* **BBOX**: Forces the tape pointer to move to a specified cell (aka "black box")
+* **ASUM**: Sets the assumed tape pointer position to the specified value, we can say we assume it. If the assumed position is invalid, this causes an offset in cell adressing.
+
+`BBOX` and `ASUM` both manipulate the tape pointer. Before I can start to explain how to use them and
+how this relates to including brainfuck, you need to know why we need them.
+During the compilation process, the compiler keeps track of the position of the tape pointer at all points in the program.
+It needs to do this so it can know how to move any arbitrary cell. We use static cell indexing (aka the cell's index are relative to the start),
+which is very dissimilar to how brainfuck handles it. In brainfuck "simply going to cell 2" requires us to use a variable amount
+of pointer shifting operators, which in term require us to know our current cell location in order to
+get the difference between cell A and B and then shift the pointer by that difference.
+
+So, made short, we need the compiler to know where the tape pointer is at all points.
+For example, if the compiler's assumption about the tape pointer is wrong, let's say it thinks we are at 5, but we are at 0,
+and then we try to access 6 it would increase the pointer by 1. This would put us on cell 1 rather than 6.
+Effectively, this offsets us by -5, which is not a good thing (in most cases).
+
+Normally, the assumed pointer position is always right, because the language does not let you invalidate it
+at the exception of `ASUM` and possibly `RAW`.
+
+But why would we need to mess with the pointer? To be able to unlock the power of relative adressing.
+Most likely you will want to write brainfuck so you can forgo static adressing. The compiler doesn't quite know
+what you want to do when writing brainfuck, which is where enters `BBOX` and `ASUM`.
+`BBOX` can be invoked before your brainfuck code to guarenty the pointer's position.
+`ASUM` can be invoked after your brainfuck code to correct for pointer shifts you have made that the compiler is not aware of.
+
+Here's an example of all three instructions in action:
+```basm
+// prints out a string, strings are stored preceded and followed by a zeroed cell
+[@PSTR string_start string_end]
+BBOX string_start+1; // we put the pointer on the first non-zero cell
+RAW "[.>]";          // we output every cell until we reach the zeroed cell denoting the end
+ASUM string_end;     // we can assume the pointer is currently at the end of the string
+```
+
+You may have noticed in the example that we could have simply used our `OUT` and `WHNE` instruction instead of using `.` and `[]`.
+Despite what I said prior, invalid assumed tape pointers aren't inherently bad if you know how to use them.
+We could write the example above using hybrid basm/bf, like so:
+```basm
+[@PSTR string_start string_end]
+BBOX string_start+1;
+ASUM 0;      // 0 is going to be equal to our current pointer position (offsetting by string_start+1)
+
+WHNE 0 0 [
+    OUT 0;
+    BBOX 0;  // although the instructions in this example do not move the pointer around, it is important to make sure the pointer is reset
+    RAW ">"; // increases the offset by 1
+]
+ASUM string_end;
+```
+
 ## Language Items
 In basm, every instruction is formed by a sequence of language items.
 For example, `ADDP addr1 addr2;` would be `[ident, expression, expression, declaration_delimitor]`.
 
-### Expressions
+### Value Expressions
 Expressions in basm are very simple, they are formed by an alias or literal,
-possibly offset by another alias or literal. (There can only be one add/sub per expression)
+possibly offset by another alias or literal and represent a value.
 Here are examples of expressions:
 * `732` (number literal)
 * `10+9` (number literal offset by another number literal)
