@@ -507,4 +507,39 @@ mod tests {
         // cell 2 is the cell telling us if 9+10 is equal to 19
         assert_eq!(tape[1], 1);
     }
+
+    #[test]
+    fn inline_simple_correctness() {
+        let file = "
+        [main] [
+        ALIS do_stuff [
+            INCR 1 12;
+            INCR 1 33;
+        ];
+
+        // outside of inln
+        INCR 0 12;
+        INCR 0 33;
+
+        // inside of inln
+        INLN [do_stuff];
+
+        // inside of inln twice
+        ADDP 2 1; // moving cell 1 -> 2
+        INLN [do_stuff];
+        INLN [do_stuff];
+        ]
+        ";
+        let sf = SourceFile::from_raw_parts(PathBuf::new(), file.to_string())
+            .leak();
+        let bf_code = transpile(sf).unwrap();
+        let mut interpreter = InterpreterBuilder::new(&bf_code).finish();
+        interpreter.complete().unwrap();
+
+        let tape = interpreter.tape().downcast_ref::<Vec<u8>>()
+            .unwrap();
+
+        assert_eq!(tape[0], tape[2]); // cell 0 and 2 both are the same code
+        assert_eq!(tape[0]*2, tape[1]); // cell 1 is the value of 0 times two
+    }
 }

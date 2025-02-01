@@ -38,11 +38,13 @@ impl NormalizedInstruction {
         // -- we normalize the arguments --
         let arguments_impure = instruction.arguments.iter()
         .map(|a| match a {
-            ParsedArgument::Expression(e) => {
-                let res = e.evaluate(ctx);
+            ParsedArgument::Expression(ex) => {
+                let res = ex.evaluate(ctx);
                 match res {
-                    Some(v) => Ok(Argument::Operand(v)),
-                    None => Err(CompilerError::AliasNotDefined(e.clone())),
+                    Ok(v) => Ok(Argument::Operand(v)),
+                    Err(err) => {
+                        Err(err)
+                    },
                 }
             },
             ParsedArgument::Scope(s) => Ok(Argument::Scope(NormalizedScope::new(s.clone(), &mut ctx)?)),
@@ -50,7 +52,7 @@ impl NormalizedInstruction {
                 match ctx.find_scope_alias(i.ident.value()) {
                     // TODO: remove this clone
                     Some(v) => Ok(Argument::Scope(v.clone())),
-                    None => todo!("change CompilerError::AliasNotDefined to work off ident and not Expression"),
+                    None => Err(CompilerError::AliasNotDefined(i.ident.clone())),
                 }
             }
         });
@@ -174,11 +176,8 @@ fn alis(ctx: &mut ScopeContext<'_>, instruction: ParsedInstruction) -> Result<()
     // .. then the value
     match &instruction.arguments[1] {
         ParsedArgument::Expression(exp) => {
-            if let Some(v) = exp.evaluate(ctx) {
-                ctx.add_value_alias(alis_name.to_string(), v);
-            } else {
-                return Err(CompilerError::AliasNotDefined(exp.clone()))
-            } 
+            let value = exp.evaluate(ctx)?;
+            ctx.add_value_alias(alis_name.to_string(), value);
         },
         ParsedArgument::Scope(scp) => {
             let val = NormalizedScope::new(scp.clone(), ctx)?;
@@ -188,8 +187,7 @@ fn alis(ctx: &mut ScopeContext<'_>, instruction: ParsedInstruction) -> Result<()
             let scp = if let Some(scp) = ctx.find_scope_alias(scpident.ident.value()) {
                 scp.clone()
             } else {
-                todo!("add compilererror::aliasnotdefined for non expressions");
-                //return Err(CompilerError::AliasNotDefined(exp.clone()))
+                return Err(CompilerError::AliasNotDefined(scpident.ident.clone()))
             };
             ctx.add_scope_alias(alis_name.to_string(), scp);
         }

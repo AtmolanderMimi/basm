@@ -2,6 +2,7 @@
 
 use either::Either;
 
+use crate::compiler::CompilerError;
 use crate::compiler::ScopeContext;
 use crate::lexer::token::Token;
 use crate::source::SfSlice;
@@ -141,8 +142,8 @@ pub struct Expression {
 
 impl Expression {
     /// Evaluates the expression in the context.
-    /// Returns `None` if an alias is not defined in the context.
-    pub fn evaluate<'a>(&self, ctx: &'a ScopeContext<'_>) -> Option<u32> {
+    /// Returns `Err` if an alias is not defined in the context.
+    pub fn evaluate<'a>(&self, ctx: &'a ScopeContext<'_>) -> Result<u32, CompilerError> {
         let mut base = self.base.evaluate(ctx)?;
 
         for m in &self.mods {
@@ -156,21 +157,27 @@ impl Expression {
             }
         }
 
-        Some(base)
+        Ok(base)
     }
 }
 
 impl ValueRepresentation {
     /// Evaluates the value in the context.
-    /// Returns `None` if an alias is not defined in the context.
-    pub fn evaluate<'a>(&self, ctx: &'a ScopeContext<'_>) -> Option<u32> {
-        match self {
-            Self::NumLit(n) => Some(n.value()),
-            Self::CharLit(c) => Some(c.value().into()),
+    /// Returns `Err` if an alias is not defined in the context.
+    pub fn evaluate<'a>(&self, ctx: &'a ScopeContext<'_>) -> Result<u32, CompilerError> {
+        let value = match self {
+            Self::NumLit(n) => n.value(),
+            Self::CharLit(c) => c.value().into(),
             Self::Ident(i) => {
-                ctx.find_value_alias(i.value())
+                if let Some(v) = ctx.find_value_alias(i.value()) {
+                    v
+                } else {
+                    return Err(CompilerError::AliasNotDefined(i.clone()))
+                }
             },
-        }
+        };
+
+        Ok(value)
     }
 }
 

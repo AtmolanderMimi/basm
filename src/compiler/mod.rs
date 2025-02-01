@@ -7,7 +7,7 @@ use thiserror::Error;
 mod normalized_items;
 use std::{collections::HashMap, fmt::Debug, rc::Rc, sync::Mutex};
 
-use crate::{parser::{Expression, Ident, Instruction as ParsedInstruction, LanguageItem, MetaField, ParsedProgram}, CompilerError as CompilerErrorTrait, Lint};
+use crate::{parser::{Ident, Instruction as ParsedInstruction, LanguageItem, MetaField, ParsedProgram}, CompilerError as CompilerErrorTrait, Lint};
 
 /// Compiles a [`ParsedProgram`] into a brainfuck program in string format.
 pub fn compile(program: &ParsedProgram) -> Result<String, CompilerError> {
@@ -271,7 +271,7 @@ pub enum CompilerError {
     Instruction(InstructionError, ParsedInstruction),
     /// An alias which was is not defined in scope is present.
     #[error("alias was not defined")]
-    AliasNotDefined(Expression),
+    AliasNotDefined(Ident),
     /// An instruction which is was not defined, yet or will never be defined is present.
     /// Note that meta-instructions can use another meta-instruction, but only if it was defined higher.
     #[error("instruction is not defined")]
