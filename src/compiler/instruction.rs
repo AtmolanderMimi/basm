@@ -13,6 +13,9 @@ pub fn built_in() -> HashMap<String, Rc<dyn SendSyncInstruction>> {
     let mut map = HashMap::new();
     map.insert("ALIS", Rc::new(Alis::default()) as Rc<dyn SendSyncInstruction>);
     map.insert("INLN", Rc::new(Inln::default()) as Rc<dyn SendSyncInstruction>);
+    map.insert("RAW" , Rc::new(Raw ::default()) as Rc<dyn SendSyncInstruction>);
+    map.insert("BBOX", Rc::new(Bbox::default()) as Rc<dyn SendSyncInstruction>);
+    map.insert("ASUM", Rc::new(Asum::default()) as Rc<dyn SendSyncInstruction>);
     map.insert("ZERO", Rc::new(Zero::default()) as Rc<dyn SendSyncInstruction>);
     map.insert("INCR", Rc::new(Incr::default()) as Rc<dyn SendSyncInstruction>);
     map.insert("DECR", Rc::new(Decr::default()) as Rc<dyn SendSyncInstruction>);
@@ -41,18 +44,20 @@ pub trait Instruction {
         }
 
         // finds non-matching arguments
-        let res = self.arguments().into_iter().enumerate().find(|(i, k)| {
-            match k {
-                ArgumentKind::Operand => args[*i].is_scope(),
-                ArgumentKind::Scope => args[*i].is_operand(),
+        let res = self.arguments().into_iter().enumerate().find(|(i, expected)| {
+            match expected {
+                ArgumentKind::Operand => !args[*i].is_operand(),
+                ArgumentKind::Scope => !args[*i].is_scope(),
+                ArgumentKind::String => !args[*i].is_string(),
             }
         });
 
         if let Some((i, kind)) = res {
             return Err(InstructionError::NonMatchingArgumentKind {
-                got: match kind {
-                    ArgumentKind::Operand => ArgumentKind::Scope,
-                    ArgumentKind::Scope => ArgumentKind::Operand,
+                got: match args[i] {
+                    Argument::Operand(_) => ArgumentKind::Operand,
+                    Argument::Scope(_) => ArgumentKind::Scope,
+                    Argument::String(_) => ArgumentKind::String,
                 },
                 expected: kind.clone(),
                 place: i,
@@ -77,6 +82,8 @@ pub enum ArgumentKind {
     Operand,
     /// A scope. "\[ ... \]"
     Scope,
+    /// A string. "..."
+    String,
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -109,6 +116,48 @@ impl Instruction for Inln {
         if let Err(cpm_err) = res {
             return Err(InstructionError::CouldNotInlineScope(scope.from, Box::new(cpm_err)));
         }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+struct Raw;
+impl Instruction for Raw {
+    fn arguments(&self) -> &[ArgumentKind] {
+        &[ArgumentKind::String]
+    }
+
+    fn compile_unchecked(&self, buf: &mut String, _ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+        buf.push_str(&args[0].clone().unwrap_string());
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+struct Bbox;
+impl Instruction for Bbox {
+    fn arguments(&self) -> &[ArgumentKind] {
+        &[ArgumentKind::Operand]
+    }
+
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+        move_pointer_to(buf, ctx, args[0].clone().unwrap_operand());
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+struct Asum;
+impl Instruction for Asum {
+    fn arguments(&self) -> &[ArgumentKind] {
+        &[ArgumentKind::Operand]
+    }
+
+    fn compile_unchecked(&self, _buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+        ctx.set_pointer(args[0].clone().unwrap_operand());
 
         Ok(())
     }
@@ -382,18 +431,20 @@ impl Instruction for MetaInstruction {
         }
 
         // finds non-matching arguments
-        let res = self.arguments().into_iter().enumerate().find(|(i, k)| {
-            match k {
-                ArgumentKind::Operand => args[*i].is_scope(),
-                ArgumentKind::Scope => args[*i].is_operand(),
+        let res = self.arguments().into_iter().enumerate().find(|(i, expected)| {
+            match expected {
+                ArgumentKind::Operand => !args[*i].is_operand(),
+                ArgumentKind::Scope => !args[*i].is_scope(),
+                ArgumentKind::String => !args[*i].is_string(),
             }
         });
 
         if let Some((i, kind)) = res {
             return Err(InstructionError::NonMatchingArgumentKind {
-                got: match kind {
-                    ArgumentKind::Operand => ArgumentKind::Scope,
-                    ArgumentKind::Scope => ArgumentKind::Operand,
+                got: match args[i] {
+                    Argument::Operand(_) => ArgumentKind::Operand,
+                    Argument::Scope(_) => ArgumentKind::Scope,
+                    Argument::String(_) => ArgumentKind::String,
                 },
                 expected: kind.clone(),
                 place: i,
@@ -402,12 +453,11 @@ impl Instruction for MetaInstruction {
 
         let mut scope_ctx = ctx.build_scope();
 
-        // we don't support scope as arguments to meta-instructions yet, so it is safe to say we can't
-        // get it as an argument
         for ((i, name), kind) in self.argument_names.iter().enumerate().zip(self.arguments()) {
             match kind {
                 ArgumentKind::Operand => scope_ctx.add_value_alias(name.clone(), args[i].clone().unwrap_operand()),
                 ArgumentKind::Scope => scope_ctx.add_scope_alias(name.clone(), args[i].clone().unwrap_scope()),
+                kind => panic!("meta-instructions don't support {kind:?}"),
             }
         }
 

@@ -54,7 +54,8 @@ impl NormalizedInstruction {
                     Some(v) => Ok(Argument::Scope(v.clone())),
                     None => Err(CompilerError::AliasNotDefined(i.ident.clone())),
                 }
-            }
+            },
+            ParsedArgument::String(str) => Ok(Argument::String(str.value().to_string()))
         });
 
         // error handling my belobed
@@ -190,6 +191,10 @@ fn alis(ctx: &mut ScopeContext<'_>, instruction: ParsedInstruction) -> Result<()
                 return Err(CompilerError::AliasNotDefined(scpident.ident.clone()))
             };
             ctx.add_scope_alias(alis_name.to_string(), scp);
+        },
+        ParsedArgument::String(_) => {
+            let v = InstructionError::MalformedAlis;
+            return Err(CompilerError::Instruction(v, instruction))
         }
     };
 

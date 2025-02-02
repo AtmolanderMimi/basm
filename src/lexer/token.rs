@@ -107,6 +107,12 @@ impl<'a> Token {
     /// The token's range postion is absolute.
     pub fn parse_token_non_lit(sf_slice: &SfSlice) -> Option<Token> {
         let slice = sf_slice.inner_slice();
+
+        // don't check for tokens if we are in a string
+        if slice.chars().filter(|c| *c == '"').count() % 2 == 1 || slice.ends_with('\"') {
+            return None;
+        }
+
         let mut matches = vec![];
 
         for pair in TokenType::MAPPING {
@@ -139,13 +145,9 @@ impl<'a> Token {
             }
         }
 
-        // sorts by descending order
-        matches.sort_by(|mat1, mat2| {
-            mat2.0.end.cmp(&mat1.0.end)
-        });
         // sorts by acending order, breaks ties
         matches.sort_by(|mat1, mat2| {
-            mat1.0.start.cmp(&mat2.0.start)
+            mat2.0.start.cmp(&mat1.0.start)
         });
         
         let matched_token = matches.into_iter().filter(|m| {

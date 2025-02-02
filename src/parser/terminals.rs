@@ -97,6 +97,24 @@ impl CharLit {
 }
 
 single_token_pattern!(
+    StrLit,
+    StrLitPattern,
+    TokenType::StrLit(_),
+    TokenType::StrLit("any".to_string())
+);
+
+impl StrLit {
+    /// Returns the value of the inner character literal.
+    pub fn value(&self) -> &str {
+        if let TokenType::StrLit(s) = &self.0.t_type {
+            s
+        } else {
+            panic!("charlit struct is char lit token type invariant")
+        }
+    }
+}
+
+single_token_pattern!(
     Plus,
     PlusPattern,
     TokenType::Plus,

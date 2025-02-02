@@ -58,7 +58,7 @@ impl Pattern for ScopeIdentPattern {
 /// Pattern to create [`Argument`].
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct ArgumentPattern(
-    Or<ExpressionPattern, Or<ScopePattern, ScopeIdentPattern>>,
+    Or<ExpressionPattern, Or<ScopePattern, Or<ScopeIdentPattern, StrLitPattern>>>,
 );
 
 /// An argument to an instruction.
@@ -70,6 +70,8 @@ pub enum Argument {
     Scope(Scope),
     /// A parsed scope indentifier.
     ScopeIdent(ScopeIdent),
+    /// A parsed string literal.
+    String(StrLit),
 }
 
 impl Pattern for ArgumentPattern {
@@ -83,7 +85,8 @@ impl Pattern for ArgumentPattern {
             AdvState::Advancing => Advancement::new(AdvState::Advancing, overeach),
             AdvState::Done(Either::Left(r)) => Advancement::new(AdvState::Done(Argument::Expression(r)), overeach),
             AdvState::Done(Either::Right(Either::Left(r))) => Advancement::new(AdvState::Done(Argument::Scope(r)), overeach),
-            AdvState::Done(Either::Right(Either::Right(r))) => Advancement::new(AdvState::Done(Argument::ScopeIdent(r)), overeach),
+            AdvState::Done(Either::Right(Either::Right(Either::Left(r)))) => Advancement::new(AdvState::Done(Argument::ScopeIdent(r)), overeach),
+            AdvState::Done(Either::Right(Either::Right(Either::Right(r)))) => Advancement::new(AdvState::Done(Argument::String(r)), overeach),
             AdvState::Error(e) => Advancement::new(AdvState::Error(e), overeach),
         }
     }

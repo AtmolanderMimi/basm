@@ -219,6 +219,8 @@ pub enum Argument {
     Operand(u32),
     /// A scope passed into an instruction
     Scope(NormalizedScope),
+    /// A string passed into an instruction
+    String(String),
 }
 
 impl Argument {
@@ -240,6 +242,15 @@ impl Argument {
         }
     }
 
+    /// Returns the inner `String` if self is `Self::String`, else panic.
+    pub fn unwrap_string(self) -> String {
+        if let Argument::String(s) = self {
+            s
+        } else {
+            panic!("Failed unwrap into string.")
+        }
+    }
+
     /// Returns `true` if self is `Self::Operand`.
     pub fn is_operand(&self) -> bool {
         if let Argument::Operand(_) = self {
@@ -252,6 +263,15 @@ impl Argument {
     /// Returns `true` if self is `Self::Scope`.
     pub fn is_scope(&self) -> bool {
         if let Argument::Scope(_) = self {
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Returns `true` if self is `Self::String`.
+    pub fn is_string(&self) -> bool {
+        if let Argument::String(_) = self {
             true
         } else {
             false
