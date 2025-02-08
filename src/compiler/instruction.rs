@@ -25,6 +25,7 @@ pub fn built_in() -> HashMap<String, Rc<dyn SendSyncInstruction>> {
     map.insert("IN"  , Rc::new(In  ::default()) as Rc<dyn SendSyncInstruction>);
     map.insert("OUT" , Rc::new(Out ::default()) as Rc<dyn SendSyncInstruction>);
     map.insert("WHNE", Rc::new(Whne::default()) as Rc<dyn SendSyncInstruction>);
+    map.insert("LSTR", Rc::new(Lstr::default()) as Rc<dyn SendSyncInstruction>);
 
     map.into_iter().map(|(l, b)| (l.to_string(), b)).collect()
 }
@@ -360,6 +361,29 @@ impl Instruction for Out {
 
         move_pointer_to(buf, ctx, pos1);
         buf.push('.');
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+struct Lstr;
+impl Instruction for Lstr {
+    fn arguments(&self) -> &[ArgumentKind] {
+        &[ArgumentKind::Operand, ArgumentKind::String]
+    }
+
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+        let start_addr = args[0].clone().unwrap_operand();
+        let string = args[0].clone().unwrap_string();
+
+        for (i, byte) in string.bytes().enumerate() {
+            let addr = start_addr + i as u32;
+            move_pointer_to(buf, ctx, addr);
+            for _ in 0..byte {
+                buf.push('+');
+            }
+        }
 
         Ok(())
     }

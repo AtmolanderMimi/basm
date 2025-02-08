@@ -32,8 +32,9 @@ This field allows you to define an values to be preloaded a certain adresses on 
 You can either load a single value into a single cell by using `SET (addr) (value)`
 or you can load an entire string using `STR (starting addr) (string literal)`.
 Loading a string via `STR` will set it into memory by equating each character with its ASCII value.
-Strings in basm are assumed to start and end with a cell of value zero. Thus making the smallest string use up two cells.
-When providing the adress to it use to one referencing the starting zero cell (which is going to be the same as the one you used to declare it).
+Strings in basm are assumed to start and end with a cell of value -1. Thus making the smallest string use up two cells.
+A "-1 cell", when working with unsigned intergers is simply `0 - 1`. Which means underflowing, so for u8 it would be 255.
+When providing the adress to it use to one referencing the starting -1 cell (which is going to be the same as the one you used to declare it).
 At compile-time, the data field will get translated into a serie of instructions set before `[main]`.
 
 ### Instructions
@@ -222,13 +223,14 @@ what you want to do when writing brainfuck, which is where enters `BBOX` and `AS
 
 Here's an example of all three instructions in action:
 ```basm
-// prints out a string, strings are stored preceded and followed by a zeroed cell
+// prints out a string, strings are stored preceded and followed by a "-1" cell
 [@PSTR string_start string_end]
-BBOX string_start+1; // we put the pointer on the first non-zero cell
-RAW "[.>]";          // we output every cell until we reach the zeroed cell denoting the end
+BBOX string_start+1; // we put the pointer on the first non-"-1" cell
+RAW "+[-.>+]-";      // we output every cell until we reach the -1 cell denoting the end
 ASUM string_end;     // we can assume the pointer is currently at the end of the string
 ```
 
+**BELOW IS CURRENTLY INVALID AS IT CHECKS FOR 0 FOR ARRAY BOUNDS.**
 You may have noticed in the example that we could have simply used our `OUT` and `WHNE` instruction instead of using `.` and `[]`.
 Despite what I said prior, invalid assumed tape pointers aren't inherently bad if you know how to use them.
 We could write the example above using hybrid basm/bf, like so:
