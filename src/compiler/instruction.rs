@@ -375,7 +375,7 @@ impl Instruction for Lstr {
 
     fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
         let start_addr = args[0].clone().unwrap_operand();
-        let string = args[0].clone().unwrap_string();
+        let string = args[1].clone().unwrap_string();
 
         for (i, byte) in string.bytes().enumerate() {
             let addr = start_addr + i as u32;
@@ -615,5 +615,20 @@ mod tests {
 
         assert_eq!(tape[0], tape[2]); // cell 0 and 2 both are the same code
         assert_eq!(tape[0]*2, tape[1]); // cell 1 is the value of 0 times two
+    }
+
+    #[test]
+    fn hello_world_with_dynamic_string_reading() {
+        let file = include_str!("../../test-resources/hello-world.basm");
+        let sf = SourceFile::from_raw_parts(PathBuf::new(), file.to_string())
+            .leak();
+        let program = transpile(sf).unwrap();
+
+        let mut inter = InterpreterBuilder::new(&program)
+            .with_output_as_character()
+            .finish();
+        inter.complete().unwrap();
+
+        assert_eq!(inter.captured_output(), "Hello, world!\n");
     }
 }

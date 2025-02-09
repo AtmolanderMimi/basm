@@ -14,6 +14,9 @@ pub struct Interpreter<T> {
     instructions: Vec<ByteCode>,
     tape_pointer: usize,
     instruction_pointer: usize,
+
+    #[cfg(test)]
+    captured_output: String,
 }
 
 impl<T> Interpreter<T> {
@@ -24,6 +27,9 @@ impl<T> Interpreter<T> {
             tape: Vec::new(),
             tape_pointer: 0,
             instruction_pointer: 0,
+
+            #[cfg(test)]
+            captured_output: String::new(),
         }
     }
 }
@@ -32,6 +38,12 @@ impl<T> Interpreter<T> {
     /// Creates a builder for [`Interpreter`].
     pub fn builder(instructions: &str) -> InterpreterBuilder {
         InterpreterBuilder::new(instructions)
+    }
+
+    #[cfg(test)]
+    /// Gives a string copying the output created by the program.
+    pub fn captured_output(&self) -> &str {
+        &self.captured_output
     }
 }
 
@@ -160,9 +172,15 @@ where <T as TryFrom<i8>>::Error: Debug {
         let value = self.get_mut_cell_or_insert_default()?.clone();
         if self.config.output_as_number {
             print!("{value:?} ");
+
+            #[cfg(test)]
+            self.captured_output.push_str(&format!("{value:?} "));
         } else {
             let ch = char::from_u32(value.to_u32().unwrap_or(65_533)).unwrap_or('�');
             print!("{ch}");
+
+            #[cfg(test)]
+            self.captured_output.push_str(&format!("{ch}"));
         }
 
         let _ = io::stdout().flush();
@@ -245,6 +263,10 @@ pub trait InterpreterTrait {
     /// # **THIS IS A REFERENCE TO `Vec<T>`**.
     // I HATE ANY, WHY IS IT SO HARD TO DOWNCAST
     fn tape(&self) -> &dyn Any;
+
+    #[cfg(test)]
+    /// Reflects `Interpreter::captured_output`.
+    fn captured_output(&self) -> &str;
 }
 
 impl<T> InterpreterTrait for Interpreter<T>
@@ -273,6 +295,11 @@ where T: NumOpsPlus + TryFrom<i8>,
 
     fn tape(&self) -> &dyn Any {
         &self.tape
+    }
+
+    #[cfg(test)]
+    fn captured_output(&self) -> &str {
+        self.captured_output()
     }
 }
 
@@ -615,6 +642,8 @@ fn read_int_input<T: FromStr + Debug>() -> Option<T> {
 
 #[cfg(test)]
 mod tests {
+    use crate::{source::SourceFile, transpile};
+
     use super::*;
 
     #[test]
@@ -798,5 +827,26 @@ mod tests {
             Err(InterpreterError::TapeLimitExceded { .. }) => (), // good
             other => panic!("got other {other:?}"),
         };
+    }
+
+    #[test]
+    fn interpreter_captured_output_is_accurate() {
+        let sf = SourceFile::from_raw_parts(".gay".into(), include_str!("../test-resources/custom-conditionals.basm").to_string());
+        let conditional = transpile(sf.leak())
+            .unwrap();
+        let mut inter = InterpreterBuilder::new(&conditional)
+            .with_output_as_character()
+            .finish();
+        inter.complete().unwrap();
+        assert_eq!(inter.captured_output(), "right");
+
+        let sf = SourceFile::from_raw_parts(".gay".into(), include_str!("../test-resources/fib.basm").to_string());
+        let fib = transpile(sf.leak())
+            .unwrap();
+        let mut inter = InterpreterBuilder::new(&fib)
+            .with_output_as_number()
+            .finish();
+        inter.complete().unwrap();
+        assert_eq!(inter.captured_output(), "1 2 3 5 8 13 21 34 55 89 144 ");
     }
 }

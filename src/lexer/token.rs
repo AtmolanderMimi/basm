@@ -348,11 +348,12 @@ mod tests {
             None
         );
 
-        // parses are in order
-        non_lit_match_range(
-            Token::parse_token_non_lit(&sfs("@ + - //")),
-             TokenType::At, 0..1
-        );
+        // NOTE: parsing is not guarentied to be in order anymore (currently is in last first)
+        //// parses are in order
+        //non_lit_match_range(
+        //    Token::parse_token_non_lit(&sfs("@ + - //")),
+        //     TokenType::At, 0..1
+        //);
     }
 
     #[test]
