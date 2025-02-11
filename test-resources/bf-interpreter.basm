@@ -1,0 +1,50 @@
+// a brainfuck interpreter
+
+// if not equal conditional
+[@IFNE addr val [scp] sp] [
+ALIS tmp sp;
+ALIS tmp2 sp+1;
+
+COPY addr tmp tmp2;
+ADDP addr tmp2;
+WHNE tmp val [
+	ZERO tmp;
+	
+	INLN [scp];
+
+	INCR tmp val;
+];
+
+ZERO tmp;
+]
+
+// if equal conditional
+[@IFEQ addr val [scp] sp] [
+ALIS tmp sp;
+ALIS sp sp+1;
+
+IFNE addr val [
+	INCR tmp 1;
+] sp;
+
+IFNE tmp 1 [scp] sp;
+]
+
+[main] [
+// -- defining arrays --
+
+// -- program --
+ALIS prog 0;
+DECR prog 1;
+
+// while we don't get any characters other than '!' to end add to array.
+BBOX 0;
+WHNE 0 '!' [
+    RAW ">";
+    IN 0;
+];
+ZERO 0;   // remove the '!'
+DECR 0 1; // set the end of the array
+RAW "<+[-<+]-"; // return to the start
+ASUM prog;
+]

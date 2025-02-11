@@ -36,11 +36,11 @@ pub struct RunArgs {
     #[arg(long, short)]
     pub tape_limit: Option<usize>,
 
-    /// Treats the input as integer numbers rather than characters.
+    /// Treats the input as integer numbers rather than characters
     #[arg(long, short = 'n', default_value_t = false)]
     pub number_input: bool,
 
-    /// Treats the output as integer numbers rather than characters.
+    /// Treats the output as integer numbers rather than characters
     #[arg(long, short = 'm', default_value_t = false)]
     pub number_output: bool,
 
@@ -51,6 +51,11 @@ pub struct RunArgs {
     /// Print the transpiled brainfuck
     #[arg(long, short = 'p', default_value_t = false)]
     pub show: bool,
+
+    /// Dump the tape and tape pointer position to terminal once the program ends
+    /// (includes by erroring out)
+    #[arg(long, short = 'd', default_value_t = false)]
+    pub dump: bool,
 }
 
 /// Arguments for the `compile` command.

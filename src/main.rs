@@ -2,6 +2,7 @@ use std::{fs, io::Write, path};
 
 use basm::{clap_cli::CompileArgs, interpreter::InterpreterBuilder, source::SourceFile, CliCommand, CompilerError};
 use clap::Parser;
+use colored::Colorize as _;
 
 const MALFORMED_INPUT: &str = "the input path is malformed";
 //const MALFORMED_OUTPUT: &str = "the output path is malformed";
@@ -129,7 +130,14 @@ fn main() {
     let mut interpreter = builder.finish();
     match interpreter.complete() {
         Ok(()) => (),
-        Err(e) => error_out(&e.to_string()),
+        Err(e) => {
+            let msg = format!("{}: {}", "Intepreter Error".red().bold(), e.to_string());
+            error_out(&msg)
+        },
+    }
+
+    if run_args.dump {
+        interpreter.print_dump();
     }
 }
 

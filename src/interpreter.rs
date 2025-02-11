@@ -2,6 +2,7 @@
 
 use std::{any::Any, fmt::Debug, io::{self, Write}, str::FromStr};
 
+use colored::Colorize as _;
 use num::{traits::{ConstOne, ConstZero, SaturatingAdd, SaturatingSub, WrappingAdd, WrappingSub}, CheckedAdd, CheckedSub, Num, NumCast};
 use thiserror::Error;
 
@@ -243,6 +244,32 @@ where <T as TryFrom<i8>>::Error: Debug {
 
         Ok(())
     }
+
+    /// Prints a dump of the tape state and pointer state to stdout.
+    fn print_dump(&self) {
+        println!("{}", "-- TAPE STATE STRING --".yellow().underline().bold());
+        for (i, cell) in self.tape.iter().enumerate() {
+            let ch = char::from_u32(cell.to_u32().unwrap_or(65_533)).unwrap_or('�');
+            let ch_str = if ch == '\n' {
+                "\\n".to_string()
+            } else if ch.is_control() {
+                "�".to_string()
+            } else {
+                ch.to_string()
+            };
+
+            println!("{} {ch_str}", format!("{i}:").to_string().black());
+        }
+        println!();
+
+        println!("{}", "-- TAPE STATE NUMERIC --".green().underline().bold());
+        for (i, cell) in self.tape.iter().enumerate() {
+            println!("{} {cell:?}", format!("{i}:").to_string().black());
+        }
+        println!();
+
+        println!("{}: {}", "LAST VALID TAPE POINTER POSITION".blue().underline().bold(), self.tape_pointer);
+    }
 }
 
 /// Trait for [`Interpreter`] behaviour.
@@ -263,6 +290,10 @@ pub trait InterpreterTrait {
     /// # **THIS IS A REFERENCE TO `Vec<T>`**.
     // I HATE ANY, WHY IS IT SO HARD TO DOWNCAST
     fn tape(&self) -> &dyn Any;
+
+    /// Prints a dump of the tape state and pointer state to stdout.
+    /// Reflects `Interpreter::print_dump`.
+    fn print_dump(&self);
 
     #[cfg(test)]
     /// Reflects `Interpreter::captured_output`.
@@ -295,6 +326,10 @@ where T: NumOpsPlus + TryFrom<i8>,
 
     fn tape(&self) -> &dyn Any {
         &self.tape
+    }
+
+    fn print_dump(&self) {
+        self.print_dump();
     }
 
     #[cfg(test)]
@@ -624,8 +659,7 @@ fn read_char_input() -> Option<char> {
     let mut buf = String::new();
     let _ = std::io::stdin().read_line(&mut buf);
 
-    // we skip the first few we printed ourselves
-    buf.chars().nth(1)
+    buf.chars().next()
 }
 
 fn read_int_input<T: FromStr + Debug>() -> Option<T> {
@@ -635,7 +669,7 @@ fn read_int_input<T: FromStr + Debug>() -> Option<T> {
     let _ = std::io::stdin().read_line(&mut buf);
 
     // we skip the first few we printed ourselves
-    buf[0..].trim()
+    buf.trim()
         .parse()
         .map_or(None, |s| Some(s))
 }
