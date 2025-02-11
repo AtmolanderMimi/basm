@@ -24,7 +24,7 @@ where T: Pattern, U: Pattern {
 
     fn advance(&mut self, token: &Token) -> Advancement<Self::ParseResult> {
         if let Some(u) = &mut self.u {
-            let adv = u.advance(&token);
+            let adv = u.advance(token);
             let overeach = adv.overeach;
             match adv.state {
                 AdvState::Advancing => {
@@ -41,7 +41,7 @@ where T: Pattern, U: Pattern {
         }
 
         
-        let adv = self.t.advance(&token);
+        let adv = self.t.advance(token);
         let overeach = adv.overeach;
         match adv.state {
             AdvState::Advancing => {
@@ -89,7 +89,7 @@ where T: Pattern, U: Pattern {
         self.token_count += 1;
 
         if let Some(t_res) = &self.t_res {
-            let adv = self.u.advance(&token);
+            let adv = self.u.advance(token);
             let overeach = adv.overeach;
 
             let adv_return = match adv.state {
@@ -110,7 +110,7 @@ where T: Pattern, U: Pattern {
         }
 
 
-        let adv = self.t.advance(&token);
+        let adv = self.t.advance(token);
         let overeach = adv.overeach;
         match adv.state {
             AdvState::Advancing => {

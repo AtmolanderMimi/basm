@@ -831,7 +831,8 @@ mod tests {
 
     #[test]
     fn interpreter_captured_output_is_accurate() {
-        let sf = SourceFile::from_raw_parts(".gay".into(), include_str!("../test-resources/custom-conditionals.basm").to_string());
+        let source = include_str!("../test-resources/custom-conditionals.basm").to_string();
+        let sf = SourceFile::from_raw_parts("conditionals.gay".into(), source);
         let conditional = transpile(sf.leak())
             .unwrap();
         let mut inter = InterpreterBuilder::new(&conditional)
@@ -840,7 +841,8 @@ mod tests {
         inter.complete().unwrap();
         assert_eq!(inter.captured_output(), "right");
 
-        let sf = SourceFile::from_raw_parts(".gay".into(), include_str!("../test-resources/fib.basm").to_string());
+        let source = include_str!("../test-resources/fib.basm").to_string();
+        let sf = SourceFile::from_raw_parts("fib.gay".into(), source);
         let fib = transpile(sf.leak())
             .unwrap();
         let mut inter = InterpreterBuilder::new(&fib)

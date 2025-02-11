@@ -18,7 +18,7 @@ use crate::{lexer::token::{Token, TokenType}, source::SfSlice, CompilerError, Li
 #[allow(unused_imports)]
 pub use terminals::{Ident, NumLit, CharLit, Plus, Minus, Semicolon, LeftSquare, RightSquare, At, MainIdent};
 #[allow(unused_imports)]
-pub use expression::{Expression, ValueRepresentation};
+pub use expression::{Expression, ValueRepresentation, Mod};
 #[allow(unused_imports)]
 pub use fields::MainField;
 #[allow(unused_imports)]
@@ -124,7 +124,7 @@ impl<'a, T: Pattern> PatternFeeder<'a, T> {
     }
 }
 
-fn solve_pattern<'a, T: Pattern>(tokens: &'a Vec<Token>) -> Result<T::ParseResult, PatternMatchingError> {
+fn solve_pattern<T: Pattern>(tokens: &Vec<Token>) -> Result<T::ParseResult, PatternMatchingError> {
     let mut feeder: PatternFeeder<'_, T> = PatternFeeder::new(tokens);
 
     loop {

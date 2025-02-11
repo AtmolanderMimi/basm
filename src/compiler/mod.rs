@@ -5,6 +5,7 @@ use instruction::{built_in, InstructionError, MetaInstruction, SendSyncInstructi
 pub use normalized_items::NormalizedScope;
 use thiserror::Error;
 mod normalized_items;
+mod expressions_eval_impl;
 use std::{collections::HashMap, fmt::Debug, rc::Rc, sync::Mutex};
 
 use crate::{parser::{Ident, Instruction as ParsedInstruction, LanguageItem, MetaField, ParsedProgram}, CompilerError as CompilerErrorTrait, Lint};
@@ -111,7 +112,7 @@ impl<'a> ScopeContext<'a> {
     /// ```
     pub fn sub_scope(&'a self) -> ScopeContext<'a> {
         ScopeContext {
-            main: &self.main,
+            main: self.main,
             parent: Some(self),
             local_value_aliases: Vec::new(),
             local_scope_aliases: Vec::new(),
@@ -145,8 +146,7 @@ impl<'a> ScopeContext<'a> {
 
         // if we did not find an alias in the current scope with keep searching down recusively
         if local_find.is_none() {
-            // goofy unwrap_or(None), but it works
-            self.parent.map(|p| p.find_value_alias(ident)).unwrap_or(None)
+            self.parent.and_then(|p| p.find_value_alias(ident))
         } else {
             local_find
         }
@@ -167,8 +167,7 @@ impl<'a> ScopeContext<'a> {
 
         // if we did not find an alias in the current scope with keep searching down recusively
         if local_find.is_none() {
-            // goofy unwrap_or(None), but it works
-            self.parent.map(|p| p.find_scope_alias(ident)).unwrap_or(None)
+            self.parent.and_then(|p| p.find_scope_alias(ident))
         } else {
             local_find
         }
@@ -202,7 +201,7 @@ impl Compiler {
 
     /// Evaluates a meta-instruction.
     pub fn walk_meta_instruction_declaration(&mut self, meta: &MetaField) -> Result<(), CompilerError> {
-        let meta_ins = MetaInstruction::new(meta.clone())?;
+        let meta_ins = MetaInstruction::new(meta.clone());
 
         if self.context.add_instruction(meta_ins.name(), meta_ins.clone()) {
             return Err(CompilerError::DoubleDeclaration(meta.clone()))
@@ -253,29 +252,17 @@ impl Argument {
 
     /// Returns `true` if self is `Self::Operand`.
     pub fn is_operand(&self) -> bool {
-        if let Argument::Operand(_) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Argument::Operand(_))
     }
 
     /// Returns `true` if self is `Self::Scope`.
     pub fn is_scope(&self) -> bool {
-        if let Argument::Scope(_) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Argument::Scope(_))
     }
 
     /// Returns `true` if self is `Self::String`.
     pub fn is_string(&self) -> bool {
-        if let Argument::String(_) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Argument::String(_))
     }
 }
 
@@ -304,8 +291,8 @@ impl CompilerErrorTrait for CompilerError {
             CompilerError::AliasNotDefined(e) => e.slice(),
             CompilerError::Instruction(ie, instruction) => {
                 match ie {
-                    InstructionError::CouldNotInlineMeta(_, e) => return e.lint(),
-                    InstructionError::ArgumentScopeError(_, e) => return e.lint(),
+                    InstructionError::CouldNotInlineMeta(_, e)
+                    | InstructionError::ArgumentScopeError(_, e) => return e.lint(),
                     _ => instruction.slice(),
                 }
             },

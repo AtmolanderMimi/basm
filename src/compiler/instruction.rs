@@ -45,7 +45,7 @@ pub trait Instruction {
         }
 
         // finds non-matching arguments
-        let res = self.arguments().into_iter().enumerate().find(|(i, expected)| {
+        let res = self.arguments().iter().enumerate().find(|(i, expected)| {
             match expected {
                 ArgumentKind::Operand => !args[*i].is_operand(),
                 ArgumentKind::Scope => !args[*i].is_scope(),
@@ -240,7 +240,7 @@ impl Instruction for Copy {
         buf.push('+');
 
         move_pointer_to(buf, ctx, origin);
-        buf.push_str("]");
+        buf.push(']');
 
         Ok(())
     }
@@ -400,9 +400,7 @@ pub struct MetaInstruction {
 
 impl MetaInstruction {
     /// Creates a new [`MetaInstruction`].
-    pub fn new(
-        meta_field: MetaField,
-    ) -> Result<MetaInstruction, CompilerError> {
+    pub fn new(meta_field: MetaField) -> MetaInstruction {
         let arguments_iter = meta_field.arguments.iter().map(|arg| {
             match arg {
                 SignatureArgument::Operand(i) => {
@@ -429,11 +427,11 @@ impl MetaInstruction {
             arguments.push(kind);
         }
 
-        Ok(MetaInstruction {
+        MetaInstruction {
             from: meta_field,
             argument_names,
             arguments,
-        })
+        }
     }
 
     /// Returns the name of the meta-instruction.
@@ -455,7 +453,7 @@ impl Instruction for MetaInstruction {
         }
 
         // finds non-matching arguments
-        let res = self.arguments().into_iter().enumerate().find(|(i, expected)| {
+        let res = self.arguments().iter().enumerate().find(|(i, expected)| {
             match expected {
                 ArgumentKind::Operand => !args[*i].is_operand(),
                 ArgumentKind::Scope => !args[*i].is_scope(),
@@ -481,7 +479,7 @@ impl Instruction for MetaInstruction {
             match kind {
                 ArgumentKind::Operand => scope_ctx.add_value_alias(name.clone(), args[i].clone().unwrap_operand()),
                 ArgumentKind::Scope => scope_ctx.add_scope_alias(name.clone(), args[i].clone().unwrap_scope()),
-                kind => panic!("meta-instructions don't support {kind:?}"),
+                kind @ ArgumentKind::String => panic!("meta-instructions don't support {kind:?}"),
             }
         }
 
@@ -506,7 +504,9 @@ impl Instruction for MetaInstruction {
 
 impl Debug for MetaInstruction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("MetaInstruction").field("arguments", &self.arguments).finish()
+        f.debug_struct("MetaInstruction")
+            .field("arguments", &self.arguments)
+            .finish_non_exhaustive()
     }
 }
 

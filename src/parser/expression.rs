@@ -2,14 +2,12 @@
 
 use either::Either;
 
-use crate::compiler::CompilerError;
-use crate::compiler::ScopeContext;
 use crate::lexer::token::Token;
 use crate::source::SfSlice;
 use crate::utils::CharOps;
 
-use super::terminals::*;
-use super::componants::*;
+use super::terminals::{CharLit, CharLitPattern, Ident, IdentPattern, Minus, MinusPattern, NumLit, NumLitPattern, Plus, PlusPattern};
+use super::componants::{Many, Or, Then};
 use super::Advancement;
 use super::LanguageItem;
 use super::Pattern;
@@ -88,10 +86,14 @@ impl Pattern for ModPattern {
 #[derive(Debug, Clone, PartialEq)]
 /// Represents a modification applied to a value. Like this: `+3`.
 pub enum Mod {
+    /// An increment modifyer.
+    #[allow(missing_docs)]
     Increment {
         plus_token: Plus,
         value: ValueRepresentation,
     },
+    /// An decrement modifyer.
+    #[allow(missing_docs)]
     Decrement {
         minus_token: Minus,
         value: ValueRepresentation,
@@ -133,52 +135,10 @@ impl Pattern for ExpressionPattern {
 /// An expression is simply a [`ValueRepresentation`] which is can be offset by one or more others.
 /// These offsets are [`Mod`]'s.
 #[derive(Debug, Clone, PartialEq)]
+#[allow(missing_docs)]
 pub struct Expression {
-    #[allow(missing_docs)]
     pub base: ValueRepresentation,
-    #[allow(missing_docs)]
     pub mods: Vec<Mod>,
-}
-
-impl Expression {
-    /// Evaluates the expression in the context.
-    /// Returns `Err` if an alias is not defined in the context.
-    pub fn evaluate<'a>(&self, ctx: &'a ScopeContext<'_>) -> Result<u32, CompilerError> {
-        let mut base = self.base.evaluate(ctx)?;
-
-        for m in &self.mods {
-            match m {
-                Mod::Increment { value, .. } => {
-                    base = base.overflowing_add(value.evaluate(ctx)?).0;
-                },
-                Mod::Decrement { value, .. } => {
-                    base = base.overflowing_sub(value.evaluate(ctx)?).0;
-                },
-            }
-        }
-
-        Ok(base)
-    }
-}
-
-impl ValueRepresentation {
-    /// Evaluates the value in the context.
-    /// Returns `Err` if an alias is not defined in the context.
-    pub fn evaluate<'a>(&self, ctx: &'a ScopeContext<'_>) -> Result<u32, CompilerError> {
-        let value = match self {
-            Self::NumLit(n) => n.value(),
-            Self::CharLit(c) => c.value().into(),
-            Self::Ident(i) => {
-                if let Some(v) = ctx.find_value_alias(i.value()) {
-                    v
-                } else {
-                    return Err(CompilerError::AliasNotDefined(i.clone()))
-                }
-            },
-        };
-
-        Ok(value)
-    }
 }
 
 impl LanguageItem for ValueRepresentation {
@@ -195,7 +155,7 @@ impl LanguageItem for Expression {
     fn slice(&self) -> SfSlice {
         let start = self.base.slice().start_char();
         let end = self.mods.last()
-            .map(|l| l.slice().end_char()).unwrap_or(self.base.slice().end_char());
+            .map_or(self.base.slice().end_char(), |l| l.slice().end_char());
         self.base.slice().source().slice_char(start..end)
             .unwrap()
     }

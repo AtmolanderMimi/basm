@@ -133,7 +133,7 @@ impl<'a> Token {
 
                 let after_char_index = i + pair.0.len();
                 let after_char = slice.chars().nth(after_char_index);
-                let after_char_is_alphanumeric = after_char.map_or(true, |c| {
+                let after_char_is_alphanumeric = after_char.is_none_or(|c| {
                     c.is_alphanumeric() || c == '_'
                 });
 

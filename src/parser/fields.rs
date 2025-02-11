@@ -7,8 +7,8 @@ use crate::utils::CharOps;
 
 use super::scope::Scope;
 use super::scope::ScopePattern;
-use super::terminals::*;
-use super::componants::*;
+use super::terminals::{LeftSquare, LeftSquarePattern, MainIdent, MainIdentPattern, RightSquare, RightSquarePattern};
+use super::componants::Then;
 use super::Advancement;
 use super::AdvancementState as AdvState;
 use super::LanguageItem;
@@ -33,14 +33,11 @@ pub struct MainFieldPattern(
 /// ]
 /// ```
 #[derive(Debug, Clone, PartialEq)]
+#[allow(missing_docs)]
 pub struct MainField {
-    #[allow(missing_docs)]
     pub left_bracket: LeftSquare,
-    #[allow(missing_docs)]
     pub main: MainIdent,
-    #[allow(missing_docs)]
     pub right_bracket: RightSquare,
-    #[allow(missing_docs)]
     pub contents: Scope,
 }
 

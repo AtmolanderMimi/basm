@@ -103,7 +103,7 @@ pub trait FindLnCol: CharOps {
 
         let mut line = new_lines.clone().count();
         let last_nl_byte_index = new_lines.map(|(i, _)| i)
-            .last();
+            .next_back();
         // because \n is one byte long and we don't want to include it
         let start_line_byte_index = last_nl_byte_index.map_or(0, |b| b + 1);
 

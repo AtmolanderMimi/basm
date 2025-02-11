@@ -6,8 +6,8 @@ use crate::utils::CharOps;
 
 use super::scope::Scope;
 use super::scope::ScopePattern;
-use super::terminals::*;
-use super::componants::*;
+use super::terminals::{At, AtPattern, Ident, IdentPattern, LeftSquare, LeftSquarePattern, RightSquare, RightSquarePattern};
+use super::componants::{Many, Or, Then};
 use super::Advancement;
 use super::AdvancementState as AdvState;
 use super::LanguageItem;

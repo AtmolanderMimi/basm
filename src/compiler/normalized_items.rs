@@ -16,13 +16,16 @@ pub struct NormalizedInstruction {
 
 impl Debug for NormalizedInstruction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CompiledInstruction").field("from", &self.from).field("arguments", &self.arguments).finish()
+        f.debug_struct("CompiledInstruction")
+        .field("from", &self.from)
+        .field("arguments", &self.arguments)
+        .finish_non_exhaustive()
     }
 }
 
 impl NormalizedInstruction {
     /// Creates a new [`CompiledInstruction`] from a (parsed) [`Instruction`].
-    pub fn new(instruction: ParsedInstruction, mut ctx: &mut ScopeContext<'_>) -> Result<NormalizedInstruction, CompilerError> {
+    pub fn new(instruction: ParsedInstruction, ctx: &mut ScopeContext<'_>) -> Result<NormalizedInstruction, CompilerError> {
         // we skip normalizing arguments to ALIS
         // since it is the whole point of ALIS to have undefined arguments.
         // (specifically it's scope identifiers that mess it up because we try to 
@@ -47,7 +50,7 @@ impl NormalizedInstruction {
                     },
                 }
             },
-            ParsedArgument::Scope(s) => Ok(Argument::Scope(NormalizedScope::new(s.clone(), &mut ctx)?)),
+            ParsedArgument::Scope(s) => Ok(Argument::Scope(NormalizedScope::new(s.clone(), ctx)?)),
             ParsedArgument::ScopeIdent(i) => {
                 match ctx.find_scope_alias(i.ident.value()) {
                     // TODO: remove this clone
@@ -72,9 +75,7 @@ impl NormalizedInstruction {
 
         // -- kind --
         let instruction_ident = instruction.name.value();
-        let kind = if let Some(k) = ctx.main.find_instruction(&instruction_ident) {
-            k
-        } else {
+        let Some(kind) = ctx.main.find_instruction(instruction_ident) else {
             return Err(CompilerError::InstructionNotDefined(instruction.name))
         };
 
