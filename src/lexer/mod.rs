@@ -69,7 +69,8 @@ impl Lexer {
         // kind-of a cheat, instead of waiting for a non-lit, if there is a space: check
         let string = sf_slice.inner_slice();
         let in_string = string.chars().filter(|c| *c == '\"').count() % 2 == 1;
-        if (string.ends_with(' ') || string.ends_with('\n')) && !in_string {
+        let in_char = string.chars().filter(|c| *c == '\'').count() % 2 == 1;
+        if (string.ends_with(' ') || string.ends_with('\n')) && !(in_string || in_char) {
             if let Some(lit) = Token::parse_token_lit(&sf_slice)? {
                 self.tokens.push(lit);
                 self.range.start = self.range.end;

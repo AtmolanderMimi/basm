@@ -132,7 +132,7 @@ fn main() {
         Ok(()) => (),
         Err(e) => {
             let msg = format!("{}: {}", "Intepreter Error".red().bold(), e.to_string());
-            error_out(&msg)
+            eprintln!("{}", msg)
         },
     }
 

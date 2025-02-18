@@ -27,12 +27,10 @@ pub struct ScopePattern(
 /// Because of that definition, `[main]` is not a scope since
 /// it contains tokens that are not valid instructions or scopes.
 #[derive(Debug, Clone, PartialEq)]
+#[allow(missing_docs)]
 pub struct Scope {
-    #[allow(missing_docs)]
     pub left_bracket: LeftSquare,
-    #[allow(missing_docs)]
     pub contents: Vec<Either<Instruction, Scope>>,
-    #[allow(missing_docs)]
     pub right_bracket: RightSquare,
 }
 

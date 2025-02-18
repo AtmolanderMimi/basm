@@ -107,9 +107,12 @@ impl<'a> Token {
     /// The token's range postion is absolute.
     pub fn parse_token_non_lit(sf_slice: &SfSlice) -> Option<Token> {
         let slice = sf_slice.inner_slice();
+        let trim_slice = slice.trim();
 
         // don't check for tokens if we are in a string
-        if slice.chars().filter(|c| *c == '"').count() % 2 == 1 || slice.ends_with('\"') {
+        let in_string = slice.chars().filter(|c| *c == '"').count() % 2 == 1 || slice.ends_with('"');
+        let in_char = slice.chars().filter(|c| *c == '\'').count() % 2 == 1 || trim_slice.starts_with('\'');
+        if in_string || in_char {
             return None;
         }
 
@@ -201,7 +204,7 @@ impl<'a> Token {
         }
 
         // Char
-        if trim_str.starts_with('\'') && trim_str.ends_with('\'') {
+        if trim_str.starts_with('\'') && trim_str.ends_with('\'') && trim_str.len() > 1 {
             let char_content = trim_str.replace('\'', "");
             let char_content = char_content.replace("\\n", "\n");
 

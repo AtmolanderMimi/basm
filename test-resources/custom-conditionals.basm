@@ -45,6 +45,8 @@ IFNE addr val [
 // with the scope because for the scope to execute our only stack cell
 // needs to be equal to 0)
 IFNE tmp 1 [scp] sp;
+
+ZERO tmp; // put our garbage out
 ]
 
 [main] [
