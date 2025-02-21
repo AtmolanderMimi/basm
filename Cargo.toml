@@ -9,3 +9,7 @@ colored = "2.1.0"
 either = "1.13.0"
 num = "0.4.3"
 thiserror = "1.0.64"
+
+[profile.release]
+lto = true
+codegen-units = 1

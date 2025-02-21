@@ -1,6 +1,6 @@
 //! A fairly naive implementation of a brainfuck interpreter.
 
-use std::{any::Any, fmt::Debug, io::{self, Write}, str::FromStr};
+use std::{any::Any, collections::VecDeque, fmt::Debug, io::{self, Write}, str::FromStr};
 
 use colored::Colorize as _;
 use num::{traits::{ConstOne, ConstZero, SaturatingAdd, SaturatingSub, WrappingAdd, WrappingSub}, CheckedAdd, CheckedSub, Num, NumCast};
@@ -16,8 +16,11 @@ pub struct Interpreter<T> {
     tape_pointer: usize,
     instruction_pointer: usize,
 
+    input_buffer: VecDeque<T>,
+
     #[cfg(test)]
     captured_output: String,
+    
 }
 
 impl<T> Interpreter<T> {
@@ -28,6 +31,8 @@ impl<T> Interpreter<T> {
             tape: Vec::new(),
             tape_pointer: 0,
             instruction_pointer: 0,
+
+            input_buffer: VecDeque::new(),
 
             #[cfg(test)]
             captured_output: String::new(),
@@ -141,31 +146,64 @@ where <T as TryFrom<i8>>::Error: Debug {
 
     #[inline]
     fn input(&mut self) -> Result<(), InterpreterError> {
-        let input_as_number = self.config.input_as_number;
+        if let Some(bulk) = self.input_buffer.pop_front() {
+            let cell = self.get_mut_cell_or_insert_default()?;
+            *cell = bulk; 
 
-        let cell = self.get_mut_cell_or_insert_default()?;
+            return Ok(())
+        }
 
-        if input_as_number {
-            loop {
-                let something = read_int_input();
-                if let Some(nval) = something {
-                    *cell = nval;
-                    break;
-                }
+
+        // ask until we get a valid response
+        let mut values = loop {
+            let Some(string) = ask_bf_input() else {
+                continue
+            };
+            
+            let elements = if self.config.input_as_number {
+                string.trim().split(' ').map(|e| e.to_string()).collect::<Vec<_>>()
+            } else {
+                // it would be nice if there was a method returning slices to these chars
+                string.chars().map(|c| c.to_string()).collect()
+            };
+        
+            if elements.is_empty() {
+                continue
             }
-        } else {
-            loop {
-                let something = read_char_input();
-                if let Some(nch) = something {
-                    if let Some(ncell) = T::from(nch as u32) {
-                        *cell = ncell;
-                        break
-                    };
-                }
+
+            let maybe_values = elements.iter().map(|e| self.string_to_value(&e));
+            if maybe_values.clone().find(|e| e.is_none()).is_some() {
+                continue;
             }
+            let values = maybe_values.map(|e| e.unwrap()).collect::<VecDeque<_>>();
+
+            break values;
         };
 
+        let value = values.pop_front().expect("we are guarentied that values is > 0");
+        let cell = self.get_mut_cell_or_insert_default()?;
+        *cell = value;
+
+        if self.config.bulk_input {
+            self.input_buffer.append(&mut values);
+        }
+
         Ok(())
+    }
+
+    /// Converts a string to a cell value. Behaviour changes based on whether input is number or character.
+    /// Returns `None` if `string` could not be parsed into a value.
+    fn string_to_value(&self, string: &str) -> Option<T> {
+        if self.config.input_as_number {
+            if let Ok(v) = string.trim().parse() {
+                Some(v)
+            } else {
+                None
+            }
+        } else {
+            let ch = string.chars().next()?;
+            T::from(ch as u32)
+        }
     }
 
     #[inline]
@@ -461,6 +499,23 @@ impl InterpreterBuilder {
         self
     }
 
+    /// Sets the input mode to bulk.
+    /// This means that an input, for example: "cats are rats"
+    /// would take the first character and give that to the tape and then store the rest in a buffer.
+    /// If a bf input is requested and the buffer is not empty it will take it from the buffer.
+    #[must_use]
+    pub fn with_bulk_input(mut self) -> Self {
+        self.inner.bulk_input = true;
+        self
+    }
+
+    /// Sets the input mode to single item.
+    #[must_use]
+    pub fn without_bulk_input(mut self) -> Self {
+        self.inner.bulk_input = false;
+        self
+    }
+
     /// Finishes the building process.
     #[must_use]
     pub fn finish(self) -> Box<dyn InterpreterTrait> {
@@ -481,6 +536,7 @@ struct InterpreterConfig {
     lenght_limit: Option<usize>,
     overflow_behaviour: OverflowBehaviour,
 
+    bulk_input: bool,
     input_as_number: bool,
     output_as_number: bool,
 }
@@ -653,25 +709,18 @@ pub enum InterpreterError {
     },
 }
 
-fn read_char_input() -> Option<char> {
+/// Asks for user input in bf
+fn ask_bf_input() -> Option<String> {
     print!("\n?: ");
     let _ = io::stdout().flush();
     let mut buf = String::new();
     let _ = std::io::stdin().read_line(&mut buf);
 
-    buf.chars().next()
-}
-
-fn read_int_input<T: FromStr + Debug>() -> Option<T> {
-    print!("\n?: ");
-    let _ = io::stdout().flush();
-    let mut buf = String::new();
-    let _ = std::io::stdin().read_line(&mut buf);
-
-    // we skip the first few we printed ourselves
-    buf.trim()
-        .parse()
-        .map_or(None, |s| Some(s))
+    if buf.is_empty() {
+        None
+    } else {
+        Some(buf)
+    }
 }
 
 #[cfg(test)]

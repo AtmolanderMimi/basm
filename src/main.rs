@@ -127,6 +127,13 @@ fn main() {
         builder.with_output_as_character()
     };
 
+    // bulk input
+    let builder = if !run_args.single_input {
+        builder.with_bulk_input()
+    } else {
+        builder.without_bulk_input()
+    };
+
     let mut interpreter = builder.finish();
     match interpreter.complete() {
         Ok(()) => (),

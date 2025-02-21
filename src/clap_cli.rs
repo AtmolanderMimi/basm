@@ -44,6 +44,10 @@ pub struct RunArgs {
     #[arg(long, short = 'm', default_value_t = false)]
     pub number_output: bool,
 
+    /// Removes the bufferring of the unused parts of inputs to provide to them to later bf inputs.
+    #[arg(long, short = 's', default_value_t = false)]
+    pub single_input: bool,
+
     /// Interprets the file as brainfuck, skips the compiling process
     #[arg(long, short, default_value_t = false)]
     pub raw: bool,

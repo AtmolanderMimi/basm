@@ -249,7 +249,7 @@ ALIS Acell 4;
 ALIS Abracket_jump 5; // used to know the pointer position when Aflag is Vbracket
 ALIS sp 6;
 
-ALIS Vmax_array_size 150;
+ALIS Vmax_array_size 250;
 ALIS Aprog Vgeneral_memory;
 ALIS Amem Aprog+Vmax_array_size+1;
 
