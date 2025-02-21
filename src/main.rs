@@ -1,6 +1,6 @@
 use std::{fs, io::Write, path};
 
-use basm::{clap_cli::CompileArgs, interpreter::InterpreterBuilder, source::SourceFile, CliCommand, CompilerError};
+use basm::{clap_cli::CompileArgs, source::SourceFile, CliCommand, CompilerError};
 use clap::Parser;
 use colored::Colorize as _;
 
@@ -9,8 +9,6 @@ const MALFORMED_INPUT: &str = "the input path is malformed";
 const INACCESSIBLE_INPUT: &str = "failed to access input";
 const INACCESSIBLE_OUTPUT: &str = "failed to access output";
 const UNWRITEABLE_OUTPUT: &str = "failed to write to output file";
-
-const INVALID_CELL_SIZE: &str = "invalid cell size, must be 8, 16, or 32";
 
 fn main() {
     let cli = CliCommand::parse();
@@ -36,9 +34,9 @@ fn main() {
 
         let program = match basm::transpile(sf) {
             Err(errors) => {
-                println!("\n------------------ [ ERRORS ] ------------------");
+                eprintln!("\n------------------ [ ERRORS ] ------------------");
                 for e in errors {
-                    println!("{}", CompilerError::description(&*e));
+                    eprintln!("{}", CompilerError::description(&*e));
                 };
                 std::process::exit(1)
             },
@@ -85,56 +83,10 @@ fn main() {
         return
     };
 
-
-    let builder = InterpreterBuilder::new(&program);
-
-    // cell type
-    let builder = match (run_args.signed, run_args.cell_size) {
-        (false, 8) => builder.with_u8(),
-        (false, 16) => builder.with_u16(),
-        (false, 32) => builder.with_u32(),
-        (true, 8) => builder.with_i8(),
-        (true, 16) => builder.with_i16(),
-        (true, 32) => builder.with_i32(),
-        _ => error_out(INVALID_CELL_SIZE),
+    let mut interpreter = match run_args.build_interpreter(&program) {
+        Ok(i) => i,
+        Err(e) => error_out(&e.to_string())
     };
-
-    // overflow behaviour
-    let builder = if run_args.abort_overflow {
-        builder.with_aborting_behaviour()
-    } else {
-        builder.with_wrapping_behaviour()
-    };
-
-    // tape limit
-    let builder = if let Some(limit) = run_args.tape_limit {
-        builder.with_tape_leght(limit)
-    } else {
-        builder.without_tape_lenght()
-    };
-
-    // input type
-    let builder = if run_args.number_input {
-        builder.with_input_as_number()
-    } else {
-        builder.with_input_as_character()
-    };
-
-    // output type
-    let builder = if run_args.number_output {
-        builder.with_output_as_number()
-    } else {
-        builder.with_output_as_character()
-    };
-
-    // bulk input
-    let builder = if !run_args.single_input {
-        builder.with_bulk_input()
-    } else {
-        builder.without_bulk_input()
-    };
-
-    let mut interpreter = builder.finish();
     match interpreter.complete() {
         Ok(()) => (),
         Err(e) => {
@@ -149,6 +101,6 @@ fn main() {
 }
 
 fn error_out(reason: &str) -> ! {
-    println!("{reason}");
+    eprintln!("{reason}");
     std::process::exit(1)
 }

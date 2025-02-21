@@ -23,9 +23,10 @@ pub struct Interpreter<T> {
     
 }
 
+// Generic, non-cell related methods.
 impl<T> Interpreter<T> {
     fn new(instructions: Vec<ByteCode>, config: InterpreterConfig) -> Interpreter<T> {
-        Interpreter {
+        let mut interpreter = Interpreter {
             config,
             instructions,
             tape: Vec::new(),
@@ -36,11 +37,13 @@ impl<T> Interpreter<T> {
 
             #[cfg(test)]
             captured_output: String::new(),
-        }
-    }
-}
+        };
 
-impl<T> Interpreter<T> {
+        interpreter.calculate_bracket_matches();
+
+        interpreter
+    }
+
     /// Creates a builder for [`Interpreter`].
     pub fn builder(instructions: &str) -> InterpreterBuilder {
         InterpreterBuilder::new(instructions)
@@ -51,9 +54,49 @@ impl<T> Interpreter<T> {
     pub fn captured_output(&self) -> &str {
         &self.captured_output
     }
+
+    /// Finds and sets the matches for all brackets bytecodes.
+    fn calculate_bracket_matches(&mut self) {
+        let left_bracket_indexes = self.instructions.iter()
+            .enumerate()
+            .filter_map(|(i, b)| if let ByteCode::LeftBracket(_) = b { Some(i) } else { None })
+            .collect::<Vec<_>>();
+
+        for idx in left_bracket_indexes {
+            // find the matching right bracket
+            let mut bracket_count = 0;
+            let mut matching_index = None;
+            for (rel_jdx, instruction) in self.instructions[idx..].iter_mut().enumerate() {
+                let jdx = rel_jdx + idx;
+
+                match (bracket_count, instruction) {
+                    (1, ByteCode::RightBracket(index_to_fill)) => {
+                        matching_index = Some(jdx);
+                        // we set the index for the matching left to the right bracket while we are at it
+                        *index_to_fill = Some(idx);
+                        break
+                    },
+                    (_, ByteCode::LeftBracket(_))=> bracket_count += 1,
+                    (_, ByteCode::RightBracket(_)) => bracket_count -= 1,
+                    _ => (),
+                }
+            }
+
+            // set the index of what we found, (if we found nothing then matching_index = None)
+            let left_bracket = self.instructions.get_mut(idx).unwrap();
+            if let ByteCode::LeftBracket(index_to_fill) = left_bracket {
+                *index_to_fill = matching_index;
+            } else {
+                panic!("should be LeftBracket always")
+            };
+        }
+    }
 }
 
-impl<T: Default + Clone> Interpreter<T> {
+// Utility methods for dealing with cells.
+#[allow(private_bounds)]
+impl<T: NumOpsPlus + TryFrom<i8>> Interpreter<T>
+where <T as TryFrom<i8>>::Error: Debug {
     fn get_mut_cell_or_insert_default(&mut self) -> Result<&mut T, InterpreterError> {
         unsafe {
             if self.tape.len() > self.tape_pointer {
@@ -72,6 +115,47 @@ impl<T: Default + Clone> Interpreter<T> {
 
         unsafe {
             Ok(self.tape.get_unchecked_mut(self.tape_pointer))
+        }
+    }
+
+    /// Prints a dump of the tape state and pointer state to stdout.
+    fn print_dump(&self) {
+        println!("{}", "-- TAPE STATE STRING --".yellow().underline().bold());
+        for (i, cell) in self.tape.iter().enumerate() {
+            let ch = char::from_u32(cell.to_u32().unwrap_or(65_533)).unwrap_or('�');
+            let ch_str = if ch == '\n' {
+                "\\n".to_string()
+            } else if ch.is_control() {
+                "�".to_string()
+            } else {
+                ch.to_string()
+            };
+
+            println!("{} {ch_str}", format!("{i}:").to_string().black());
+        }
+        println!();
+
+        println!("{}", "-- TAPE STATE NUMERIC --".green().underline().bold());
+        for (i, cell) in self.tape.iter().enumerate() {
+            println!("{} {cell:?}", format!("{i}:").to_string().black());
+        }
+        println!();
+
+        println!("{}: {}", "LAST VALID TAPE POINTER POSITION".blue().underline().bold(), self.tape_pointer);
+    }
+
+    /// Converts a string to a cell value. Behaviour changes based on whether input is number or character.
+    /// Returns `None` if `string` could not be parsed into a value.
+    fn string_to_value(&self, string: &str) -> Option<T> {
+        if self.config.input_as_number {
+            if let Ok(v) = string.trim().parse() {
+                Some(v)
+            } else {
+                None
+            }
+        } else {
+            let ch = string.chars().next()?;
+            T::from(ch as u32)
         }
     }
 }
@@ -191,21 +275,6 @@ where <T as TryFrom<i8>>::Error: Debug {
         Ok(())
     }
 
-    /// Converts a string to a cell value. Behaviour changes based on whether input is number or character.
-    /// Returns `None` if `string` could not be parsed into a value.
-    fn string_to_value(&self, string: &str) -> Option<T> {
-        if self.config.input_as_number {
-            if let Ok(v) = string.trim().parse() {
-                Some(v)
-            } else {
-                None
-            }
-        } else {
-            let ch = string.chars().next()?;
-            T::from(ch as u32)
-        }
-    }
-
     #[inline]
     fn output(&mut self) -> Result<(), InterpreterError> {
         let value = self.get_mut_cell_or_insert_default()?.clone();
@@ -228,85 +297,33 @@ where <T as TryFrom<i8>>::Error: Debug {
     }
 
     #[inline]
-    fn left_bracket(&mut self) -> Result<(), InterpreterError> {
+    fn left_bracket(&mut self, matching_idx: Option<usize>) -> Result<(), InterpreterError> {
         if *self.get_mut_cell_or_insert_default()? != T::ZERO {
             return Ok(())
         }
 
-        let mut bracket_count = 1;
-        self.instruction_pointer += 1;
-        while let Some(nch) = self.instructions.get(self.instruction_pointer) {
-            match *nch {
-                ByteCode::RightBracket => bracket_count -= 1,
-                ByteCode::LeftBracket => bracket_count += 1,
-                _ => (),
-            }
-            if bracket_count == 0 {
-                break
-            }
-            self.instruction_pointer += 1;
+        if matching_idx.is_none() {
+            return Err(InterpreterError::UnmatchedBracket);
+        } else {
+            self.instruction_pointer = matching_idx.unwrap();
         }
 
         Ok(())
     }
 
     #[inline]
-    fn right_bracket(&mut self) -> Result<(), InterpreterError> {
+    fn right_bracket(&mut self, matching_idx: Option<usize>) -> Result<(), InterpreterError> {
         if *self.get_mut_cell_or_insert_default()? == T::ZERO {
             return Ok(())
         }
-        let mut bracket_count = 1;
-        if let Some(npoint) = self.instruction_pointer.checked_sub(1) {
-            self.instruction_pointer = npoint;
+
+        if matching_idx.is_none() {
+            return Err(InterpreterError::UnmatchedBracket);
         } else {
-            return Err(InterpreterError::InstructionPointerOob)
-        };
-
-        while let Some(nch) = self.instructions.get(self.instruction_pointer) {
-            match *nch {
-                ByteCode::RightBracket => bracket_count += 1,
-                ByteCode::LeftBracket => bracket_count -= 1,
-                _ => (),
-            }
-
-            if bracket_count == 0 {
-                break
-            }
-
-            if let Some(npoint) = self.instruction_pointer.checked_sub(1) {
-                self.instruction_pointer = npoint;
-            } else {
-                return Err(InterpreterError::InstructionPointerOob)
-            };
+            self.instruction_pointer = matching_idx.unwrap();
         }
 
         Ok(())
-    }
-
-    /// Prints a dump of the tape state and pointer state to stdout.
-    fn print_dump(&self) {
-        println!("{}", "-- TAPE STATE STRING --".yellow().underline().bold());
-        for (i, cell) in self.tape.iter().enumerate() {
-            let ch = char::from_u32(cell.to_u32().unwrap_or(65_533)).unwrap_or('�');
-            let ch_str = if ch == '\n' {
-                "\\n".to_string()
-            } else if ch.is_control() {
-                "�".to_string()
-            } else {
-                ch.to_string()
-            };
-
-            println!("{} {ch_str}", format!("{i}:").to_string().black());
-        }
-        println!();
-
-        println!("{}", "-- TAPE STATE NUMERIC --".green().underline().bold());
-        for (i, cell) in self.tape.iter().enumerate() {
-            println!("{} {cell:?}", format!("{i}:").to_string().black());
-        }
-        println!();
-
-        println!("{}: {}", "LAST VALID TAPE POINTER POSITION".blue().underline().bold(), self.tape_pointer);
     }
 }
 
@@ -354,8 +371,8 @@ where T: NumOpsPlus + TryFrom<i8>,
             ByteCode::PointerSub(n) => self.pointer_decrement(*n)?,
             ByteCode::Out => self.output()?,
             ByteCode::In => self.input()?,
-            ByteCode::LeftBracket => self.left_bracket()?,
-            ByteCode::RightBracket => self.right_bracket()?,
+            ByteCode::LeftBracket(j) => self.left_bracket(*j)?,
+            ByteCode::RightBracket(j) => self.right_bracket(*j)?,
         }
         self.instruction_pointer += 1;
 
@@ -557,9 +574,11 @@ enum ByteCode {
     /// The '-' operator `self.0` times.
     Sub(i8),
     /// The '[' operator.
-    LeftBracket,
+    /// Contains the position of the bytecode of the matching ']' (`None` if there is none).
+    LeftBracket(Option<usize>),
     /// The ']' operator.
-    RightBracket,
+    /// Contains the position of the bytecode of the matching '[' (`None` if there is none).
+    RightBracket(Option<usize>),
     /// The ',' operator.
     In,
     /// The '.' operator.
@@ -590,7 +609,7 @@ fn brainfuck_to_bytecode(bf: &str) -> Vec<ByteCode> {
     }
 
     macro_rules! stash_bytecode {
-        ($state:ident, $acc:ident, $bc:ident) => {
+        ($state:ident, $acc:ident, $bc:expr) => {
             if let Some(b) = $state {
                 $state = None;
                 
@@ -629,11 +648,11 @@ fn brainfuck_to_bytecode(bf: &str) -> Vec<ByteCode> {
             },
             '[' => {
                 use ByteCode::LeftBracket as LeftBracket;
-                stash_bytecode!(state, acc, LeftBracket);
+                stash_bytecode!(state, acc, LeftBracket(None));
             },
             ']' => {
                 use ByteCode::RightBracket as RightBracket;
-                stash_bytecode!(state, acc, RightBracket);
+                stash_bytecode!(state, acc, RightBracket(None));
             },
             ',' => {
                 use ByteCode::In as In;
@@ -707,6 +726,11 @@ pub enum InterpreterError {
         /// The index of the cell that over/under-flowed.
         at: usize,
     },
+    /// The program tried to reach the matching bracket of a bracket that does not have a match.
+    /// This error only occurs when the bracket tried to jump to its match, not when it is passed over
+    /// because the condition is not satisfied.
+    #[error("an unmatched braket tried to jump to its matching bracket")]
+    UnmatchedBracket,
 }
 
 /// Asks for user input in bf

@@ -1,6 +1,9 @@
 //! The cli parser defined via the clap crate and its tooling.
 
 use clap::{command, Args, Parser};
+use thiserror::Error;
+
+use crate::interpreter::{InterpreterBuilder, InterpreterTrait};
 
 /// The clap cli interface commands.
 #[derive(Parser)]
@@ -60,6 +63,73 @@ pub struct RunArgs {
     /// (includes by erroring out)
     #[arg(long, short = 'd', default_value_t = false)]
     pub dump: bool,
+}
+
+impl RunArgs {
+    /// Builds an interpreter configured using the cli flags.
+    /// May return `Err` containing a `String` if the arguments are invalid
+    pub fn build_interpreter(&self, program: &str) -> Result<Box<dyn InterpreterTrait>, InterpreterBuildingError> {
+        let builder = InterpreterBuilder::new(program);
+
+        // cell type
+        let builder = match (self.signed, self.cell_size) {
+            (false, 8) => builder.with_u8(),
+            (false, 16) => builder.with_u16(),
+            (false, 32) => builder.with_u32(),
+            (true, 8) => builder.with_i8(),
+            (true, 16) => builder.with_i16(),
+            (true, 32) => builder.with_i32(),
+            (_, s) => return Err(InterpreterBuildingError::InvalidCellSize { got: s }),
+        };
+
+        // overflow behaviour
+        let builder = if self.abort_overflow {
+            builder.with_aborting_behaviour()
+        } else {
+            builder.with_wrapping_behaviour()
+        };
+
+        // tape limit
+        let builder = if let Some(limit) = self.tape_limit {
+            builder.with_tape_leght(limit)
+        } else {
+            builder.without_tape_lenght()
+        };
+
+        // input type
+        let builder = if self.number_input {
+            builder.with_input_as_number()
+        } else {
+            builder.with_input_as_character()
+        };
+
+        // output type
+        let builder = if self.number_output {
+            builder.with_output_as_number()
+        } else {
+            builder.with_output_as_character()
+        };
+
+        // bulk input
+        let builder = if !self.single_input {
+            builder.with_bulk_input()
+        } else {
+            builder.without_bulk_input()
+        };
+
+        Ok(builder.finish())
+    }
+}
+
+/// An error caught during interpreter initialisation.
+#[derive(Debug, Clone, PartialEq, Error)]
+pub enum InterpreterBuildingError {
+    /// Cell size was invalid, and thus the interpreter could not be initialized.
+    #[error("specified cell size is invalid, expected 8, 16 or 32, got {got},")]
+    InvalidCellSize {
+        /// The specified cell size, which was invalid
+        got: usize,
+    }
 }
 
 /// Arguments for the `compile` command.
