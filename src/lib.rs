@@ -25,13 +25,15 @@ pub use error::{CompilerError, Lint};
 pub mod lexer;
 pub use lexer::lex_file;
 pub mod source;
+use source::SourceFile;
 pub mod utils;
 pub mod parser;
 pub mod compiler;
 pub mod interpreter;
 pub mod clap_cli;
 pub use clap_cli::CliCommand;
-use source::SourceFile;
+mod optimiser;
+pub use optimiser::optimise;
 
 /// Transpiles bfu source code into bf.
 pub fn transpile<'a>(sf: &'static SourceFile) -> Result<String, Vec<Box<dyn CompilerError + 'a>>> {

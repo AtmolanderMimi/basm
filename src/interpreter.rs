@@ -97,6 +97,8 @@ impl<T> Interpreter<T> {
 #[allow(private_bounds)]
 impl<T: NumOpsPlus + TryFrom<i8>> Interpreter<T>
 where <T as TryFrom<i8>>::Error: Debug {
+    /// Mutably gets the cell currently pointed to by the tape pointer.
+    /// If the pointer outside of the tape, inserts `T::default` until the array is big enough to be index at that location.
     fn get_mut_cell_or_insert_default(&mut self) -> Result<&mut T, InterpreterError> {
         unsafe {
             if self.tape.len() > self.tape_pointer {
@@ -105,12 +107,12 @@ where <T as TryFrom<i8>>::Error: Debug {
         }
 
         // if we get here then the tape is not long enough for our index
-        let extention = (self.tape_pointer+1) - self.tape.len();
         let lenght_limit = self.config.lenght_limit.unwrap_or(usize::MAX);
         if self.tape_pointer+1 > lenght_limit {
             return Err(InterpreterError::TapeLimitExceded { limit: lenght_limit, tried: self.tape_pointer+1 });
         }
-
+        
+        let extention = (self.tape_pointer+1) - self.tape.len();
         self.tape.extend(vec![T::default(); extention]);
 
         unsafe {
