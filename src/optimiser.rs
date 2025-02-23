@@ -7,15 +7,13 @@
 //! Then we make a "path" from the start position (0) to the end (in this case 2) which modifies
 //! all thoses cells with the least distance. In this situation distance is the number of '>' and '<'.
 
-use regex::Regex;
+use std::collections::HashSet;
 
-/// Takes in a brainfuck program and removes redundant brainfuck operators in sections.
-/// "Sections" are clusters of '+', '-', '>' and '<'. They are delimited by brackets and text.
-/// May break some behviour, like intentionally making the tape pointer negative.
+/// Takes in a brainfuck program and removes redundant brainfuck operators by bulking them in `Operation`s.
+/// May break some behviour, like moving the pointer at the end of the program.
 pub fn optimise(bf: &str) -> String {
+    // Parses the operations
     let operations = parse_operations(&bf).0;
-
-    //operations
 
     // -- Reordering and merging the operations --
     // Note how we didn't collect the operations into a hashmap as that would
@@ -27,22 +25,24 @@ pub fn optimise(bf: &str) -> String {
     // NOTE: we will want to sort cell operations in increasing order if `start < end`
     // and in decreasing order if `start > end`
 
-    todo!()
+    operations_to_brainfuck(&operations)
 }
 
 /// Encodes a string into a series of operations.
-/// Returns the vector of operations and a bool representing if the code is dynamic.
+/// Returns the vector of operations and a `Option<usize>` representing if the code is dynamic.
+/// The option is `None` if the code is not dynamic and `Some(offset)` where offset is the amount off from the starting point.
+/// It is possible that a code segment is dynamic while having an offset of 0, this means that a subsection (block) is dynamic.
 /// Dynamic means that it does not end where it started, so if it were to be executed it would
 /// offset all other operations.
 /// This function does not provide any optimisations in itself.
-fn parse_operations(src: &str) -> (Vec<Operation>, bool) {
+fn parse_operations(src: &str) -> (Vec<Operation>, Option<isize>) {
     // -- Encoding the operations on the cells --
     let mut operations = Vec::new();
     let mut relative_cell_position = 0; // NOTE: this may be invalid when dynamic is involved
     let mut sub_section_bracket_depth = 0;
     let mut sub_section_start = None;
     for (idx, op) in src.char_indices() {
-        // section completion mode
+        // block completion mode
         if sub_section_bracket_depth != 0 {
             match (sub_section_bracket_depth, op) {
                 (ref mut depth, '[') => *depth += 1,
@@ -121,7 +121,56 @@ fn parse_operations(src: &str) -> (Vec<Operation>, bool) {
         .is_some();
     // if we don't end at the same place we started (0), then WE are dynamic
     let is_dynamic = relative_cell_position != 0 || dynamic_sub_section;
-    (operations, is_dynamic)
+
+    let dynamic_endpoint = if is_dynamic {
+        Some(relative_cell_position)
+    } else {
+        None
+    };
+
+    (operations, dynamic_endpoint)
+}
+
+/// Turns back the operations into text format.
+fn operations_to_brainfuck(ops: &[Operation]) -> String {
+    let mut tape_pointer = 0;
+    let mut buf = String::new();
+
+    for op in ops {
+        // move to position (if required)
+        if let Some(ntape) = op.cell_position() {
+            let difference = ntape - tape_pointer;
+            let movement_ch = if difference.is_positive() { '>' } else { '<' };
+            
+            for _ in 0..(difference.abs()) {
+                buf.push(movement_ch);
+            }
+
+            tape_pointer = ntape;
+        }
+
+        // do the actual operation
+        let op_str = match op {
+            Operation::Block { block, .. } => block.to_brainfuck(),
+            Operation::InOut { operator, .. } => operator.to_string(),
+            Operation::Offset { recurence, .. } => {
+                let mut offset_buf = String::new();
+                let offset_ch = if recurence.is_positive() { '+' } else { '-' };
+            
+                for _ in 0..(recurence.abs()) {
+                    offset_buf.push(offset_ch);
+                }
+
+                offset_buf
+            },
+            Operation::LooseBracket { operator, .. } => operator.to_string(),
+            Operation::Text { src } => { buf.push_str(&src); continue; },
+        };
+
+        buf.push_str(&op_str);
+    }
+
+    buf
 }
 
 // TODO: Zero operation would enable more optimisations.
@@ -147,12 +196,21 @@ enum Operation<'a> {
     Text {
         src: &'a str,
     },
-}
 
+}
 impl<'a> Operation<'a> {
+    // NOTE: the return of this function may be the cause of weird behaviour, investigate first with `modified_cells`
+    /// Returns true if the value of the cell at `idx` needs to be known by the operation else
+    /// returns false if the operation is "blind" to the value of the cell.
+    /// An operation is blind if it does not care about the value of the cell.
+    /// For example `+` and `-` are because their behviour is not affected by the value of the cell they offset.
+    /// (Look for modified cells if you want the cells afected by the operations rather than the cells the operation require)
+    /// ',' '.' on the other hand do care about the value. (',' is special)
     fn fences_cell(&self, idx: isize) -> bool {
         match self {
-            Self::Block { cell, block: section } => section.fences_cell(idx+cell),
+            Self::Block { cell, block: section } => {
+                section.fences_cell(idx+cell) || idx == *cell
+            },
             Self::InOut { cell, .. } => idx == *cell,
             Self::Offset { .. } => false,
             // NOTE: THIS MAY CAUSE LOOSE BRACKETS TO GET AFFECTED TO PAIRS WHICH THEY WEREN'T A PART OF PRIOR (MAYBE IDK)
@@ -162,13 +220,72 @@ impl<'a> Operation<'a> {
             Self::Text { .. } => true,
         }
     }
+
+    /// Returns a `HashSet` of the cells which are accessed and modified by the operation.
+    fn modified_cells(&self) -> HashSet<isize> {
+        let vec = match self {
+            Self::Block { cell, block: section } => {
+                section.modified_cells().into_iter()
+                    .map(|c| c+cell)
+                    .collect()
+            },
+            Self::InOut { cell, operator } => if *operator == '.' {
+                vec![] // out does not modify the cell (it still needs the value, so still fence though)
+            } else {
+                vec![*cell]
+            },
+            Self::Offset { cell, .. } => vec![*cell],
+            Self::LooseBracket { .. } => vec![], //vec![*cell],
+            Self::Text { .. } => vec![],
+        };
+
+        // TODO: because i am lazy, but in the best of worlds we don't pass by vec
+        HashSet::from_iter(vec)
+    }
+
+    fn cell_position(&self) -> Option<isize> {
+        match self {
+            Self::Block { cell, .. } => Some(*cell),
+            Self::InOut { cell, .. } => Some(*cell),
+            Self::Offset { cell, .. } => Some(*cell),
+            Self::LooseBracket { cell, .. } => Some(*cell),
+            Self::Text { .. } => None,
+        }
+    }
+
+    fn can_swap(&self, other: &Self) -> bool {
+        // we don't want to 
+        match (self, other) {
+            // we don't reorganise text
+            (Operation::Text { .. }, _) => return false,
+            (_, Operation::Text { .. }) => return false,
+            // we don't reorganise io
+            (Operation::InOut { .. }, Operation::InOut { .. }) => return false,
+            _ => (),
+        }
+
+        // checks whether their fences allow swapping
+        for cell in self.modified_cells() {
+            if other.fences_cell(cell) {
+                return false;
+            }
+        }
+        // checks whether our fences allow swapping
+        for cell in other.modified_cells() {
+            if self.fences_cell(cell) {
+                return false;
+            }
+        }
+
+        true
+    }
 }
 
 /// Represents a matched bracket block.
 #[derive(Debug, Clone, PartialEq, Default)]
 struct Block<'a> {
     operations: Vec<Operation<'a>>,
-    is_dynamic: bool,
+    dynamic_endpoint: Option<isize>,
 }
 
 impl<'a> Block<'a> {
@@ -181,17 +298,17 @@ impl<'a> Block<'a> {
         // remove the brackets
         let content = &src[1..src.len()-1];
 
-        let (operations, is_dynamic) = parse_operations(content);
+        let (operations, end_point) = parse_operations(content);
 
         Block {
             operations,
-            is_dynamic,
+            dynamic_endpoint: end_point,
         }
     }
 
     /// Returns true if the section is dynamic, aka does it offset the tape pointer.
     fn is_dynamic(&self) -> bool {
-        self.is_dynamic
+        self.dynamic_endpoint.is_some()
     }
 
     fn fences_cell(&self, idx: isize) -> bool {
@@ -207,42 +324,133 @@ impl<'a> Block<'a> {
 
         self.operations.iter().find(|op| op.fences_cell(idx)).is_some()
     }
+
+    fn modified_cells(&self) -> HashSet<isize> {
+        self.operations.iter().fold(HashSet::new(), |mut buf, op| {
+            for cell in op.modified_cells() {
+                buf.insert(cell);
+            };
+
+            buf
+        })
+    }
+
+    fn to_brainfuck(&self) -> String {
+        let mut buf = operations_to_brainfuck(&self.operations);
+        
+        // we want to end on the dynamic endpoint, or at the start if we are not dynamic
+        // find the last position we got put on
+        let last_position = self.operations.iter()
+            .rfind(|op| op.cell_position().is_some())
+            .map(|op| op.cell_position().unwrap())
+            .unwrap_or(0);
+        
+        let offset = self.dynamic_endpoint.unwrap_or(0);
+        let difference = offset - last_position;
+            let movement_ch = if difference.is_positive() { '>' } else { '<' };
+            
+            for _ in 0..(difference.abs()) {
+                buf.push(movement_ch);
+        }
+
+        // we are a bracket block after all
+        buf.insert(0, '[');
+        buf.push(']');
+
+        buf
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::assert_matches::assert_matches;
 
+    use crate::interpreter::InterpreterBuilder;
+
     use super::*;
 
     #[test]
     fn optimiser_basic_parsing_operations() {
-        let (ops, is_dyn) = parse_operations(">>+<->.");
-        assert!(is_dyn);
+        let (ops, end_point) = parse_operations(">>+<->.");
+        assert!(end_point.is_some());
         assert_eq!(ops, vec![
             Operation::Offset { cell: 2, recurence: 1 },
             Operation::Offset { cell: 1, recurence: -1 },
             Operation::InOut { cell: 2, operator: '.' }
         ]);
 
-        let (ops, is_dyn) = parse_operations(">>,[---++]++--<<");
-        assert!(!is_dyn);
+        let (ops, end_point) = parse_operations(">>,[---++]++--<<");
+        assert!(end_point.is_none());
         assert_matches!(ops[0], Operation::InOut { cell: 2, operator: ',' });
         assert_matches!(ops[1], Operation::Block { cell: 2, .. });
 
-        let (ops, is_dyn) = parse_operations(">>,[--+]++--<<");
-        assert!(!is_dyn);
+        let (ops, end_point) = parse_operations(">>,[--+]++--<<");
+        assert!(end_point.is_none());
         assert_matches!(ops[0], Operation::InOut { cell: 2, operator: ',' });
         assert_matches!(ops[1], Operation::Block { cell: 2, .. });
 
-        let (ops, is_dyn) = parse_operations("did \n you know +>.[<atmic bomb[++-]");
-        assert!(!is_dyn);
+        let (ops, end_point) = parse_operations("did \n you know +>.[<atmic bomb[++-]");
+        assert!(end_point.is_none());
         assert_matches!(ops[0], Operation::Text { src: "did \n you know " });
         assert_matches!(ops[1], Operation::Offset { cell: 0, recurence: 1 });
         assert_matches!(ops[2], Operation::InOut { cell: 1, operator: '.' });
         assert_matches!(ops[3], Operation::LooseBracket { cell: 1, operator: '[' });
         assert_matches!(ops[4], Operation::Text { src: "atmic bomb" });
         assert_matches!(ops[5], Operation::Block { cell: 0, .. });
+    }
+
+    #[test]
+    fn optimiser_modified_cells_block() {
+        let (ops, _) = parse_operations(">>,[--+]++--<<");
+        assert_eq!(ops[1].modified_cells(), HashSet::from_iter([2]));
+
+        let (ops, _) = parse_operations(">>>[-<<+>>]");
+        assert_eq!(ops[0].modified_cells(), HashSet::from_iter([1, 3]));
+        let (ops, _) = parse_operations(">>>>>[<<++<<[->>>+<<<]>>>>]");
+        assert_eq!(ops[0].modified_cells(), HashSet::from_iter([1, 3, 4]));
+    }
+
+    #[test]
+    fn optimiser_swap_operations() {
+        let (ops, _) = parse_operations(">>,[--+]++.--<<");
+        assert!(!ops[0].can_swap(&ops[1]));
+        assert!(ops[2].can_swap(&ops[4]));
+        assert!(ops[4].can_swap(&ops[2]));
+
+        let (ops, _) = parse_operations("+>>[-<+>]<->++");
+        assert!(ops[0].can_swap(&ops[1]));
+        assert!(ops[1].can_swap(&ops[2]));
+        assert!(!ops[1].can_swap(&ops[3]));
+
+        let (ops, _) = parse_operations("+>.<,");
+        assert!(ops[0].can_swap(&ops[1]));
+        assert!(!ops[0].can_swap(&ops[2]));
+        assert!(!ops[1].can_swap(&ops[2]));
+        assert!(!ops[2].can_swap(&ops[1]));
+    }
+
+    #[test]
+    fn optimiser_operations_to_string() {
+        let (ops, _) = parse_operations(">>,[>--+,]++.--<<");
+        let string = operations_to_brainfuck(&ops);
+        assert_eq!(string, ">>,[>-,]++.--");
+
+        let (ops, _) = parse_operations("[>-  the harsh advice of those who love you rots within this hell<<]");
+        let string = operations_to_brainfuck(&ops);
+        assert_eq!(string, "[>-  the harsh advice of those who love you rots within this hell<<]");
+
+        // behaviour is the same
+        let program = include_str!("../test-resources/fib.bf");
+        let mut inter =  InterpreterBuilder::new(&program).finish();
+        inter.complete().unwrap();
+        let original_output = inter.captured_output();
+
+        let parsed_and_rebuilt_program = operations_to_brainfuck(&parse_operations(&program).0);
+        let mut inter =  InterpreterBuilder::new(&parsed_and_rebuilt_program).finish();
+        inter.complete().unwrap();
+        let new_output = inter.captured_output();
+
+        assert_eq!(original_output, new_output);
     }
 }
 

@@ -27,7 +27,7 @@ fn main() {
     };
 
     // transpiling (or not)
-    let program = if is_basm_file {
+    let mut program = if is_basm_file {
         let sf = SourceFile::from_file(&abs_path)
             .unwrap_or_else(|_| error_out(INACCESSIBLE_INPUT))
             .leak();
@@ -48,6 +48,15 @@ fn main() {
         fs::read_to_string(&abs_path)
             .unwrap_or_else(|_| error_out(INACCESSIBLE_INPUT))
     };
+
+    let optimise = match &cli {
+        CliCommand::Compile(args) => !args.unoptimised,
+        CliCommand::Run(args) => !args.unoptimised,
+    };
+
+    if optimise {
+        program = basm::optimise(&program);
+    }
 
     // show (if necessary)
     let show = match &cli {
