@@ -80,4 +80,9 @@ impl<'a> Block<'a> {
 
         buf
     }
+
+    /// Applies the specified optimisation to `Operation` contained in this block.
+    pub fn apply_optimisation(&mut self, opti: impl FnOnce(&mut Vec<Operation>)) {
+        opti(&mut self.operations)
+    }
 }

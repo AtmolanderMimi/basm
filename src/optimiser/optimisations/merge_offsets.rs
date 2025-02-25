@@ -62,6 +62,15 @@ pub fn merge_offsets<'a, 'b>(ops: &'a mut Vec<Operation<'b>>) {
         Operation::Offset { recurence: 0, ..} => false,
         _ => true
     }).collect();
+
+    // do this recursively for all blocks
+    ops.iter_mut()
+        .filter_map(|op| if let Operation::Block { block, .. } = op {
+            Some(block)
+        } else {
+            None
+        })
+        .for_each(|block| block.apply_optimisation(merge_offsets));
 }
 
 #[cfg(test)]
