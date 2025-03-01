@@ -86,3 +86,46 @@ impl<'a> Block<'a> {
         opti(&mut self.operations)
     }
 }
+
+#[cfg(test)] 
+mod tests {
+    use crate::optimiser::parse_operations;
+
+    use super::*;
+
+    #[test]
+    fn block_fences() {                     // 0   3 2
+        let block = Block::new("[>>>,<[-]<<]");
+        assert!(!block.is_dynamic());
+        assert!(block.fences_cell(0));
+        assert!(!block.fences_cell(1));
+        assert!(block.fences_cell(2));
+        assert!(block.fences_cell(3));
+
+        // offset in context
+                                                          // 2   5  4  
+        let block = &parse_operations(">>[>>>,<[-]<<]").0[0];
+        assert!(block.fences_cell(2));
+        assert!(!block.fences_cell(3));
+        assert!(block.fences_cell(4));
+        assert!(block.fences_cell(5));
+    }
+
+    #[test]
+    fn block_modifies() {                   // 0   3  2
+        let block = Block::new("[>>>+<[-]<<]");
+        assert!(!block.is_dynamic());
+        assert!(!block.modified_cells().contains(&0));
+        assert!(!block.modified_cells().contains(&1));
+        assert!(block.modified_cells().contains(&2));
+        assert!(block.modified_cells().contains(&3));
+
+        // offset in context
+                                                          // 2   5  4  
+        let block = &parse_operations(">>[>>>+<[-]<<]").0[0];
+        assert!(!block.modified_cells().contains(&2));
+        assert!(!block.modified_cells().contains(&3));
+        assert!(block.modified_cells().contains(&4));
+        assert!(block.modified_cells().contains(&5));
+    }
+}

@@ -68,9 +68,7 @@ impl<'a> Operation<'a> {
     /// ',' '.' on the other hand do care about the value. (',' is special)
     fn fences_cell(&self, idx: isize) -> bool {
         match self {
-            Self::Block { cell, block: section } => {
-                section.fences_cell(idx+cell) || idx == *cell
-            },
+            Self::Block { cell, block } => block.fences_cell(idx-cell),
             Self::InOut { cell, .. } => idx == *cell,
             Self::Offset { .. } => false,
             // NOTE: THIS MAY CAUSE LOOSE BRACKETS TO GET AFFECTED TO PAIRS WHICH THEY WEREN'T A PART OF PRIOR (MAYBE IDK)
@@ -124,6 +122,20 @@ impl<'a> Operation<'a> {
             _ => (),
         }
 
+        // checks if there is a dynmanic block just in case
+        // (fencing and use may not work if the dynamic does not modify anything)
+        if let Operation::Block { block, .. } = self {
+            if block.is_dynamic() {
+                return false;
+            }
+        }
+        
+        if let Operation::Block { block, .. } = other {
+            if block.is_dynamic() {
+                return false;
+            }
+        }
+
         // checks whether their fences allow swapping
         for cell in self.modified_cells() {
             if other.fences_cell(cell) {
@@ -154,11 +166,13 @@ fn parse_operations(src: &str) -> (Vec<Operation>, Option<isize>) {
     let mut relative_cell_position = 0; // NOTE: this may be invalid when dynamic is involved
     let mut sub_section_bracket_depth = 0;
     let mut sub_section_start = None;
+    let mut last_op_is_text = false;
     for (idx, op) in src.char_indices() {
         // block completion mode
         if sub_section_bracket_depth != 0 {
             match (sub_section_bracket_depth, op) {
-                (ref mut depth, '[') => *depth += 1,
+                // ahem, ahem, rust go to hell (matching and integer with the ref mut pattern will explicitly copy the integer)
+                (_, '[') => sub_section_bracket_depth += 1,
                 (1, ']') => {
                     let sub_string = &src[sub_section_start.unwrap()..=idx];
                     let sub_section = Block::new(sub_string);
@@ -167,15 +181,15 @@ fn parse_operations(src: &str) -> (Vec<Operation>, Option<isize>) {
                     sub_section_bracket_depth = 0;
                     sub_section_start = None;
                 }
-                (ref mut depth, ']') => *depth -= 1,
+                (_, ']') => sub_section_bracket_depth -= 1,
                 _ => (),
             }
             continue;
         }
 
         match op {
-            '>' => relative_cell_position += 1,
-            '<' => relative_cell_position -= 1,
+            '>' => { relative_cell_position += 1; last_op_is_text = false; },
+            '<' => { relative_cell_position -= 1; last_op_is_text = false; },
             '+' => if let Some(Operation::Offset { cell, ref mut recurence }) = operations.last_mut() {
                 if relative_cell_position != *cell {
                     operations.push(Operation::Offset { cell: relative_cell_position, recurence: 1 });
@@ -208,10 +222,17 @@ fn parse_operations(src: &str) -> (Vec<Operation>, Option<isize>) {
                 }
             },
             ']' => operations.push(Operation::LooseBracket { cell: relative_cell_position, operator: ']' }),
-            text => if let Some(Operation::Text { src: ref mut other_src }) = operations.last_mut() {
-                *other_src = &src[idx-other_src.len()..idx+text.len_utf8()];
-            } else {
-                operations.push(Operation::Text { src: &src[idx..idx+text.len_utf8()] });
+            ch => {
+                if last_op_is_text {
+                    if let Some(Operation::Text { src: other_src }) = operations.last_mut() {
+                        let new_src = &src[idx-other_src.len()..idx+ch.len_utf8()];
+                        *other_src = new_src;
+                    }
+                } else {
+                    operations.push(Operation::Text { src: &src[idx..idx+ch.len_utf8()] });
+                }
+
+                last_op_is_text = true;
             },
         }
     }
@@ -426,6 +447,18 @@ mod tests {
         assert_eq!(operation_validity_range(&ops, 1), 1..2);
 
         let (ops, _) = parse_operations("+++[-]--");
+        assert!(!ops[0].can_swap(&ops[1]));
+        assert_eq!(operation_validity_range(&ops, 0), 0..1);
+    }
+
+    #[test]
+    fn validity_range_works_dynamic() {
+        // does nothing when there is nothing to do
+        let (ops, _) = parse_operations("[>][<]");
+        assert_eq!(operation_validity_range(&ops, 0), 0..1);
+        assert_eq!(operation_validity_range(&ops, 1), 1..2);
+
+        let (ops, _) = parse_operations("+++>[>]<--");
         assert!(!ops[0].can_swap(&ops[1]));
         assert_eq!(operation_validity_range(&ops, 0), 0..1);
     }
