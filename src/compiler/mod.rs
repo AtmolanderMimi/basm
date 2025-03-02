@@ -300,7 +300,7 @@ impl CompilerErrorTrait for CompilerError {
             CompilerError::DoubleDeclaration(f) => f.name.slice(),
         };
 
-        Some(Lint::new_error_range(slice.source(), slice.char_range()).unwrap())
+        Some(Lint::new_error_range(slice.source(), slice.range()).unwrap())
     }
 }
 

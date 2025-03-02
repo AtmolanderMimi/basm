@@ -5,10 +5,10 @@ use std::{error::Error, ops::Range};
 use colored::Colorize;
 use either::Either;
 
-use crate::{source::{SfSlice, SourceFile}, utils::{CharOps as _, FindLnCol}};
+use crate::{source::{SfSlice, SourceFile}, utils::{Sliceable as _, FindLnCol}};
 
-/// Number of characters around a lint for context in error display.
-const CONTEXT_WINDOW: usize = 50;
+/// Number of bytes around a lint for context in error display.
+const CONTEXT_WINDOW: usize = 100;
 
 /// Trait to add to all the errors within this crate.
 /// Ensures and allows easy printing of errors with error the source and extra info.
@@ -18,8 +18,7 @@ pub trait CompilerError: Error {
         None
     }
 
-    /// Returns a fancy print-ready description
-    /// of the error.
+    /// Returns a fancy print-ready description of the error.
     fn description(&self) -> String {
         let mut out = String::new();
 
@@ -36,8 +35,8 @@ pub trait CompilerError: Error {
             // -- position --
             match l.slice {
                 Either::Left(ref slice) => {
-                    let start = slice.char_range().start;
-                    let (ln, col) = slice.source().char_find_ln_col(start).unwrap();
+                    let start = slice.range().start;
+                    let (ln, col) = slice.source().byte_find_ln_col(start).unwrap();
                     let abs_path = slice.source().absolute_path();
 
                     out.push_str(&format!(" from Ln {ln:?}, Col {col:?} in {abs_path:?}\n"));
@@ -55,19 +54,19 @@ pub trait CompilerError: Error {
             // -- context --
             if let Either::Left(slice) = l.slice {
                 let source = slice.source();
-                let pre_context_range = slice.start_char().saturating_sub(CONTEXT_WINDOW)..slice.start_char();
-                let post_context_range = if (slice.end_char() + CONTEXT_WINDOW) > source.char_lenght() {
-                    slice.end_char()..source.char_lenght()
+                let pre_context_range = slice.start().saturating_sub(CONTEXT_WINDOW)..slice.start();
+                let post_context_range = if (slice.end() + CONTEXT_WINDOW) > source.lenght() {
+                    slice.end()..source.lenght()
                 } else {
-                    slice.end_char()..(slice.end_char() + CONTEXT_WINDOW)
+                    slice.end()..(slice.end() + CONTEXT_WINDOW)
                 };
 
                 out.push_str(&"[...] ".black().to_string());
-                out.push_str(source.slice_char(pre_context_range).unwrap().as_ref());
+                out.push_str(source.slice(pre_context_range).unwrap().as_ref());
 
                 out.push_str(&slice.as_ref().color(gravity.associated_color()).underline().bold().to_string());
 
-                out.push_str(source.slice_char(post_context_range).unwrap().as_ref());
+                out.push_str(source.slice(post_context_range).unwrap().as_ref());
                 out.push_str(&" [...]".black().to_string());
             }
         } else {
@@ -96,11 +95,11 @@ impl Lint {
     }
 
     /// Creates a new [`Lint`] with the gravity of error as the slice of the file.
-    /// `range` is in characters, not bytes.
+    /// `range` is in bytes.
     pub fn new_error_range(source: &'static SourceFile, range: Range<usize>) -> Option<Lint> {
         let l = Lint {
             gravity: LintGravity::Error,
-            slice: Either::Left(source.slice_char(range)?)
+            slice: Either::Left(source.slice(range)?)
         };
 
         Some(l)
@@ -115,11 +114,11 @@ impl Lint {
     }
 
     /// Creates a new [`Lint`] with the gravity of warning as the slice of the file.
-    /// `range` is in characters, not bytes.
+    /// `range` is in bytes.
     pub fn new_warning_range(source: &'static SourceFile, range: Range<usize>) -> Option<Lint> {
         let l = Lint {
             gravity: LintGravity::Warning,
-            slice: Either::Left(source.slice_char(range)?)
+            slice: Either::Left(source.slice(range)?)
         };
 
         Some(l)

@@ -3,15 +3,18 @@
 //! code is put to use in there.
 
 pub mod token;
-use std::ops::Range;
+use std::{ops::Range, vec::IntoIter};
 
 use thiserror::Error;
 use token::{Token, TokenType};
 
-use crate::{error::{CompilerError, Lint}, source::{SfSlice, SourceFile}, utils::CharOps};
+use crate::{error::{CompilerError, Lint}, source::{SfSlice, SourceFile}, utils::Sliceable};
 
 struct Lexer {
     range: Range<usize>,
+    // TODO: not the most efficient, but definitly better than what i did before
+    // (recalculate all chars for each slice into source)
+    character_indexes_iter: IntoIter<usize>,
     source: &'static SourceFile,
     tokens: Vec<Token>,
     comment_mode: bool,
@@ -19,8 +22,17 @@ struct Lexer {
 
 impl Lexer {
     pub fn new(source_file: &'static SourceFile) -> Lexer {
+        let mut character_indexes = source_file.as_ref()
+            .char_indices()
+            .map(|(i, _)| i)
+            .collect::<Vec<_>>();
+
+        character_indexes.push(source_file.lenght());
+        let character_indexes_iter = character_indexes.into_iter();
+
         Lexer {
             range: 0..0,
+            character_indexes_iter,
             source: source_file,
             tokens: Vec::new(),
             comment_mode: false,
@@ -28,13 +40,13 @@ impl Lexer {
     }
 
     pub fn advance(&mut self) -> Result<Advancement, LexerError> {
-        self.range.end += 1;
+        let Some(new_end) = self.character_indexes_iter.next() else {
+            return Ok(Advancement::Finished)
+        };
 
-        if self.range.end > self.source.char_lenght() {
-            return Ok(Advancement::Finished);
-        }
+        self.range.end = new_end;
 
-        let sf_slice = self.source.slice_char(self.range.clone())
+        let sf_slice = self.source.slice(self.range.clone())
             .unwrap();
 
         if self.comment_mode && sf_slice.inner_slice().contains('\n') {
@@ -48,11 +60,11 @@ impl Lexer {
         }
 
         if let Some(non_lit) = Token::parse_token_non_lit(&sf_slice) {
-            let possibly_lit_range = self.range.start..non_lit.slice.start_char();
-            let possibly_lit_slice = self.source.slice_char(possibly_lit_range)
+            let possibly_lit_range = self.range.start..non_lit.slice.start();
+            let possibly_lit_slice = self.source.slice(possibly_lit_range)
                 .unwrap();
 
-            self.range.start = non_lit.slice.end_char();
+            self.range.start = non_lit.slice.end();
 
             if let Some(lit) = Token::parse_token_lit(&possibly_lit_slice)? {
                 self.tokens.push(lit);
@@ -99,8 +111,8 @@ pub fn lex_file(source_file: &'static SourceFile) -> (Vec<Token>, Vec<LexerError
         }
     }
 
-    let file_lenght = source_file.char_lenght();
-    let eof_slice = source_file.slice_char(file_lenght..file_lenght)
+    let file_lenght = source_file.lenght();
+    let eof_slice = source_file.slice(file_lenght..file_lenght)
         .expect("slice should be valid");
     let eof = Token::new(TokenType::Eof, eof_slice);
     lexer.tokens.push(eof);

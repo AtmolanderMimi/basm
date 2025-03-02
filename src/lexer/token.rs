@@ -2,7 +2,7 @@
 
 use std::{num::IntErrorKind, ops::Range};
 
-use crate::{source::SfSlice, utils::{CharOps, IsAlphanumeric}};
+use crate::{source::SfSlice, utils::{Sliceable, IsAlphanumeric}};
 
 use super::LiteralError;
 
@@ -24,9 +24,9 @@ impl Token {
         }
     }
 
-    /// Returns the range in characters that contains this character
-    pub fn char_range(&self) -> Range<usize> {
-        self.slice.char_range()
+    /// Returns the range in bytes that contains this token.
+    pub fn range(&self) -> Range<usize> {
+        self.slice.range()
     }
 }
 
@@ -174,7 +174,7 @@ impl<'a> Token {
         })
         .nth(0).map(move |inner| {
             let inner = inner.clone();
-            let char_slice = sf_slice.slice_byte(inner.0)
+            let char_slice = sf_slice.slice(inner.0)
                 .unwrap();
 
             Token::new(inner.1, char_slice)
@@ -199,7 +199,7 @@ impl<'a> Token {
             let string_contents = trim_str.replace('\"', "");
             let string_contents = string_contents.replace("\\n", "\n");
 
-            let slice = sf_slice.slice_byte(trim_str_range).unwrap();
+            let slice = sf_slice.slice(trim_str_range).unwrap();
             return Ok(Some(Token::new(TokenType::StrLit(string_contents.to_string()), slice)));
         }
 
@@ -209,19 +209,19 @@ impl<'a> Token {
             let char_content = char_content.replace("\\n", "\n");
 
             if char_content.is_empty() {
-                let error_slice = sf_slice.slice_byte(trim_str_range)
+                let error_slice = sf_slice.slice(trim_str_range)
                     .expect("byte slice should not be oob");
                 return Err(LiteralError::EmptyChar(error_slice));
             }
             if char_content.len() >= 2 {
-                let err_slice = sf_slice.slice_byte(trim_str_range)
+                let err_slice = sf_slice.slice(trim_str_range)
                         .unwrap();
                 return Err(LiteralError::TooFullChar(err_slice))
             }
 
             let ch = char_content.chars().next()
                 .expect("the checks should have caught that we have at least one char");
-            let slice = sf_slice.slice_byte(trim_str_range)
+            let slice = sf_slice.slice(trim_str_range)
                 .unwrap();
             return Ok(Some(Token::new(TokenType::CharLit(ch), slice)));
         }
@@ -235,7 +235,7 @@ impl<'a> Token {
                 Err(parse_error) => {
                     match parse_error.kind() {
                         IntErrorKind::NegOverflow | IntErrorKind::PosOverflow => {
-                            let err_slice = sf_slice.slice_byte(trim_str_range)
+                            let err_slice = sf_slice.slice(trim_str_range)
                                 .unwrap();
                             return Err(LiteralError::InvalidNumber(err_slice))
                         },
@@ -246,7 +246,7 @@ impl<'a> Token {
 
             return Ok(Some(Token::new(
                 TokenType::NumLit(num),
-                sf_slice.slice_byte(trim_str_range).unwrap(),
+                sf_slice.slice(trim_str_range).unwrap(),
             )));
         }
 
@@ -255,12 +255,12 @@ impl<'a> Token {
         if trim_str_without_under.is_alphanumeric() {
             return Ok(Some(Token::new(
                 TokenType::Ident(trim_str.to_string()),
-                sf_slice.slice_byte(trim_str_range).unwrap(),
+                sf_slice.slice(trim_str_range).unwrap(),
             )));
         }
         
         if !trim_str.is_empty() {
-            let err_slice = sf_slice.slice_byte(trim_str_range)
+            let err_slice = sf_slice.slice(trim_str_range)
                 .unwrap();
             return Err(LiteralError::Unparseable(err_slice));
         }
@@ -291,10 +291,10 @@ mod tests {
         }
     }
 
-    fn non_lit_match_range(token: Option<Token>, expected_t_type: TokenType, expected_char_range: Range<usize>) {
+    fn non_lit_match_range(token: Option<Token>, expected_t_type: TokenType, expected_range: Range<usize>) {
         non_lit_match(token.clone(), Some(expected_t_type));
 
-        assert_eq!(token.unwrap().char_range(), expected_char_range);
+        assert_eq!(token.unwrap().range(), expected_range);
     }
 
     fn lit_match(token: &Result<Option<Token>, LiteralError>, expected_t_type: Option<TokenType>) {
@@ -311,9 +311,9 @@ mod tests {
         }
     }
 
-    fn lit_match_range(token: Result<Option<Token>, LiteralError>, expected_t_type: TokenType, expected_char_range: Range<usize>) {
+    fn lit_match_range(token: Result<Option<Token>, LiteralError>, expected_t_type: TokenType, expected_range: Range<usize>) {
         lit_match(&token, Some(expected_t_type));
-        assert_eq!(token.unwrap().unwrap().char_range(), expected_char_range);
+        assert_eq!(token.unwrap().unwrap().range(), expected_range);
     }
 
     /// new SfSlice, but shorter name
