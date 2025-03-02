@@ -14,19 +14,20 @@ pub fn merge_offsets<'a, 'b>(ops: &'a mut Vec<Operation<'b>>) {
             None
         }).collect::<Vec<_>>();
 
-    for offset_index in offsets_indexes {
+    // we reverse the indexes so that offsets merge towards the front
+    for offset_index in offsets_indexes.iter().rev() {
         let (self_cell, self_recurence) = {
-            let Operation::Offset { cell, recurence } = ops[offset_index] else { panic!("we know that it is offset") };
+            let Operation::Offset { cell, recurence } = ops[*offset_index] else { panic!("we know that it is offset") };
             (cell, recurence)
         };
         // Getting where we can look for merge companions
-        let range = optimiser::operation_validity_range(ops, offset_index);
+        let range = optimiser::operation_validity_range(ops, *offset_index);
         
-        // search in front (excluding self ofc)
+        // search (excluding self ofc)
         let other_offset_opt = ops[range.clone()].iter_mut()
             .zip(range)
             .find(|(op, i)| if let Operation::Offset { cell, recurence } = op {
-                if *i == offset_index {
+                if *i == *offset_index {
                     return false
                 }
 
@@ -52,7 +53,7 @@ pub fn merge_offsets<'a, 'b>(ops: &'a mut Vec<Operation<'b>>) {
         *recurence += self_recurence;
 
         // we'll want to remove the recurence we just added to the original
-        let Operation::Offset { recurence, .. } = &mut ops[offset_index] else { unreachable!() };
+        let Operation::Offset { recurence, .. } = &mut ops[*offset_index] else { unreachable!() };
         *recurence = 0;
     }
 
@@ -99,6 +100,12 @@ mod tests {
         let string = optimiser::operations_to_brainfuck(&ops);
         assert_eq!(string, "+>[-]");
 
+        let (mut ops, _) = optimiser::parse_operations("++>>[-][-<<+>>]<<++");
+        merge_offsets(&mut ops);
+        let string = optimiser::operations_to_brainfuck(&ops);
+        assert_eq!(string, "++++>>[-][-<<+>>]");
+
+        // same as the last, but they are fenced
         let (mut ops, _) = optimiser::parse_operations("++>>[-][-<<+>>]<<++");
         merge_offsets(&mut ops);
         let string = optimiser::operations_to_brainfuck(&ops);
