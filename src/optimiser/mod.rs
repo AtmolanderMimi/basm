@@ -28,7 +28,10 @@ pub fn optimise(bf: &str) -> String {
     // (Because of the lack of conditionals, we don't have to worry about one cell having causality on another)
     // NOTE: we will want to sort cell operations in increasing order if `start < end`
     // and in decreasing order if `start > end`
+    optimisations::reorder_operations(&mut operations);
     optimisations::merge_offsets(&mut operations);
+    // running it twice shaves off a few characters
+    optimisations::reorder_operations(&mut operations);
     operations_to_brainfuck(&operations)
 }
 
