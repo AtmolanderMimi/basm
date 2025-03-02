@@ -17,7 +17,7 @@ pub fn merge_offsets<'a, 'b>(ops: &'a mut Vec<Operation<'b>>) {
     // we reverse the indexes so that offsets merge towards the front
     for offset_index in offsets_indexes.iter().rev() {
         let (self_cell, self_recurence) = {
-            let Operation::Offset { cell, recurence } = ops[*offset_index] else { panic!("we know that it is offset") };
+            let Operation::Offset { cell, recurrence: recurence } = ops[*offset_index] else { panic!("we know that it is offset") };
             (cell, recurence)
         };
         // Getting where we can look for merge companions
@@ -26,7 +26,7 @@ pub fn merge_offsets<'a, 'b>(ops: &'a mut Vec<Operation<'b>>) {
         // search (excluding self ofc)
         let other_offset_opt = ops[range.clone()].iter_mut()
             .zip(range)
-            .find(|(op, i)| if let Operation::Offset { cell, recurence } = op {
+            .find(|(op, i)| if let Operation::Offset { cell, recurrence: recurence } = op {
                 if *i == *offset_index {
                     return false
                 }
@@ -49,18 +49,18 @@ pub fn merge_offsets<'a, 'b>(ops: &'a mut Vec<Operation<'b>>) {
         };
 
         // If we got here this means that we found a merge companion
-        let Operation::Offset { recurence, .. } = other_offset else { unreachable!() };
+        let Operation::Offset { recurrence: recurence, .. } = other_offset else { unreachable!() };
         *recurence += self_recurence;
 
         // we'll want to remove the recurence we just added to the original
-        let Operation::Offset { recurence, .. } = &mut ops[*offset_index] else { unreachable!() };
+        let Operation::Offset { recurrence: recurence, .. } = &mut ops[*offset_index] else { unreachable!() };
         *recurence = 0;
     }
 
     // Cleanup, we remove all the offsets we set to 0
     let tmp_ops = mem::take(ops);
     *ops = tmp_ops.into_iter().filter(|op| match op {
-        Operation::Offset { recurence: 0, ..} => false,
+        Operation::Offset { recurrence: 0, ..} => false,
         _ => true
     }).collect();
 

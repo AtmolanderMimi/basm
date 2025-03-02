@@ -19,19 +19,15 @@ pub fn optimise(bf: &str) -> String {
     // Parses the operations
     let mut operations = parse_operations(&bf).0;
 
-    // -- Reordering and merging the operations --
-    // Note how we didn't collect the operations into a hashmap as that would
-    // lose the orignial operation ordering. This is important, because while we can reorder
-    // '+' and '-' all we want, we can't do the same with ',' and '.'. These form a dependency
-    // relation. '+' and '-' cannot pass over ',' and '.' operating on the same cell.
-    // Basically ',' and '.' serve as absolute barriers for operators on the same cell.
-    // (Because of the lack of conditionals, we don't have to worry about one cell having causality on another)
-    // NOTE: we will want to sort cell operations in increasing order if `start < end`
-    // and in decreasing order if `start > end`
     optimisations::reorder_operations(&mut operations);
+
     optimisations::merge_offsets(&mut operations);
+
     // running it twice shaves off a few characters
     optimisations::reorder_operations(&mut operations);
+
+    optimisations::remove_offsets_before_zeroing(&mut operations);
+
     operations_to_brainfuck(&operations)
 }
 
@@ -45,7 +41,7 @@ enum Operation<'a> {
     },
     Offset {
         cell: isize,
-        recurence: i32,
+        recurrence: i32,
     },
     InOut {
         cell: isize,
@@ -76,9 +72,7 @@ impl<'a> Operation<'a> {
             Self::Offset { .. } => false,
             // NOTE: THIS MAY CAUSE LOOSE BRACKETS TO GET AFFECTED TO PAIRS WHICH THEY WEREN'T A PART OF PRIOR (MAYBE IDK)
             Self::LooseBracket { cell, .. } => idx == *cell,
-            // to not confuse the user by seperating text from code
-            // TODO: it is also intuitive, but wasteful to fence all cells because a single loop is written `[ like - this]`
-            Self::Text { .. } => true,
+            Self::Text { .. } => false,
         }
     }
 
@@ -117,7 +111,7 @@ impl<'a> Operation<'a> {
     fn can_swap(&self, other: &Self) -> bool {
         // we don't want to 
         match (self, other) {
-            // we don't reorganise text
+            // we don't reorganise text because that would be unintuitive
             (Operation::Text { .. }, _) => return false,
             (_, Operation::Text { .. }) => return false,
             // we don't reorganise io
@@ -193,23 +187,23 @@ fn parse_operations(src: &str) -> (Vec<Operation>, Option<isize>) {
         match op {
             '>' => { relative_cell_position += 1; last_op_is_text = false; },
             '<' => { relative_cell_position -= 1; last_op_is_text = false; },
-            '+' => if let Some(Operation::Offset { cell, ref mut recurence }) = operations.last_mut() {
+            '+' => if let Some(Operation::Offset { cell, recurrence: ref mut recurence }) = operations.last_mut() {
                 if relative_cell_position != *cell {
-                    operations.push(Operation::Offset { cell: relative_cell_position, recurence: 1 });
+                    operations.push(Operation::Offset { cell: relative_cell_position, recurrence: 1 });
                 } else {
                     *recurence += 1;
                 }
             } else {
-                operations.push(Operation::Offset { cell: relative_cell_position, recurence: 1 })
+                operations.push(Operation::Offset { cell: relative_cell_position, recurrence: 1 })
             },
-            '-' => if let Some(Operation::Offset { cell, ref mut recurence }) = operations.last_mut() {
+            '-' => if let Some(Operation::Offset { cell, recurrence: ref mut recurence }) = operations.last_mut() {
                 if relative_cell_position != *cell {
-                    operations.push(Operation::Offset { cell: relative_cell_position, recurence: -1 });
+                    operations.push(Operation::Offset { cell: relative_cell_position, recurrence: -1 });
                 } else {
                     *recurence -= 1;
                 } 
             } else {
-                operations.push(Operation::Offset { cell: relative_cell_position, recurence: -1 })
+                operations.push(Operation::Offset { cell: relative_cell_position, recurrence: -1 })
             },
             ',' => operations.push(Operation::InOut { operator: ',', cell: relative_cell_position }),
             '.' => operations.push(Operation::InOut { operator: '.', cell: relative_cell_position }),
@@ -246,7 +240,7 @@ fn parse_operations(src: &str) -> (Vec<Operation>, Option<isize>) {
     // removes empty operations
     let operations = operations.into_iter().filter(|op| {
         match op {
-            Operation::Offset { recurence: 0, .. } => false,
+            Operation::Offset { recurrence: 0, .. } => false,
             _ => true,
         }
     }).collect::<Vec<_>>();
@@ -290,7 +284,7 @@ fn operations_to_brainfuck(ops: &[Operation]) -> String {
         let op_str = match op {
             Operation::Block { block, .. } => block.to_brainfuck(),
             Operation::InOut { operator, .. } => operator.to_string(),
-            Operation::Offset { recurence, .. } => {
+            Operation::Offset { recurrence: recurence, .. } => {
                 let mut offset_buf = String::new();
                 let offset_ch = if recurence.is_positive() { '+' } else { '-' };
             
@@ -362,8 +356,8 @@ mod tests {
         let (ops, end_point) = parse_operations(">>+<->.");
         assert!(end_point.is_some());
         assert_eq!(ops, vec![
-            Operation::Offset { cell: 2, recurence: 1 },
-            Operation::Offset { cell: 1, recurence: -1 },
+            Operation::Offset { cell: 2, recurrence: 1 },
+            Operation::Offset { cell: 1, recurrence: -1 },
             Operation::InOut { cell: 2, operator: '.' }
         ]);
 
@@ -380,7 +374,7 @@ mod tests {
         let (ops, end_point) = parse_operations("did \n you know +>.[<atmic bomb[++-]");
         assert!(end_point.is_none());
         assert_matches!(ops[0], Operation::Text { src: "did \n you know " });
-        assert_matches!(ops[1], Operation::Offset { cell: 0, recurence: 1 });
+        assert_matches!(ops[1], Operation::Offset { cell: 0, recurrence: 1 });
         assert_matches!(ops[2], Operation::InOut { cell: 1, operator: '.' });
         assert_matches!(ops[3], Operation::LooseBracket { cell: 1, operator: '[' });
         assert_matches!(ops[4], Operation::Text { src: "atmic bomb" });

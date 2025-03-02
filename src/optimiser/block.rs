@@ -5,7 +5,7 @@ use super::Operation;
 /// Represents a matched bracket block.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Block<'a> {
-    operations: Vec<Operation<'a>>,
+    pub operations: Vec<Operation<'a>>,
     dynamic_endpoint: Option<isize>,
 }
 
