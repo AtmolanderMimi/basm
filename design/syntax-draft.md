@@ -1,5 +1,9 @@
 # Brain Aneurysm
 
+This file and other content within this direcotory are disorganised notes and documentation used for the creation and *pondering* of basm.
+Stuff in here is not guarentied to be up to date or to even be implemented.
+Hopefully one day a basm-book detailing the language should be produced.
+
 ## Description
 BrainAneurysm (or for short basm) is a very simple, assembly-like, language transpiling to Brain*Fuck*. *(ono, big boy words!)*
 The purpose of this language is to abstract of the parts of BrainFuck that makes it *fucky* like:
