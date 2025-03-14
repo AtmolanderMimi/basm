@@ -79,6 +79,6 @@ And that source code would give us this brainfuck code:
 ## License
 The contents of this repository are licensed under the [`MIT` license](https://opensource.org/license/mit) and the [`Apache License (Version 2.0)` license](https://opensource.org/license/apache-2-0).
 
-(The links to the respective licenses shall remain valid as long as the owner of the website they point to is "The Open Source Initiative" founded in 1998)
+You can see these licenses in this repository. Both [MIT](./LICENSE-MIT) and [Apache](./LICENSE-APACHE) are available in text format.
 
 started as of 2024-10-12
