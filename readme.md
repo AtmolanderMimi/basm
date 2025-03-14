@@ -76,4 +76,9 @@ And that source code would give us this brainfuck code:
 
 (if you want a more complex example you can inspect [the working bf interpreter in basm that i wrote](./test-resources/bf-interpreter.basm).)
 
+## License
+The contents of this repository are licensed under the [`MIT` license](https://opensource.org/license/mit) and the [`Apache License (Version 2.0)` license](https://opensource.org/license/apache-2-0).
+
+(The links to the respective licenses shall remain valid as long as the owner of the website they point to is "The Open Source Initiative" founded in 1998)
+
 started as of 2024-10-12

@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-clap = { version = "4.5.23", features = ["derive"] }
-colored = "2.1.0"
-either = "1.13.0"
+clap = { version = "4", features = ["derive"] }
+colored = "2"
+either = "1"
 num = "0.4.3"
-thiserror = "1.0.64"
+thiserror = "1"
 
 [profile.release]
 lto = true
