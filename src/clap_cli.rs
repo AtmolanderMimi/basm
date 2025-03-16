@@ -5,7 +5,7 @@ use thiserror::Error;
 
 use crate::interpreter::{InterpreterBuilder, InterpreterTrait};
 
-/// The clap cli interface commands.
+/// The basm cli tool for transpiling basm into brainfuck and interpreting basm code transpiled into brainfuck.
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 #[derive(Debug, PartialEq, Clone)]
