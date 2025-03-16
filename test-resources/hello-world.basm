@@ -1,5 +1,5 @@
 // prints out a string, strings are stored preceded and followed by a "-1" cell
-[@PSTR string_start] [
+[@PDSTR string_start] [
 BBOX string_start+1; // put the pointer on the first non-"-1" cell
 RAW "+[-.>+]-";      // output every cell until we reach the -1 cell denoting the end
 RAW "<+[-<+]-";      // return to start of the string
@@ -19,6 +19,6 @@ LSTR 11 " world!
 DECR 10 1;
 DECR 19 1;
 
-PSTR 0;
-PSTR 10;
+PDSTR 0;
+PDSTR 10;
 ]

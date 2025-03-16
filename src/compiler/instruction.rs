@@ -26,6 +26,7 @@ pub fn built_in() -> HashMap<String, Rc<dyn SendSyncInstruction>> {
     map.insert("OUT" , Rc::new(Out ::default()) as Rc<dyn SendSyncInstruction>);
     map.insert("WHNE", Rc::new(Whne::default()) as Rc<dyn SendSyncInstruction>);
     map.insert("LSTR", Rc::new(Lstr::default()) as Rc<dyn SendSyncInstruction>);
+    map.insert("PSTR", Rc::new(Pstr::default()) as Rc<dyn SendSyncInstruction>);
 
     map.into_iter().map(|(l, b)| (l.to_string(), b)).collect()
 }
@@ -377,13 +378,63 @@ impl Instruction for Lstr {
         let start_addr = args[0].clone().unwrap_operand();
         let string = args[1].clone().unwrap_string();
 
-        for (i, byte) in string.bytes().enumerate() {
+        for (i, ch) in string.chars().enumerate() {
             let addr = start_addr + i as u32;
             move_pointer_to(buf, ctx, addr);
-            for _ in 0..byte {
+            for _ in 0..(ch as u32) {
                 buf.push('+');
             }
         }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+struct Pstr;
+impl Instruction for Pstr {
+    fn arguments(&self) -> &[ArgumentKind] {
+        &[ArgumentKind::Operand, ArgumentKind::String]
+    }
+
+    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+        let buf_cell = args[0].clone().unwrap_operand();
+        let string = args[1].clone().unwrap_string();
+
+        move_pointer_to(buf, ctx, buf_cell);
+
+        let mut last_value: u32 = 0;
+        for ch in string.chars() {
+            let value = ch as u32;
+            
+            let dist_from_zero = value;
+            let dist_from_last = last_value.abs_diff(value);
+
+            // if byte is closer to zero than the current cell
+            if dist_from_zero < dist_from_last {
+                buf.push_str("[-]");
+                (0..value).for_each(|_| buf.push('+'));
+
+                buf.push('.');
+                last_value = value;
+                continue
+            }
+
+            // else we just move from the last to the one we want
+            let movement = value as i16 - last_value as i16;
+            for _ in 0..movement.abs() {
+                if movement.is_positive() {
+                    buf.push('+');
+                } else {
+                    buf.push('-');
+                }
+            }
+
+            buf.push('.');
+            last_value = value;
+        }
+
+        buf.push_str("[-]");
 
         Ok(())
     }
@@ -630,5 +681,21 @@ mod tests {
         inter.complete().unwrap();
 
         assert_eq!(inter.captured_output(), "Hello, world!\n");
+    }
+
+    #[test]
+    fn hello_world_with_pstr() {
+        let file = include_str!("../../test-resources/hello-world-better.basm");
+        let sf = SourceFile::from_raw_parts(PathBuf::new(), file.to_string())
+            .leak();
+        let program = transpile(sf).unwrap();
+
+        let mut inter = InterpreterBuilder::new(&program)
+            .with_output_as_character()
+            .with_u32()
+            .finish();
+        inter.complete().unwrap();
+
+        assert_eq!(inter.captured_output(), "Ĥéllo, wôrld!");
     }
 }

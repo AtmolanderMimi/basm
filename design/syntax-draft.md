@@ -72,6 +72,8 @@ To use a "consumed" cell you should use instructions.
 | - | - | - |
 | IN   | addr | takes input form the user and sets it in `addr`, behaviour will vary between bf implementations |
 | OUT  | addr | send `addr` to the output, `addr` is not consumed |
+| LSTR | start_addr, "str" | loads the string character by character into cells from the `start_addr` |
+| PSTR | addr, "str" | prints the string character by character using the cell at `addr` to buffer the bytes |
 | - | - | - |
 | INCR | addr, value | increments the value of the `addr` cell by `value` |
 | DECR | addr, value | decrements the value of the `addr` cell by `value` |

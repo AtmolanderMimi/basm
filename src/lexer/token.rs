@@ -124,6 +124,15 @@ impl<'a> Token {
                     matches.push((i..(i+pair.0.len()), pair.1.clone()));
                 }
 
+                // transform to chars
+                let i = slice.char_indices().enumerate().find_map(|(idx, (jdx, _))| {
+                    if i == jdx {
+                        Some(idx)
+                    } else {
+                        None
+                    }
+                }).expect("\"i\" should be on valid character boundary");
+
                 let before_char_index = i.checked_sub(1);
                 let before_char = if let Some(i_before) = before_char_index {
                     slice.chars().nth(i_before)
