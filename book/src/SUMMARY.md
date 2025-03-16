@@ -3,7 +3,7 @@
 [Introduction](./introduction.md)
 
 # Learning
-- [Installing the Cli]()
+- [Installing the Cli](./installing-cli.md)
 - [Our First Program]()
 - [In-built Instructions]()
 - [Aliases]()
