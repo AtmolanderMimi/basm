@@ -4,7 +4,7 @@
 
 # Learning
 - [Installing the Cli](./installing-cli.md)
-- [Our First Program]()
+- [Our First Program](./first-program.md)
 - [In-built Instructions]()
 - [Aliases]()
 - [Meta-Instructions]()
