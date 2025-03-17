@@ -60,6 +60,27 @@ then hold on tight, because you will need to type '+' 99 times from 0! Basm impl
 and a string literal, thus with basm you only need to type `INCR 0 'c';` to set cell no.0 to the value of 'c'.
 There are also in-built operations for loading and printing strings, which is a tedious task in bf.
 
+## Quick Note on Code Formating Throughout This Book
+This book will contain and promote how I prefer to write code in basm.
+There almost nothing in the language forces a specific formatting standard.
+For example, to save colums, I like to omit putting a level of tab in the upmost scope.
+Like so:
+```basm
+[main] [
+// my code here
+INCR 0 12;
+WHNE 0 0 [
+    // but i raise for scopes after
+    DECR 0 1;
+];
+]
+```
+
+There is nothing in the language forcing you to omit whitespaces, in fact there is nothing in the 
+language dictating how you should use whitespaces (except for instruction's arguments).
+So, keep in mind that whilst I like to follow certain naming standards,
+the striped down nature of basm allows you to write however your heart desires!
+
 ---
 
 Now that you know wheter or not basm is for you, let's hop in!
