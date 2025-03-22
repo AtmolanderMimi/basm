@@ -27,9 +27,9 @@ So don't don't mess up your bf tape pointer or you might end up with a silent bu
 both you program and any hope of writing anything productive with bf.
 You may even end up in a situation where you don't know where you are, because you conditinally moved the tape pointer
 (in a loop like this for example: `[>]`).
-You could say that bf dynamically adresses its memory by default. It says: `"get the cell -1 from me"`.
+You could say that bf dynamically addresses its memory by default. It says: `"get the cell -1 from me"`.
 
-Basm tries to solve this by having a static adressing system.
+Basm tries to solve this by having a static addressing system.
 This means that, in a basm source file, you can safely refer to the 3rd cell and it will always be the third cell
 no matter the operations you did before.
 The tape pointer is automatically managed by the compiler.
@@ -44,7 +44,7 @@ Bf as virtually nothing to help developers, maybe that's why it got so popular, 
 Welp, I don't! So, I filled basm with plenty of ways to help you abstract over bf.
 
 We have aliases with the `ALIS` operation, which allow you to
-give name to values, adresses or blocks of code we call scopes.
+give name to values, addresses or blocks of code we call scopes.
 
 We also have "meta-instructions" which are kinda similar to functions, but in implementation moreso similar to macros.
 These meta-instructions, once defined can be used like any in-built instruction in the program.

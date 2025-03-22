@@ -24,14 +24,14 @@ First, we begin from the top with the `[main]` decorator which indicates that th
 scope will be a main field. There can only be one main field per program and, by the name, you
 have probably already guessed what it is. It's the entrypoint of our program! Any instruction put inside the scope of the `[main]` field will be transpiled and executed at runtime.
 
-## Instructions
+## Instructions Statement
 "Ok, but what's an instruction in basm?", I hear you asking.
 An instruction is the basic building block of basm programs.
 They represent an action and are the smallest unit that can be translated into bf.
 You can think of them like functions in other programming languages:
 They take a set number of typed arguments and operate using these arguments.
 In this program, the operation was "print a string" using the cell at index `0`.
-Here is the syntax to insert any instruction:
+Here is the syntax to insert any instruction statement:
 ```
 INSTRUCTION_NAME arg1 arg2 .. ;
 ```
@@ -48,7 +48,7 @@ In the case of the `PSTR` instruction above:
 
 ## Scopes
 As said prior a `[main]` field is made up of a `[main]` decorator and a scope. So what is a scope?
-A scope is zero or more instructions put between square brackets.
+A scope is zero or more instructions or scopes put between square brackets.
 They can be used to make fields and can serve as arguments to instructions,
 such as conditionals and loops.
 Scopes can also store their own aliases and serve as lifetimes for them.

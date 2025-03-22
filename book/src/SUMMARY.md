@@ -5,7 +5,7 @@
 # Learning
 - [Installing the Cli](./installing-cli.md)
 - [Our First Program](./first-program.md)
-- [In-built Instructions]()
+- [Built-in Instructions](./built-in-instructions.md)
 - [Aliases]()
 - [Meta-Instructions]()
 - [Reusing Code With Scopes]()
@@ -13,6 +13,6 @@
 - [Synthesis: Making a Bf Interpreter]()
 
 # Reference
-- [In-built Instructions]()
+- [Built-in Instructions](./ref-built-in-instructions.md)
 - [Keywords](./keywords.md)
 - [Cli Capabilities]()
