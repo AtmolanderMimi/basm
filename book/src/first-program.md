@@ -85,3 +85,8 @@ INCR 0 42;
 ]
 ]
 ```
+
+### Note
+From now on basm code in code blocks will not always be surrounded by a `[main]` field
+for ease of reading *(and writing ;))*.
+All code will be implicitly contained `[main]` unless otherwise noted.

@@ -6,9 +6,10 @@
 - [Installing the Cli](./installing-cli.md)
 - [Our First Program](./first-program.md)
 - [Built-in Instructions](./built-in-instructions.md)
-- [Aliases]()
+- [Aliases](./aliases.md)
+- [Calculating Fibonacci]()
 - [Meta-Instructions]()
-- [Reusing Code With Scopes]()
+- [Creating Custom Conditionals]()
 - [Writing Relative Code]()
 - [Synthesis: Making a Bf Interpreter]()
 
