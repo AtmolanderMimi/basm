@@ -113,7 +113,7 @@ WHNE 0 128 [my_scope];
 
 You have probably noticed a difference to how we use numeric aliases,
 being we need to use a "scope identifier" to specify our alias.
-A scope identifier is simply an alias (aka the name of the alias) wrapped by square brackets.
+A scope identifier is simply an identifier (aka the name of the alias) wrapped by square brackets.
 This syntax tells the compiler to checks for the scope alias rather than the numeric alias
 (also it allows the person reading it to know that this is a scope alias being passed as an argument,
 which is *cool*).
@@ -141,7 +141,7 @@ which oboviously doesn't exist, and failed.
 Now there is one more thing I want to add to scope aliases and that's inlining them.
 Unlike scope literals you can't simply write the alias down to inline it!
 So, you will need to use an instruction I made specifically for that called `INLN`.
-It takes one scope argument and inlines it, as if you would have written a literal in the file at it's place.
+It takes one scope argument and inlines it, as if you would have written a literal in the file at its place.
 
 Here is an example displaying what I just talked about and an extra property that may not be obvious:
 ```basm
@@ -166,7 +166,7 @@ OUT 0;
 
 This example, when ran, outputs 42 (7*6) or `*` if your interpreter outputs as text.
 That may seem odd, after all we set `Vscale` to 12 halfway through which should give us 57 (7\*3 + 12\*3), right?
-Wrong! Whilst, you can include aliases within an scope alias, they will be immediatly normalized (aka replaced)
+Wrong! Whilst, you can include aliases within a scope alias, they will be immediatly normalized (aka replaced)
 by their binded value. So, the `increment` alias actually looks more like this after being defined:
 ```basm
 ALIS increment [
