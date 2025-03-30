@@ -7,7 +7,7 @@
 - [Our First Program](./first-program.md)
 - [Built-in Instructions](./built-in-instructions.md)
 - [Aliases](./aliases.md)
-- [Calculating Fibonacci]()
+- [Calculating Fibonacci](./fibonacci.md)
 - [Meta-Instructions]()
 - [Creating Custom Conditionals]()
 - [Writing Relative Code]()
