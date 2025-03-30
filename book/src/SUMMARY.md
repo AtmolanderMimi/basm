@@ -8,7 +8,7 @@
 - [Built-in Instructions](./built-in-instructions.md)
 - [Aliases](./aliases.md)
 - [Calculating Fibonacci](./fibonacci.md)
-- [Meta-Instructions]()
+- [Meta-Instructions](./meta-instructions.md)
 - [Creating Custom Conditionals]()
 - [Writing Relative Code]()
 - [Synthesis: Making a Bf Interpreter]()
