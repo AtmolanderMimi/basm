@@ -44,17 +44,17 @@ It would be much easier to read if both zeroing and incrementing the cell to a v
 Well, with meta-instructions you can implement that instruction yourself:
 ```basm
 [@SET Acell Vval] [
-    ZERO Acell;
-    INCR Acell Vval;
+ZERO Acell;
+INCR Acell Vval;
 ]
 
 [main] [
-    // instead of:
-    ZERO 0;
-    INCR 0 12;
+// instead of:
+ZERO 0;
+INCR 0 12;
 
-    // you can simply write:
-    SET 0 12;
+// you can simply write:
+SET 0 12;
 ]
 ```
 
@@ -81,11 +81,11 @@ or rather as we will see while implementing it, it is not consumed when it ends.
 
 ```basm
 [@COPC Asrc Adst sp] [
-    ALIS Atmp sp;
-    ALIS sp sp+1;
+ALIS Atmp sp;
+ALIS sp sp+1;
 
-    COPY Asrc Adst Atmp;
-    ADDP Asrc Atmp;
+COPY Asrc Adst Atmp;
+ADDP Asrc Atmp;
 ]
 ```
 
@@ -107,11 +107,11 @@ cell pointers by one (like we had to do in the fibonacci example).
 Here is what fibonacci would look like with `COPC` and the `sp` system:
 ```basm
 [@COPC Asrc Adst sp] [
-    ALIS Atmp sp;
-    ALIS sp sp+1;
+ALIS Atmp sp;
+ALIS sp sp+1;
 
-    COPY Asrc Adst Atmp;
-    ADDP Asrc Atmp;
+COPY Asrc Adst Atmp;
+ADDP Asrc Atmp;
 ]
 
 [main] [
@@ -152,8 +152,8 @@ other than trying to make conditional execution, so I wanted to give an little s
 
 ```basm
 [@TWIC [scope]] [
-    INLN [scope];
-    INLN [scope];
+INLN [scope];
+INLN [scope];
 ]
 ```
 

@@ -9,7 +9,7 @@
 - [Aliases](./aliases.md)
 - [Calculating Fibonacci](./fibonacci.md)
 - [Meta-Instructions](./meta-instructions.md)
-- [Creating Custom Conditionals]()
+- [Creating Custom Conditionals](./custom-conditionals.md)
 - [Writing Relative Code]()
 - [Synthesis: Making a Bf Interpreter]()
 
