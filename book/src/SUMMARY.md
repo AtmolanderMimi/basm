@@ -10,7 +10,7 @@
 - [Calculating Fibonacci](./fibonacci.md)
 - [Meta-Instructions](./meta-instructions.md)
 - [Creating Custom Conditionals](./custom-conditionals.md)
-- [Writing Relative Code]()
+- [Writing Relative Code](./relative-code.md)
 - [Synthesis: Making a Bf Interpreter]()
 
 # Reference
