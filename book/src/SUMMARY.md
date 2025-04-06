@@ -11,6 +11,7 @@
 - [Meta-Instructions](./meta-instructions.md)
 - [Creating Custom Conditionals](./custom-conditionals.md)
 - [Writing Relative Code](./relative-code.md)
+- [Dynamically Indexing](./dynamic-array.md)
 - [Synthesis: Making a Bf Interpreter]()
 
 # Reference
