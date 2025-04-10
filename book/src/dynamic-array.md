@@ -77,7 +77,7 @@ it is not part of the flyer.
 *(Don't worry we will need all the 4 spaces in `ADDP`)*
 
 ### Making our Flyer Move
-To move our glider (yes, I will also call flyers gliders) around we'll:
+Moving our gliders (yes, I will also call flyers gliders) around is going to be a 4 step operation:
 1. End if `[index] == 0`, decrease the `[index]` by 1, 
 2. Move the cell in front of us (`[element]` to our back `[swap]`)
 3. Move the whole glider up by one
@@ -294,6 +294,40 @@ changed to `GETD Aarray Aindex 0;`:
 That's exactly what we wanted, the 3rd element of the array has been gotten and moved to cell 0.
 Notice how none of the array is shifted anymore because of the backtracking we did, perfect!
 
+## `ADDD` (Add Dynamic)
+**Arguments**
+| Name | Type | Description |
+| - | - | - |
+| Aarray | numeric | the address of the start of the array (including the parking) |
+| Aindex | numeric | the address of the cell to be gotten in the array |
+| Asrc | numeric | the address of the cell that will be added to the dynamic one |
+
+Now that we are done with `GETD` we can move onto `ADDD`.
+This meta-instruction is going to serve as our setter, we won't call it `SETD` though,
+because it will not zero the cell it adds to.
+This means that pretty much all the rules that we saw for moving with `ADDP`'s will apply to this.
+
+### Flyer Layout
+The interesting (and annoying) part of this meta-instruction, is that rather than carrying a cell value
+on the return trip, we do one the going trip.
+This means we can't take advantage of the index being zeroed in the return trip to store the value.
+So sadly, this requires us to make the flyer have **3 reserved data cells** at the start
+(plus the swap, maxxing out our 4 spots of parking).
+
+A diagram of our flyer would look like so:
+```text
+[swap].[return][index][cell].[element] ->
+```
+
+And then on the return, once index is depleted:
+```text
+<- [element].[return][empty][empty].[swap]
+```
+
+It's going to be important to keep the empty cells empty, so that we properly un-shift all the cells on the return.
+
+### Implementing
+`ADDD` is very similar to `GETD`
 
 ## Note
 These dynamic get/set implementation can probably be improved by you!
