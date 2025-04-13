@@ -12,7 +12,7 @@
 - [Creating Custom Conditionals](./custom-conditionals.md)
 - [Writing Relative Code](./relative-code.md)
 - [Dynamically Indexing](./dynamic-array.md)
-- [Synthesis: Making a Bf Interpreter]()
+- [Synthesis: Making a Bf Interpreter](./bf-interpreter.md)
 
 # Reference
 - [Built-in Instructions](./ref-built-in-instructions.md)

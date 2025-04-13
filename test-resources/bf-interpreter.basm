@@ -187,7 +187,7 @@ IFEQ 0 Vchar [
 // * `.` -> 7
 // * end -> -1
 // User input ends when they enter "!".
-// This is an indexable array, this means that the array requires 3 zeroed cells
+// This is an indexable array, this means that the array requires 4 zeroed cells
 // at the start of it so that they can later be used to index into the array.
 // like so: `[swap][return index][index] ...`
 [@input_program sp] [
