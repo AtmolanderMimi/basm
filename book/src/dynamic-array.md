@@ -152,9 +152,8 @@ ALIS Aarray_contents Aarray+4;
 INCR Aarray_contents 1;
 INCR Aarray_contents+1 2;
 INCR Aarray_contents+2 3;
-INCR Aarray_contents+3 4;
+INCR Aarray_contents+3 4; // the one that will be increased
 INCR Aarray_contents+4 5;
-// the one that is going to be increased
 INCR Aarray_contents+5 6;
 
 INCD Aarray Aindex;
@@ -302,14 +301,14 @@ Notice how none of the array is shifted anymore because of the backtracking we d
 | Aindex | numeric | the address of the cell to be gotten in the array |
 | Asrc | numeric | the address of the cell that will be added to the dynamic one |
 
-Now that we are done with `GETD` we can move onto `ADDD`.
+Now that we are done with `GETD`, we can move onto `ADDD`.
 This meta-instruction is going to serve as our setter, we won't call it `SETD` though,
-because it will not zero the cell it adds to.
+because it will not zero the cell it adds to making it more of an add than a set.
 This means that pretty much all the rules that we saw for moving with `ADDP`'s will apply to this.
 
 ### Flyer Layout
-The interesting (and annoying) part of this meta-instruction, is that rather than carrying a cell value
-on the return trip, we do one the going trip.
+The interesting (and annoying) part of the `ADDD` glider, is that rather than carrying a cell value
+on the return trip, we do it on the going trip.
 This means we can't take advantage of the index being zeroed in the return trip to store the value.
 So sadly, this requires us to make the flyer have **3 reserved data cells** at the start
 (plus the swap, maxxing out our 4 spots of parking).
@@ -324,10 +323,121 @@ And then on the return, once index is depleted:
 <- [element].[return][empty][empty].[swap]
 ```
 
-It's going to be important to keep the empty cells empty, so that we properly un-shift all the cells on the return.
+It's going to be important to keep the `[empty]` cells empty, so that we properly un-shift all the cells on the return.
 
 ### Implementing
-`ADDD` is very similar to `GETD`
+`ADDD` is very similar to `GETD` outside of the flyer layout.
+The only notable difference between the two being that the flyer has 3 data cells, and that rather
+than taking it gives ones of its cells.
+Other than that, you can probably take `GETD` and make a `ADDD` out of it with ease
+like we made `GETD` from our knowlege of `INCD`
+(despite being similar in name,
+`ADDD` is very different from our arguably incomplete `INCD` implementation).
+
+With that said, this means that a `ADDD` implementation should not be foreign to you.
+So, here is its definition:
+```basm
+[@ADDD Aarray Aindex Asrc] [
+// this layout forward: [swap].[return][index][cell].[element]
+ADDP Aarray+3 Asrc;   // Asrc   -> [cell]
+ADDP Aarray+2 Aindex; // Aindex -> [index] 
+
+// we'll remove the +1, because we'll use the full parking
+BBOX Aarray;
+ASUM 0;
+
+ALIS Aswap 0;
+ALIS Areturn 1;
+ALIS Aindex 2;
+ALIS Acell 3; // new!
+ALIS Aelement 4; // .. which offset this by one
+
+WHNE Aindex 0 [
+    DECR Aindex 1; // step 1
+    INCR Areturn 1;
+
+    ADDP Aswap Aelement; // step 2
+
+    ADDP Acell+1 Acell; // step 3 (also, new Acell move!)
+    ADDP Aindex+1 Aindex;
+    ADDP Areturn+1 Areturn;
+
+    // step 4
+    BBOX 1;
+    ASUM 0;
+];
+
+// we arrived!
+// adding the element out of the flyer
+ADDP Aelement Acell;
+
+ALIS Aswap Aelement;
+ALIS Aelement 0;
+
+WHNE Areturn 0 [
+    DECR Areturn 1; // step 1
+
+    // we now have <- [element][return][empty][empty][swap]
+    // (we won't need to move both empty cells)
+    ADDP Areturn-1 Areturn; // step 3
+
+    // step 4
+    BBOX 0;
+    ASUM 1;
+
+    ADDP Aswap Aelement;
+];
+
+BBOX Aelement;
+ASUM Aarray; // removed the +1, again
+]
+```
+
+Running the following program: ..
+```basm
+// .. ADDD definition here
+
+[main] [
+ALIS Aindex 0;
+INCR Aindex 3;
+// we need to allocate one more cell
+ALIS Acell 1;
+INCR Acell 40;
+
+ALIS Aarray 2;
+ALIS Aarray_contents Aarray+4;
+INCR Aarray_contents 1;
+INCR Aarray_contents+1 2;
+INCR Aarray_contents+2 3;
+INCR Aarray_contents+3 4;
+INCR Aarray_contents+4 5;
+INCR Aarray_contents+5 6;
+
+ADDD Aarray Aindex Acell;
+]
+```
+
+.. would expectedly give use this result:
+```txt
+-- TAPE STATE NUMERIC --
+0: 0
+1: 0
+2: 0
+3: 0
+4: 0
+5: 0
+6: 1
+7: 2
+8: 3
+9: 44
+10: 5
+11: 6
+```
+
+With that out of the way, we are ready to tackle the last chapter of this book!
+In the next chapter, we will use what we just wrote to handle the
+memory tape and instruction array reading/setting of our bf interpreter.
+So, don't throw away these meta-instrutions just yet!
 
 ## Note
 These dynamic get/set implementation can probably be improved by you!
