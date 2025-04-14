@@ -118,6 +118,9 @@ this implementation will make use of a flag representing wheter or not `IFNE` wa
     // once again all cells are zero here,
     // as the flag needs to be of 0 for this to execute
     IFNE Aflag Vnot_equal [scp] sp;
+
+    // cleanup (only useful if it did not execute)
+    ZERO Aflag;
 ]
 ```
 

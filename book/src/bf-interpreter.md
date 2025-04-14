@@ -53,6 +53,7 @@ ZERO Atmp1;
     ] sp;
 
     IFNE Aflag Vnot_equal [scp] sp;
+    ZERO Aflag;
 ]
 
 // moves the value of the cell at Aarray[value of Aindex] to Adst
@@ -224,6 +225,103 @@ we would need to travel through all the other elements of the array.
 It's now *that* bad, since instruction input is a one time process,
 but this is the best example where `GETD` and `ADDD` like meta-instruction should be avoided.
 
+### Writing The Flyer
 Instead of having a flyer go out for each operator,
 we can simply write a specilized flyer to fill the array.
-# TODO write the instruction array init here
+This input flyer, will be able to take advantage of the context to have zero state!
+That's right, we don't care about where we are or where we are going, so no index.
+Furthermore, since the array it will be constructing does not contain arbitrary data,
+we can return without having to store a return cell.
+For the return, we will look for 0, which is not mapped to any instructions,
+but is present in the parking.
+
+I'll write this logic into a program specific meta-instruction.
+A program specific meta-instruction is a meta-instruction which is
+only useful within the context of the program.
+Custom instructions like `COPC` are not program specific,
+because they are generic enough to be used in many circumstances.
+This is not the case with what we will write.
+When writing program specific meta-instructions, i like to give them snake case names, like aliases.
+Don't worry meta-instruction names will not overwrite your aliases.
+
+```basm
+[@init_input Aarray] [
+BBOX Aarray+4;
+ASUM 0;
+
+
+ALIS Aflag 1;
+ALIS Vappended 1;
+ALIS Vexit 2;
+
+ALIS sp 2;
+// we can still use sp, since we know the cells will be zeroed
+
+WHNE Aflag Vexit [
+    IN 0;
+
+    // -- mapping operators --
+    IFEQ 0 '+' [
+        SET 0 1;
+        INCR Aflag Vappended;
+    ] sp;
+    IFEQ 0 '-' [
+        SET 0 2;
+        INCR Aflag Vappended;
+    ] sp;
+    IFEQ 0 '>' [
+        SET 0 3;
+        INCR Aflag Vappended;
+    ] sp;
+    IFEQ 0 '<' [
+        SET 0 4;
+        INCR Aflag Vappended;
+    ] sp;
+    IFEQ 0 '[' [
+        SET 0 5;
+        INCR Aflag Vappended;
+    ] sp;
+    IFEQ 0 ',' [
+        SET 0 7;
+        INCR Aflag Vappended;
+    ] sp;
+    IFEQ 0 '.' [
+        SET 0 8;
+        INCR Aflag Vappended;
+    ] sp;
+
+    // check for end
+    IFEQ 0 '!' [
+        ZERO 0;
+        SET Aflag Vexit;
+    ] sp;
+
+    // if we added something, we need to move up one
+    IFEQ Aflag Vappended [
+        ZERO Aflag;
+
+        BBOX 1;
+        ASUM 0;
+    ] sp;
+
+    // we don't clear the last character, even if it was invalid,
+    // as the next IN will overwrite the cell
+];
+
+// NEVER forget cleanup
+ZERO Aflag;
+
+// -- going back --
+// because the last char will be '!', we need to offset by at least 1
+BBOX 0;
+ASUM 1;
+
+// moves back until we reached the zeroed cells of the parking
+WHNE 0 0 [
+    BBOX 0;
+    ASUM 1;
+];
+
+ASUM Aarray+3;
+]
+```
