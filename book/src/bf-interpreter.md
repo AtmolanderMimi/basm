@@ -4,7 +4,7 @@ This chapter will focus entirely on the conception process of a bf interpreter i
 which will in turn transpile to bf, to make a bf interpreter in bf!
 It is **highly recommended** to have read all other chapters before diggin into this one.
 
-## Meta-instruction
+## Meta-instructions "header"
 While working on the logic of the interpreter,
 I will use meta-instruction which we already defined earlier (notably `GETD` and `ADDD`).
 Make sure to add these meta-instructions definitions before any other code that uses them:
@@ -241,14 +241,13 @@ only useful within the context of the program.
 Custom instructions like `COPC` are not program specific,
 because they are generic enough to be used in many circumstances.
 This is not the case with what we will write.
-When writing program specific meta-instructions, i like to give them snake case names, like aliases.
+When writing program specific meta-instructions, I like to give them snake case names, like aliases.
 Don't worry meta-instruction names will not overwrite your aliases.
 
 ```basm
 [@init_input Aarray] [
 BBOX Aarray+4;
 ASUM 0;
-
 
 ALIS Aflag 1;
 ALIS Vappended 1;
@@ -325,3 +324,20 @@ WHNE 0 0 [
 ASUM Aarray+3;
 ]
 ```
+
+As you can see we once again use a flag for control flow.
+In this case our flag can have three states:
+* `0`: when nothing has happened
+* `Vappend`: when a operation is appended to the array
+* `Vexit`: when the '!' character is detected
+This doesn't count as the flyer having a state properly speaking though.
+It's more like operation memory than state, since we won't carry that flag along for each glider shift.
+
+We also, despite having a flyer, use `sp`.
+We can safely do this as we can assume that the un-visited parts of the array are still zeroed.
+Also, our program safely overwites the flag when getting user input,
+meaning that our flag will always comsume our flag, leaving nno trash on the array.
+Once again, taking advantage of safe array assumptions saves us from using `ADDD`/`GETD` which operate on no assumtion. 
+
+## Writing `[main]`
+First and foremost, before defining the main logic define the cells we'll use.

@@ -5,7 +5,7 @@
 This book serves as a short introduction and reference to the Brain Aneurysm programming language v1.0,
 which I will refer to as `basm` throughout the book.
 It will also touch on the compagnion cli tool of the same name.
-The basm transpiler is fully open-sourced at [https://github.com/AtmolanderMimi/basm].
+The basm transpiler is fully open-sourced at [https://github.com/AtmolanderMimi/basm](https://github.com/AtmolanderMimi/basm).
 
 Basm is a very simple, assembly-like esoteric programming language made to transpile into Brainfuck (aka `bf` for short).
 My target in creating basm was to prove (although it had already been done) that bf can be used to write any program
