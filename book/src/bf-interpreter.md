@@ -280,6 +280,10 @@ WHNE Aflag Vexit [
         SET 0 5;
         INCR Aflag Vappended;
     ] sp;
+    IFEQ 0 ']' [
+        SET 0 6;
+        INCR Aflag Vappended;
+    ] sp;
     IFEQ 0 ',' [
         SET 0 7;
         INCR Aflag Vappended;
@@ -339,5 +343,329 @@ Also, our program safely overwites the flag when getting user input,
 meaning that our flag will always comsume our flag, leaving nno trash on the array.
 Once again, taking advantage of safe array assumptions saves us from using `ADDD`/`GETD` which operate on no assumtion. 
 
-## Writing `[main]`
-First and foremost, before defining the main logic define the cells we'll use.
+## Memory Layout in `[main]`
+First and foremost, before defining the main logic we'll define the cells for our program to use.
+
+```basm
+ALIS Voperating_memory 16;
+ALIS Aprog_pointer 0;
+ALIS Amem_pointer 1;
+ALIS Aflag 2;
+ALIS Vexit 1;
+ALIS Vbracket 2;
+ALIS Aoperator 3;
+ALIS Acell 4;
+ALIS Abracket_jump 5;
+ALIS sp 6;
+
+ALIS Vprog_array_cap 256;
+ALIS Aprog Voperating_memory;
+// we add 4 to take into account the parking of the program array
+ALIS Amem Aprog+Vprog_array_cap+4;
+```
+
+There's alot to unpack here. Here are the most notable ones:
+
+### `Voperating_memory`
+This alias defines how many cells are reserved for general computation (that being all but the array).
+The reserved space granted by `Voperating_memory` is required for us to store cells like `Aflag`.
+It is also required for meta-instruction using `sp` have zeroed cells.
+Otherwise, meta-instructions would reach into the program array, which would be bad for program state.
+
+### `Aflag`
+`Aflag` is *once again* a flag cell. It can have one of these values:
+* `0`: nothing happened
+* `Vexit`: program is done and should exit
+* `Vbracket`: a bracket has jumped, so `Aprog_pointer` should be updated to `Abracket_jump`
+(this needs to be done after all the other logic, which is why it is stored in the flag)
+
+### `Aoperator` and `Acell`
+Those two aliased cells will hold both the current operator and memory cell respectively.
+Since we can't edit cells directly in their array, we need to keep them in a static place in memory.
+
+### `Aprog`
+This alias defines the start of the program array (at its parking).
+The way it is defined is that it comes straight after the operating memory segment,
+meaning that its address can be defined has the lenght of the operating memory segment!
+This would cause an off by 1 error if basm started indexing cells from 1, but it indexes from 0,
+so we are good!
+
+`Aprog` also comes with `Vprog_array_cap` aka the capacity of the program array.
+We don't inherently *need* it to define the array,
+but we will need to define how far away we want the memory array to be from the program array.
+Effectively, choosing how much space we allocated to the program array.
+In this example, I set 256 as the array capacity,
+because that is the max that you can index with unsigned 8 bit cells.
+If you want to use bigger programs, you can increase this capacity,
+but beware you will also need to use cells of more than 8 bits!
+
+### `Amem`
+All that I specified about `Aprog` applies to `Amem`.
+The value is the start of the array (at its parking).
+While the memory array is technically not limited by memory, since it cannot ovewrite other memory,
+it is still practically limited by the (un)efficiency of indexing
+and the maximum index storable in the cells.
+
+### `Abracket_jump`
+Is used to store the address of the operation matching the current bracket operation.
+Our bracket jumping implementation will not set the program pointer directly to it,
+since it still needs to do some cleanup beforehand.
+That cleanup includes setting the current operation in `Aoperator` back in the array.
+To do that we need to know the index of that operator,
+which is always just the index in `Aprog_pointer`.
+This is why we don't change the operator pointer right away and we need to store it.
+You are probably understand it better when you'll see the code managing this yourself.
+
+## Writing `[main]` Logic
+The bread and butter of our logic is of couse going to be a loop.
+We'll loop over every operator in the program until we reach the end,
+applying the effects of them as we go.
+To be more precise here's the broken down version of what the loop:
+1. Get the operator at `Aprog_pointer`
+2. Execute the operator specific logic
+3. Set the operator back
+4. Increase `Aprog_pointer`
+
+Notice how we don't get the memory cell for every operator.
+This is because it would be incredibly wasteful to get and set the operator for every operator,
+because the cell mostly remains over operators. Only `>` and `<` change the cell index.
+Think interpreting the very common pattern `+++`.
+If we were to get the cell, increase it by one and then put it back 3 times it would be horrendus!
+So, to combat this, `Acell` functions more like a cell "cache" then its `Aoperator` counterpart.
+We will only get/set the memory cell when moving the tape pointer with `>` and `<`.
+
+With all that said, let's start implementing the easy parts of the logic:
+```basm
+// .. add the header here
+// .. define init_input here
+
+[main] [
+ALIS Voperating_memory 16;
+ALIS Aprog_pointer 0;
+ALIS Amem_pointer 1;
+ALIS Aflag 2;
+ALIS Vexit 1;
+ALIS Vbracket 2;
+ALIS Aoperator 3;
+ALIS Acell 4;
+ALIS Abracket_jump 5;
+ALIS sp 6;
+
+ALIS Vprog_array_cap 256;
+ALIS Aprog Voperating_memory;
+ALIS Amem Aprog+Vprog_array_cap+4;
+
+// get program from user
+init_input Aprog;
+
+WHNE Aflag Vexit [
+    ALIS Atmp sp;
+    ALIS sp sp+1;
+
+    // 1. load in operator
+    COPC Aprog_pointer Atmp sp;
+    GETD Aprog Atmp Aoperator;
+
+    // 2. operator specific logic
+    // + + + + +
+    IFEQ Aoperator 1 [
+        INCR Acell 1;
+    ] sp;
+
+    // - - - - -
+    IFEQ Aoperator 2 [
+        DECR Acell 1;
+    ] sp;
+
+    // > > > > >
+    IFEQ Aoperator 3 [
+        // store the old cell
+        COPC Amem_pointer Atmp sp;
+        ADDD Amem Atmp Acell;
+
+        // get the new cell
+        INCR Amem_pointer 1;
+        COPC Amem_pointer Atmp sp;
+        GETD Amem Atmp Acell;
+    ] sp;
+
+    // < < < < <
+    IFEQ Aoperator 4 [
+        // store the old cell
+        COPC Amem_pointer Atmp sp;
+        ADDD Amem Atmp Acell;
+
+        // get the new cell
+        // NOTE: this DECR may underflow the tape pointer
+        DECR Amem_pointer 1;
+        COPC Amem_pointer Atmp sp;
+        GETD Amem Atmp Acell;
+    ] sp;
+
+    // TODO: implement '[' and ']'
+
+    // , , , , ,
+    IFEQ Aoperator 7 [
+        IN Acell;
+    ] sp;
+
+    // . . . . .
+    IFEQ Aoperator 8 [
+        OUT Acell;
+    ] sp;
+
+    // check for the end
+    IFEQ Aoperator 0 [
+        INCR Aflag Vexit;
+    ] sp;
+
+    // set the operator back
+    COPC Aprog_pointer Atmp sp;
+    ADDD Aprog Atmp Aoperator;
+
+    // NOTE: we'll add something here later...
+
+    // increase program pointer
+    INCR Aprog_pointer 1;
+];
+]
+```
+
+With that that's *seemingly* most of the bf interpreter done already!
+(with the exception of `[` and `]`)
+You can take it easy from here we're on the final strech.
+There's no looping or conditionals, but we have enough to print some basic characters.
+Try the following code: (don't forget to use `!` to end program input!)
+```bf
+outputs the answer to life the universe and everything
+++++++++++++++++++++++++++++++++++++++++++++++++++++.--.
+```
+
+### The Needlessly Complicated Part
+You may not have understood the part about `Abracket_jump` and `Vbracket` for `Aflag`.
+It's time were we need to use them...
+Welp, the bracket jumping logic not *that* bad.
+My implementation is going to be the simplest one possible, which simply iterates over every operator.
+
+When we get a `[` and have 0 or when we have `]` and have a non-zero value,
+we follow this procedure to find the index of the opposing matching bracket:
+1. Initiate a counter at 1
+2. Initiate a search pointer at the current program pointer
+3. Add/Substract the search pointer by 1
+4. Get the operator at the search pointer
+5. If the operator is a bracket and it is the **same as the original, add 1** to the counter.
+Else, if the operator is a bracket and the **bracket is opposite, remove 1** to the counter
+6. Set the operator back at the search pointer
+7. If the counter is non-zero, repeat from nb.3
+
+With this, our search counter should always end on the matching bracket!
+*Or the program will loop forever/read oob, but most bf code has matching brackets.*
+*So this is not a bit issue.*
+Once we our we have our *searched* search counter,
+we don't want to apply it right away for the reasons stated before.
+We will instead opt into setting the flag to `Vbracket`
+so we can apply it after having set the operator back.
+
+Add these if statements to apply bracket logic:
+```basm
+// [ [ [ [ [
+IFEQ Aoperator 5 [
+    IFEQ Acell 0 [
+        ALIS Acounter sp;
+        INCR Acounter 1; // 1.
+        ALIS Asearch_op sp+1;
+        ALIS sp sp+2;
+
+        // 2.
+        // we don't need to define our search counter here,
+        // we can use Abracket_jump directly
+        COPC Aprog_pointer Abracket_jump sp;
+        WHNE Acounter 0 [
+            // 3.
+            INCR Abracket_jump 1;
+
+            // 4.
+            COPC Abracket_jump Atmp sp;
+            GETD Aprog Atmp Asearch_op;
+
+            // 5.
+            // if op == '['
+            IFEQ Asearch_op 5 [
+                INCR Acounter 1;
+            ] sp;
+            // if op == ']'
+            IFEQ Asearch_op 6 [
+                DECR Acounter 1;
+            ] sp;
+
+            // 6.
+            COPC Abracket_jump Atmp sp;
+            ADDD Aprog Atmp Asearch_op;
+        ]; // 7.
+
+        INCR Aflag Vbracket;
+    ] sp;
+] sp;
+
+// ] ] ] ] ]
+IFEQ Aoperator 6 [
+    IFNE Acell 0 [
+        ALIS Acounter sp;
+        INCR Acounter 1; // 1.
+        ALIS Asearch_op sp+1;
+        ALIS sp sp+2;
+    
+        // 2.
+        COPC Aprog_pointer Abracket_jump sp;
+        WHNE Acounter 0 [
+            // 3.
+            DECR Abracket_jump 1;
+    
+            // 4.
+            COPC Abracket_jump Atmp sp;
+            GETD Aprog Atmp Asearch_op;
+    
+            // 5.
+            // if op == '['
+            IFEQ Asearch_op 5 [
+                DECR Acounter 1;
+            ] sp;
+            // if op == ']'
+            IFEQ Asearch_op 6 [
+                INCR Acounter 1;
+            ] sp;
+    
+            // 6.
+            COPC Abracket_jump Atmp sp;
+            ADDD Aprog Atmp Asearch_op;
+        ]; // 7.
+
+        INCR Aflag Vbracket;
+    ] sp;
+] sp;
+```
+
+And the extra conditional to check the flag and apply the bracket jump:
+(you should add it at my *ominous* `NOTE`)
+```basm
+// if there was a jump, set the pointer to the matching bracket
+// (having the pointer increment after is intentional)
+IFEQ Aflag Vbracket [
+    ZERO Aprog_pointer;
+    ADDP Aprog_pointer Abracket_jump;
+    ZERO Aflag;
+] sp;
+```
+
+Whew... that, was, all.
+So now, with this enormous blob of bracket logic written, we finally have a 100% functional bf interpreter in basm!!!
+
+Try it out with this fancier "Hello Word!" example:
+([taken from Wikipedia](https://en.wikipedia.org/wiki/Brainfuck#Hello_World!))
+```bf
+++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.
+```
+
+## What to Improve
+You now own a bf interpreter, problem: it's slooooooooow...
+# TODO write possible improvements to make (also fix newlines being taken as characters or interactive fib is just broken?)
