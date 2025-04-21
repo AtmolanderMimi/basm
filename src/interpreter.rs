@@ -742,6 +742,11 @@ fn ask_bf_input() -> Option<String> {
     let mut buf = String::new();
     let _ = std::io::stdin().read_line(&mut buf);
 
+    // remove the extra newlines that comes with entering a line
+    if buf.ends_with('\n') {
+        let _ = buf.pop();
+    }
+
     if buf.is_empty() {
         None
     } else {
