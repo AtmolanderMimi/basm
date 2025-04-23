@@ -18,4 +18,4 @@
 # Reference
 - [Built-in Instructions](./ref-built-in-instructions.md)
 - [Keywords](./keywords.md)
-- [Cli Capabilities]()
+- [Cli Capabilities](./cli-capabilities.md)
