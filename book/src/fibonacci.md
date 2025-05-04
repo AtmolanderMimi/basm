@@ -3,25 +3,27 @@
 Now that you've learnt the basic building blocks of the language,
 you are probably eager to do something useful with them,
 but like a kid with unasorted lego blocks it may not be as easy as it seems to build something coherent with them.
-This synthesis chapter is a walk-through of creating a program
+This synthesis chapter is a walk-through for creating a program
 which calculates the nth number of the fibonacci sequence.
 We will first start by creating the basic logic then add user input.
 
 If you want to go ahead and try to build a fib program yourself before reading this explaination,
-I higly recommend it!
+I highly recommend it!
 Getting your hands dirty is the best way to learn and memorise querks of the language
 *(and any skill for that matter)*.
 
 ## Building the Inputless Version
-We are going to be implementing the iterative version of the fibonacci calculator.
+
+We are going to be implementing an iterative version of a fibonacci calculator.
 *(In opposition to the recusive one, because there is no recusion in basm)*
 
-If you have never built an iterative fibonacci calculator in another language before, here is pseudo-code for it:
+If you have never built an iterative fibonacci calculator in another language before, here is pseudo-code for how it typically looks like:
+
 ```txt
 a = 0
 b = 1
 
-for i in range 0..nth:
+for i in [0; nth[:
     c = a + b
     a = b
     b = c
@@ -32,19 +34,20 @@ output a
 What's nice here is that most of the features present in that pseudo-code example are present in basm.
 We can store values like `a`, `b` and `c` in cells and we of course have addition and output.
 There one pain point though, which is that unlike in the pseudo-code basm instructions consume their inputs.
-This means that we can't feasably use `b` to add and to move without having to copy it.
-That will unfortunatly require adding a bit more copying logic boilerplate.
+This means that we can't feasably use `b` in `c = a + b` and `a = b` without having to copy it.
+That will unfortunatly require writing a bit of copying logic boilerplate.
 
 Here's the non-functional pseudo-code/basm hybrid with the pieces which we can easily replace:
+
 ```basm
 // unlike in the example above, we need to set the value of the variables
-ALIS Aa 0;              // a = 0 (all values are 0 by default)
+ALIS Aa 0;              // a = 0 (all cells are 0 by default)
 ALIS Ab 1;
 INCR Ab 1;              // b = 1
 
-// this for loops is invalid in basm
-for i in range 0..nth:
-    ALIS Ac 2;
+// this for loop syntax is invalid in basm
+for i in range [0; nth[:
+    ALIS Ac 2;          // we define Ac here, because it is operation specific to the loop
     ALIS Atmp 3;
 
     COPY Ab Ac Atmp;    // c = b and tmp = b
@@ -56,8 +59,8 @@ for i in range 0..nth:
 OUT Aa;                 // output a
 ```
 
-Notice how `ADDP` had the double purpose of both adding and moving values around?
-We could be sure that these moves are safe to do because the adresses where consumed by prior instructions.
+Notice how `ADDP` has the double purpose of both adding and moving values around?
+We can be sure that these moves are safe to do because the cells were consumed by prior instructions.
 An example of this is with `Ab`, we knew it was zeroed from the `COPY` instruction,
 so it was safe to use `ADDP` as a move to move `Ac` to `Ab`.
 
@@ -70,9 +73,10 @@ Looking at the code we can see that they both get consumed before the end of the
 If you betray scope hygine, you might end up trying to use a cell with an arbitrary value,
 whereas you expected all cells to be zero by default. By default, in basm,
 we assume all cells untouched by the current scope to be zero, this allows us to save operations
-(like having to `ZERO` all cells before using them).
+having to `ZERO` all cells before using them.
 
 Here is an example where not zeroing all cells before the end of the scope is problematic:
+
 ```basm
 [
     // .. some operation ..
@@ -81,17 +85,18 @@ Here is an example where not zeroing all cells before the end of the scope is pr
     COPY Atmp 0 2;
 ]
 
-ALIS Aval2 0; // we expect Aval2 == 0
-INCR Aval2 '!';
-OUT Aval2; // we should get '!', but get '#'
+ALIS Aval 0; // we expect *Aval == 0
+INCR Aval '!';
+OUT Aval; // we should get '!', but get '#'
 ```
-(In this case the problem is very easy to spot, it as the project size increases error caused these kinds of
-bugs become harder and harder to spot)
+
+(In this case the problem is very easy to spot, it is as the project size increases that bugs caused by these kinds of
+errors become harder and harder to spot)
 
 For the last step in transforming our pseudo-code example into real basm code is to deal the `for` loop.
-There is no inbuilt `for` loop instruction, so we will have to manually handle our loop and its exit condition.
+There is no in-built `for` loop instruction, so we will have to manually handle our loop's exit condition.
 Normally other languages would do this for you, but being basm being low-level we will need to explicitly
-increase and check for the index.
+create and increase the index as well as check wheter that index is out of the range.
 
 ```basm
 ALIS Aa 0;
@@ -99,7 +104,7 @@ ALIS Ab 1;
 INCR Ab 1;
 // we add a cell to store the index
 ALIS Ai 2;
-// the index we want to reach (it's an constant for now)
+// the index we want to reach (it's a constant for now)
 ALIS Vdesired_index 11;
 
 // this reads like: while (index != desired_index)
@@ -123,19 +128,19 @@ OUT Aa;
 
 If you did everything well, now the program should output 89!
 (or `Y`, if it does output this you can use the `-m` flag on the basm interpreter to output cells as numbers)
-You can try to simply fiddle with `Vdesired_index` to get different numbers from the fibonacci sequence.
+You can try to fiddle with the value of `Vdesired_index` to get different numbers from the fibonacci sequence.
 Be weary though, the bf interpreter that comes with the basm cli
 defaults to using cells of unsigned 8 bit integers, meaning that numbers are limited from 0-255!
-To change the size of the cells use `-c 16` flag to get 16 bit unsigned cells.
-
+To change the size of the cells, use `-c 16` flag to get 16 bit unsigned cells.
 
 ## Adding User Control
+
 We will now be adding a very small amount of user input to our program:
 we'll let the user decide which number they want from the fibonacci sequence.
 This may seem simple, and it is! Rather than increasing a cell until we reach the desired value,
 we can simply decrease the cell containing the desired value until we reach zero.
-It's a bit different from the last version thought,
-as in the desired value will be stored in a cell rather than be a constant.
+It's a bit different from the last version thought
+since the desired value will be stored in a cell rather than be a constant.
 
 ```basm
 ALIS Aa 0;
@@ -162,10 +167,11 @@ WHNE Adesired_index 0 [
 OUT Aa;
 ```
 
-Now, when running the program you will be prompted to input something, which will be treated as the index.
+Now when running the program, you will be prompted to input something which will be treated as the index.
+As you may have already guessed `IN` and `OUT` transpile directly to `,` and `.`.
 Make sure you use the `-n` flag while using the inbuilt basm interpreter
-to treat input as numbers rather than as characters.
-The prompt will repeat until you enter a valid number, meaning that it can parsed and contained by the cell.
+to parse input as numbers rather than as characters.
+The prompt will repeat until you enter a valid number. That being until your input can parsed and contained by the cell.
 Input is special in bf as it is the only thing that can straight up overwrite cell data
 without caring about what it contained before. *(it is also special in that its implementation varies a lot from interpreter to interpreter, but whatever)*
 
