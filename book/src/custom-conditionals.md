@@ -15,10 +15,10 @@ So, the argument table for all of our conditionals should look like this:
 
 | Name  | Type    | Description                      |
 | ------- | --------- | ---------------------------------- |
-| addr  | numeric | address of cell compared to`val` |
-| val   | numeric | value compared to cell at`addr`  |
+| addr  | number | address of cell compared to`val` |
+| val   | number | value compared to cell at`addr`  |
 | [scp] | scope   | code to be conditinally executed |
-| sp    | numeric | address to the next free cell    |
+| sp    | number | address to the next free cell    |
 
 ## IFNE (If Not Equal)
 
