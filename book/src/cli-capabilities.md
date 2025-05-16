@@ -13,7 +13,7 @@ Both of them are similar in that they both take in a file path and have some fla
 
 ## `compile`
 The `compile` subcommand is the simplest way to use the basm cli.
-Similar to tool like `gcc`, it will create a file in the current working directory named like the one passed in with the extention replaced with `.bf`.
+Similar to tool like `gcc`, it will create a file in the current working directory named like the one passed in with the extension replaced with `.bf`.
 File name and output path can be specified with the `-o` flag.
 If compilation fails, error information will be printed to the terminal.
 
@@ -30,18 +30,18 @@ If the compilation fails, error information will be printed to the terminal.
 ### Flags
 {{#custom run-flags}}
 
-## Bf Optimisations
-`basm` applies some basic optimisations to the bf resulting from the transpilation process by default.
+## Bf Optimizations
+`basm` applies some basic optimizations to the bf resulting from the transpilation process by default.
 It can merge operators to reduce redundant use (e.g: `+++-` would turn into `++`)
 and it can reorder operations so that less tape pointer moves are used.
-Overall, the purpose of the built in optimiser is to reduce the number of operators in compiled scripts.
-By default, basm doesn't remove redundent operations and is generally quite stupid.
+Overall, the purpose of the built in optimizer is to reduce the number of operators in compiled scripts.
+By default, basm doesn't remove redundant operations and is generally quite stupid.
 For example, an instruction like `INCR 12 0;`, which does nothing,
-would still move the tape pointer to the 12th cell. This gets optimised out.
+would still move the tape pointer to the 12th cell. This gets optimized out.
 
-All optimisation are made to have no impact on the resulting program, at a few exceptions:
-* Willingfully moving the tape pointer before 0 will be optimised out if there is a cancelling move afterwards (e.g: `<<<<<<<<<<<<<<<>>>>>>>>>>>>>>>`)
+All optimization are made to have no impact on the resulting program, at a few exceptions:
+* Willingfully moving the tape pointer before 0 will be optimized out if there is a cancelling move afterwards (e.g: `<<<<<<<<<<<<<<<>>>>>>>>>>>>>>>`)
 * Any pointer moves that don't lead to other operations (at the end of the program) are removed
 
-If you suspect that optimisations are messing with your program,
+If you suspect that optimizations are messing with your program,
 you can disable them with the `-u` flag.

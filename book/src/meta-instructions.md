@@ -12,7 +12,7 @@ To define a meta-instruction you need to use the second and only other field oth
 which is the `[@META arg1 arg2]` field.
 A basm source file can have zero or more meta-instructions fields present in a file before the `[main]` one.
 This field allows you to create a meta instruction of the name `META` with the arguments following it,
-in the case of the example they would be two numeric arguements named `arg1` and `arg2`.
+in the case of the example they would be two numeric arguments named `arg1` and `arg2`.
 
 Once defined a meta-instruction can be used anywhere a normal built-in instruction can,
 even in other meta-instruction bodies (excluding those who came before and itself of course).
@@ -23,17 +23,17 @@ Meta-instructions can take zero or more arguments of numeric or scope type.
 To specify the arguments you want your meta-instruction to take in,
 you simply write they names (identifiers) in the field header:
 
-* `[@META]`: would take no arguements
+* `[@META]`: would take no arguments
 * `[@META arg1 arg2]`: would take two numeric arguments
 * `[@META arg1 [scope]]`: would take one numeric argument followed by a scope argument
 
-Basm will automatically create aliases named after the arguments which are binded to the arguments passed in by the caller.
+Basm will automatically create aliases named after the arguments which are bound to the arguments passed in by the caller.
 This means that you can refer to `arg1` like any other numeric alias in the scope of `[@META arg1]`.
 
 ## Naming
 
-Meta-instructions cannot share the name of other instructions, must they be built-in's or user defined meta-instrutions.
-Also, quick aside, while I prefer to keep the 4 capital leters naming convention for instruction names,
+Meta-instructions cannot share the name of other instructions, must they be built-in's or user defined meta-instructions.
+Also, quick aside, while I prefer to keep the 4 capital letters naming convention for instruction names,
 names abide by the same restrictions as aliases and are thus not limited to 4 capital letters or less.
 
 ## Examples
@@ -41,7 +41,7 @@ names abide by the same restrictions as aliases and are thus not limited to 4 ca
 Meta-instructions are very practical to remove boilerplate.
 Since I decided to greatly reduce the amount of built-in instructions,
 you will probably need some to define some quality of life instructions.
-Thankfully, doing so is both easy on the meta-instruction definition end and in the useage end.
+Thankfully, doing so is both easy on the meta-instruction definition end and in the usage end.
 
 ### `SET`
 
@@ -83,7 +83,7 @@ As you can see, using meta-instruction saves you time and brain!
 
 ### `COPC` (Copy Conservatively)
 
-It would have been useful in the fibonacci program that we just wrote if we could have copied the value of `Ab`
+It would have been useful in the Fibonacci program that we just wrote if we could have copied the value of `Ab`
 to `Ac` without having to explicitly use a temporary `Atmp`, right? We can made an instruction for that!
 This meta-instruction is called `COPC` for "copy conservatively".
 In this context, being conservative means that this instruction does not consume its inputs,
@@ -111,19 +111,19 @@ In the context of basm, allocating a cell is synonymous to "reserving for a cell
 This is why`Atmp`is defined from`sp`. We know that cell including and after `sp` are free to use.
 
 I personally like to always have an alias named `sp`, which increment as I allocate more cells, in all scopes.
-When I want to allocate a new cells, I create an alias for the address of all cells and then increase `sp` by each cell I've alocated.
+When I want to allocate a new cells, I create an alias for the address of all cells and then increase `sp` by each cell I've allocated.
 In the example above, this logic comes in. I create 1 alias for a temporary cell named `Atmp` and then increase `sp` by 1.
 
 The `sp` alias also benefits greatly from alias lifetimes.
 When you increase the value of `sp` what you really do is create a new copy of `sp` that shadows the last one.
 This means that when you are done with a specific operation and the scope ends, `sp` will decrease naturally.
-This practially *frees* the cells that were allocated in the scope!
+This practically *frees* the cells that were allocated in the scope!
 
 Using `sp` is especially useful in the `[main]` scope where you want to keep track of where you have not allocated yet.
 Allocating based on the stack pointer also allows you to seamlessly add a cell without having to offset all later
-cell pointers by one (like we had to do in the fibonacci example).
+cell pointers by one (like we had to do in the Fibonacci example).
 
-Here is what fibonacci would look like with `COPC` and the `sp` system:
+Here is what Fibonacci would look like with `COPC` and the `sp` system:
 
 ```basm
 [@COPC Asrc Adst sp] [
@@ -167,8 +167,8 @@ OUT Aa;
 
 ### TWIC (Twice)
 
-There aren't many interesting examples of using scopes as arugments
-other than trying to make conditional execution, so I wanted to give an little simple example here before actually getting into conditinals,
+There aren't many interesting examples of using scopes as arguments
+other than trying to make conditional execution, so I wanted to give an little simple example here before actually getting into conditionals,
 because those are a bit complicated.
 `TWIC` is a instruction that takes a scope and inlines it twice, causing it to execute twice.
 
@@ -179,4 +179,4 @@ INLN [scope];
 ]
 ```
 
-I mean, I have a whole chapter written about using scope as arguments for conditinals, and it's the next one... so let's read it!
+I mean, I have a whole chapter written about using scope as arguments for conditionals, and it's the next one... so let's read it!

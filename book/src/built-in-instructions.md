@@ -1,6 +1,6 @@
 # In-built Instructions
 
-Any basm source file start with some predefined instructions called called in-built's.
+Any basm source file start with some predefined instructions called called in-built.
 These instructions are valid wherever and whenever.
 Basm has very reduced set of in-built instructions for simplicity.
 This means that any instruction that could be easily reproduced by combining
@@ -56,7 +56,7 @@ You can find this table of instructions in the reference section of this book.
 Seeing this chart you might be a little confused due to how arguments in the `Arguments` column are formatted.
 *If confusion lasts for more than eight hours contact a doctor (or continue reading)*.
 
-Of course, there is a reason why arguments are denoted diffently, it's because they don't have the same expected type!
+Of course, there is a reason why arguments are denoted differently, it's because they don't have the same expected type!
 Each value in basm source code is typed and totally static,
 meaning that values within the source code can't get mutated at runtime.
 Only the value of cells in the tape can be mutated during execution.
@@ -69,7 +69,7 @@ Basm has 3 types for its source code values being:
 * `string` denoted by being surrounded with `".."`
 
 Instructions statements will only take arguments with types corresponding to the instruction's arguments' types.
-You cannot pass in a string where a number is expected, types will not coherce.
+You cannot pass in a string where a number is expected, types will not coerce.
 Instructions in the built-in set have arguments which are ordered by their type and meaning.
 The way I like to order them follows this little diagram:
 
@@ -121,9 +121,9 @@ OUT 0;
 The way expressions are built is that they take a "base" value and then a "modifier".
 It merges the two values (the base and modifier value) into one expression and repeats.
 Currently, modifiers have two types which are implemented.
-Those being addition and substraction which are indentified via `+` and `-` respectively.
+Those being addition and subtraction which are identified via `+` and `-` respectively.
 
-Basm uses left to right priority. If more modifier types where to be added, pemdas would not be respected.
+Basm uses left to right priority. If more modifier types where to be added, PEMDAS would not be respected.
 Now, what's nice about only having plus and minus is that left to right is already valid priority for them!
 The example above with explicit priority would look like this:
 *(this is not valid basm syntax)*
@@ -134,7 +134,7 @@ The example above with explicit priority would look like this:
 
 #### The Difference Between Address Numbers and Pure Numbers
 
-You may have noticed that I seperate numbers into two "sub-types" based on their meaning.
+You may have noticed that I separate numbers into two "sub-types" based on their meaning.
 There are "address numbers" which are numeric values which represent addresses to cells and
 there are "pure numbers" which are numeric values which represent numeric values used for operations.
 Nothing stops you from using address numbers where pure numbers belong. This is also true the other way around.
@@ -179,7 +179,7 @@ RAW "this will be included in the transpiled file!
 
 Noticed how I needed to actually include a newline character
 in the source file for the string to contain it?
-This is because basm does not contain escapeable characters like `\n` as of now.
+This is because basm does not contain escapable characters like `\n` as of now.
 *It also means that you can't write a string containing `"` (or a character literal with `'`).
 That's because the lexer, in the state it currently is,
 would freak out if I ever tried to implement escaped characters.
@@ -191,22 +191,22 @@ All instructions both the ones you make and the ones which are built-in will hol
 
 In basm, instructions "consume" the values of the source cells unless otherwise noted.
 "consuming", in this context, means that the cell is set to 0.
-For example, when we add two numbers toghter using `ADDP`, the second cell, which is not an output,
-will inadventenly be zeroed due to the operation we made on it.
+For example, when we add two numbers together using `ADDP`, the second cell, which is not an output,
+will inadvertently be zeroed due to the operation we made on it.
 Cells which hold the result of operations are of course not zeroed.
 
-Appart from that, instructions also assume that address arguments don't have the same value (aka "alias", but that word has another meaning in basm).
+Apart from that, instructions also assume that address arguments don't have the same value (aka "alias", but that word has another meaning in basm).
 An instruction statement passed in with two of the same addresses have unspecified behaviour.
 Most often, this ends up locking the program in an endless loop,
-although it can also cause other undesireable behaviour.
+although it can also cause other undesirable behaviour.
 
 Lastly, notably, instructions assume that the values of the cells at output addresses are 0.
 If that condition is not met, an instruction which *"sets a cell to a value"* would rather *"increment a cell by that value"*.
 
 ## Notable Instructions
 
-Now that you know a bit more about what constitues an instruction, let's look at some notable
-instructions which may not be immediatly intuitive just by reading their description.
+Now that you know a bit more about what constitutes an instruction, let's look at some notable
+instructions which may not be immediately intuitive just by reading their description.
 
 ### WHNE (While Not Equal)
 
@@ -220,7 +220,7 @@ instructions which may not be immediatly intuitive just by reading their descrip
 | scope | scope  | code to be executed in loop while the condition is not resolved |
 
 This instruction is vital, not only for writing good software in basm,
-but for writing any software that can be considered turing-complete in general.
+but for writing any software that can be considered Turing-complete in general.
 `WHNE` is the only source of conditional execution and looping
 included within the whole pool of built-in instructions (excluding `RAW`, because it's weird).
 Thus, all sources of conditionality need to be derive from this.
@@ -233,7 +233,7 @@ As the name implies the behaviour is to:
 3. Return to step 1
 
 Unlike most other operations WHNE does not consume the value of the cell it checks, meaning you don't have
-to reinitialise the cell after each check.
+to reinitialize the cell after each check.
 
 **Example:** The fact that the cell is not consumed makes it easy to create something like a counter
 
@@ -257,7 +257,7 @@ WHNE 0 100 [
 | addr3 | number | address of a cell receiving a copy of the cell`addr1`                                       |
 
 `COPY` is a *weird* one which is needed because of the *weird* nature of the *weird* language which is bf *(weirdly)*.
-There is no way to add two numbers togheter without one disappearing into the void, never to be seen again.
+There is no way to add two numbers together without one disappearing into the void, never to be seen again.
 This is why we require `COPY`.
 If we want operate on a value and still have a copy of it afterwards we will need to have the value twice.
 Once to use for the operation and the other to keep it alive.
@@ -279,7 +279,7 @@ WHNE 0 0 [
 ```
 
 *Now, most basm professionals don't want you to know this... but it's acceptable for the two output addresses of `COPY` to be the same.*
-Doing so will copy the value of the cell twice in the same place, practically doubleing it.
+Doing so will copy the value of the cell twice in the same place, practically doubling it.
 Although I know it is safe in this circumstance to have two address arguments with the same value due to the fact that *I kinda made the language*,
 this is not a safe bet to take on *ANY OTHER* instruction! (pretty cool though)
 
@@ -311,7 +311,7 @@ INCR 0 42;
 
 // reminder that we can't copy to 0 directly as that would make two pointers alias,
 // which in turn would cause an infinite loop
-// (no, the doubleing trick with COPY was not about that)
+// (no, the doubling trick with COPY was not about that)
 COPY 0 1 2;
 
 // we "move" 2 -> 0
@@ -328,7 +328,7 @@ ADDP 0 2;
 | str  | string | a string to be included in the transpiled code at the appropriate location |
 
 `RAW` is a bit of a special case in that it can do the job of all the other instructions.
-If I truely wanted to reduce the instruction set to the maximum there would be one instruction
+If I truly wanted to reduce the instruction set to the maximum there would be one instruction
 and it would be this.
 
 Now, including a string in the compiled output does not seem like it would be able to do much at first.
@@ -337,17 +337,17 @@ But that's not the main attraction of `RAW`. The real reason it is of interest i
 smuggle **ANY** string into the compiled file.
 This means that it is possible to include operators like `+`, `-`, `>`, `<`, `[`, `]`, `,` and `.`
 allowing us to insert raw bf code directly in our basm source file.
-With this, we can havest the full power (it being rather small still) of bf.
+With this, we can harvest the full power (it being rather small still) of bf.
 This comes with one downside, tape pointer movement, which is usually completely handled by the compiler,
 and unmatched brackets are not checked within strings passed to `RAW`.
 An unmatched bracket will probably just match with a totally unrelated one, messing up jumps made by `WHNE`
-and messing with tape pointer position **unitentionally** is **BAD**.
+and messing with tape pointer position **unintentionally** is **BAD**.
 I won't go into much details why it is, but simply put, the compiler needs to know were the pointer is at all times
 (unless you plan for it, we'll see that in the relative-code chapter).
 Just writing `RAW ">";` is enough to completely mess up your program by effectively offsetting all the cells by 1.
 
-With `RAW "">";`, we can write dynamic code to our heart content without being limited by basm's static memory adressing.
-The art of writing basm a program capable of harnessing the power of dynamic memory adressing
+With `RAW "">";`, we can write dynamic code to our heart content without being limited by basm's static memory addresssing.
+The art of writing basm a program capable of harnessing the power of dynamic memory addresssing
 is one hard to come by these days,
 but in time (reading the chapter on relative code) you shall learn how to master it.
 
@@ -360,7 +360,7 @@ RAW "my hello world program:
 RAW "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.";
 ```
 
-Which will give us exacly this output, as expected:
+Which will give us exactly this output, as expected:
 
 ```bf
 my hello world program:

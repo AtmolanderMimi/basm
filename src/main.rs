@@ -50,8 +50,8 @@ fn main() {
     };
 
     let optimise = match &cli {
-        CliCommand::Compile(args) => !args.unoptimised,
-        CliCommand::Run(args) => !args.unoptimised,
+        CliCommand::Compile(args) => !args.unoptimized,
+        CliCommand::Run(args) => !args.unoptimized,
     };
 
     if optimise {

@@ -59,9 +59,9 @@ pub struct RunArgs {
     #[arg(long, short = 'p', default_value_t = false)]
     pub show: bool,
 
-    /// Skips the use of the inbuilt brainfuck optimiser
+    /// Skips the use of the inbuilt brainfuck optimizer
     #[arg(long, short = 'u', default_value_t = false)]
-    pub unoptimised: bool,
+    pub unoptimized: bool,
 
     /// Dump the tape and tape pointer position to terminal once the program ends
     /// (includes by erroring out)
@@ -151,7 +151,7 @@ pub struct CompileArgs {
     #[arg(long, short = 'p', default_value_t = false)]
     pub show: bool,
 
-    /// Skips the use of the inbuilt brainfuck optimiser
+    /// Skips the use of the inbuilt brainfuck optimizer
     #[arg(long, short = 'u', default_value_t = false)]
-    pub unoptimised: bool,
+    pub unoptimized: bool,
 }

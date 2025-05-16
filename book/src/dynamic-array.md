@@ -1,10 +1,10 @@
 # Dynamically Indexing
 
-We are now here, all the content chapters are after us and we are on the last strech to making
-the final project, being a bf intepreter written in basm.
+We are now here, all the content chapters are after us and we are on the last stretch to making
+the final project, being a bf interpreter written in basm.
 But, before being able to go into that directly, I'd like to isolate a part of that bigger program
 and built it from scratch prior.
-To make a bf interpreter we will need a dyamically indexable array.
+To make a bf interpreter we will need a dynamically indexable array.
 
 ## Parking
 
@@ -13,7 +13,7 @@ While it would be possible to index any array dynamically without changing its l
 for the sake of conciseness, we will need to modify the layout of a basic array somewhat to allow
 for our dynamic get/set operations.
 To hold meta-instruction specific logic we'll reserve a little amount of memory before the actual array content.
-That memory region in the array is called the "paking".
+That memory region in the array is called the "parking".
 
 Since we are going to use a flyer to move through the array,
 we need somewhere to create it before it starts moving.
@@ -195,11 +195,11 @@ If we use the `-d` flag to dump the memory after execution we can see the progra
 Good news, the cell containing 4 was successfully increased to 5!
 Bad news, we can see the effects of the array shift: every element before the one we operated on got
 offset by 2.
-Notably, you can also see the parking (cells 1 to 4) has been partially overwriten by the shifted elements
+Notably, you can also see the parking (cells 1 to 4) has been partially overwritten by the shifted elements
 of the array and the cells 6 and 7, being those of our flyer, being completely zeroed as expected.
 
 Don't expect to write these kind of meta-instruction right on the first try,
-there is always going to be little typos and unforseen behaviour!
+there is always going to be little typos and unforeseen behaviour!
 Myself, while writing this example, had made many typos and oversights on the first try.
 
 ### Back to `GETD`
@@ -207,7 +207,7 @@ Myself, while writing this example, had made many typos and oversights on the fi
 Alright, enough dilly dallying now! Let's get to actually implementing `GETD` with what we have learnt.
 
 The first notable difference of `GETD` from what we just wrote is the memory layout,
-we already saw what we needed extencively in the [layout section](#flyer-layout).
+we already saw what we needed extensively in the [layout section](#flyer-layout).
 Just keep in mind that our parking layout should look like this:
 
 ```text
@@ -277,7 +277,7 @@ WHNE Areturn 0 [
     ADDP Acell-1 Acell;
 
     // step 4
-    // we inversed BBOX and ASUM values so we can go back
+    // we inverted BBOX and ASUM values so we can go back
     BBOX 0;
     ASUM 1;
 
@@ -337,7 +337,7 @@ The interesting (and annoying) part of the `ADDD` glider, is that rather than ca
 on the return trip, we do it on the going trip.
 This means we can't take advantage of the index being zeroed in the return trip to store the cell value where index stood.
 So, sadly, this requires us to make the flyer have **3 reserved data cells** at the start
-(plus the swap, maxxing out our 4 spots of parking).
+(plus the swap, maxing out our 4 spots of parking).
 
 A diagram of our flyer would look like so:
 
@@ -359,7 +359,7 @@ It's going to be important to keep the `[empty]` cells empty, so that we properl
 The only notable difference between the two being that the flyer has 3 data cells, and that rather
 than taking a cell, it gives one of its cells.
 Other than that, you can probably take `GETD` and make an `ADDD` out of it with ease
-like we made `GETD` from our knowlege of `INCD`
+like we made `GETD` from our knowledge of `INCD`
 (despite being similar in name,
 `ADDD` is very different from our arguably incomplete `INCD` implementation).
 
@@ -448,7 +448,7 @@ ADDD Aarray Aindex Acell;
 ]
 ```
 
-.. would expectedly give use this result:
+.. would expectedly give us this result:
 
 ```txt
 -- TAPE STATE NUMERIC --
@@ -469,16 +469,16 @@ ADDD Aarray Aindex Acell;
 With that out of the way, we are ready to tackle the last chapter of this book!
 In the next chapter, we will use what we just wrote to handle the
 memory tape array and instruction array reading/setting of our bf interpreter.
-So, don't throw away these meta-instrutions just yet!
+So, don't throw away these meta-instructions just yet!
 
 ## Note
 
 These dynamic get/set implementation can probably be improved by you!
 Due to the nature of flyers (specifically moving the front element to the back swap),
-using long arrays/a lot of dynamic array adressing is not good for performance.
+using long arrays/a lot of dynamic array addresing is not good for performance.
 If you can implement something while forgoing using these `GETD`/`ADDP`, prefer the unglided way.
 
 Furthermore, there is a way to make dynamic indexing for regular arrays without parking.
 This would require to move some cells out of the way to create a temporary parking and then set them back after the instruction is done.
-The isssue with this, and why this is not the version used here, is because it is a bit more complex.
+The issue with this, and why this is not the version used here, is because it is a bit more complex.
 You need to check wether the index refers to one of the cells that you are going to move away for example.

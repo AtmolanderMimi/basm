@@ -1,6 +1,6 @@
-number# Writing Relative Code
+# Writing Relative Code
 
-Onto the last remaining chip of knowlege that basm requires: Harvesting the Power of Relative Code!
+Onto the last remaining chip of knowledge that basm requires: Harvesting the Power of Relative Code!
 Remember at the very start of this book, where I said that every memory access is static unless otherwise stated?
 Well, this chapter is about stating you don't want static accessing and would much prefer write relative logic.
 Sometimes static addressing is either less efficient, harder or simply impossible to use for certain problems.
@@ -14,10 +14,10 @@ it will refer to a cell relative to a dynamic point.
 In most cases, that "relative point" is simply where your tape pointer is at a given moment.
 
 Now, by default basm moves your tape pointer automatically in order to access specific addresses.
-Basm won't lose track of where the tape pointer is unless you explcitly tell it to do so.
+Basm won't lose track of where the tape pointer is unless you explicitly tell it to do so.
 When you ask to operate on a cell, basm will have remembered where the tape pointer currently is, and it will then try to move the tape pointer by the delta between the current position and the desired position.
-The tape pointer position that is remembered by the compiler is also known as the *assumed* tape pointer possition,
-as it can get temporarly invalidated when working with relative code.
+The tape pointer position that is remembered by the compiler is also known as the *assumed* tape pointer position,
+as it can get temporarily invalidated when working with relative code.
 For example, if we have the tape pointer at position `3` and ask to reach cell `5`, basm will automatically insert `>>`.
 There are three instruction made specifically for dealing with the tape pointer
 and be able to write relative code from it.
@@ -32,7 +32,7 @@ and be able to write relative code from it.
 | addr | number | the address for the tape pointer to be moved to |
 
 `BBOX` is probably the most simple instruction in the whole set of built-in ones.
-Its one and only purpose is to guarenty the position of the tape pointer at a certain point in the program.
+Its one and only purpose is to guaranty the position of the tape pointer at a certain point in the program.
 All it does it move the tape pointer to `addr` and does *nothing*.
 This behaviour is very useful for other instruction that work off of the assumption that the tape pointer is positioned
 at a certain cell.
@@ -44,7 +44,7 @@ at a certain cell.
 
 | Name | Type   | Description                                             |
 | ------ | -------- | --------------------------------------------------------- |
-| addr | number | the address overiting the assumed tape pointer position |
+| addr | number | the address overwriting the assumed tape pointer position |
 
 This instruction is tightly integrated with the compiler.
 What it does is that it overwrites the assumed tape pointer position with the specified `addr`.
@@ -132,4 +132,4 @@ As thus, writing `RAW ">";` has the same effect using `BBOX 1; ASUM 0;` like bef
 You have access to the whole of bf, which means that you can very easily cause offsets and write flyers.
 While I prefer using the more basm'ic solution, `RAW` is a valid solution for your relative programming needs.
 
-Next chapter will focus on applying relative knowlege to create a dynamically indexable array.
+Next chapter will focus on applying relative knowledge to create a dynamically indexable array.

@@ -1,8 +1,8 @@
 # Creating Custom Conditionals
 
-When we have one type of conditinal execution in a language, we can derive all the other types from it.
+When we have one type of conditional execution in a language, we can derive all the other types from it.
 Same for looping, if we have a looping element we can make any looping element.
-In the case of basm, that any conditional/looping element is `WHNE` which we can derive all conditinals and loops we desire from.
+In the case of basm, that any conditional/looping element is `WHNE` which we can derive all conditionals and loops we desire from.
 In this chapter, we're going to first implement `IFNE` (If Not Equal), then from it `IFEQ` (If Equal).
 
 First off, to make these meta-instruction conditionals we need to think of their arguments.
@@ -17,13 +17,13 @@ So, the argument table for all of our conditionals should look like this:
 | ------- | --------- | ---------------------------------- |
 | addr  | number | address of cell compared to`val` |
 | val   | number | value compared to cell at`addr`  |
-| [scp] | scope   | code to be conditinally executed |
+| [scp] | scope   | code to be conditionally executed |
 | sp    | number | address to the next free cell    |
 
 ## IFNE (If Not Equal)
 
-`IFNE` is the easiest conditinal to define if we consider that right now we only have `WHNE`.
-When you think about it, an if statement is simply a conditinal loop that loops once.
+`IFNE` is the easiest conditional to define if we consider that right now we only have `WHNE`.
+When you think about it, an if statement is simply a conditional loop that loops once.
 With that in mind, we'll want to purposefully make `WHNE` loop once while also keeping its comparason ability.
 
 Here is how I would go about implementing a one iteration `WHNE` loop:
@@ -52,7 +52,7 @@ which does not expect`IFNE` to allocate cells while it is running.
 The specifics of what I just said are important, we don't want non-zero allocated cells.
 What this means, is that we can allocate cells, but when we inline the scope argument, all of our cells should be zero.
 If all our cells are zero, it is as if, to the inlined scope, that there are no allocated cells.
-Allocation is only a concept, what matters is wheter the cells are zero or not when the scope is inlined.
+Allocation is only a concept, what matters is whether the cells are zero or not when the scope is inlined.
 This notion is important as it will allow the caller to use the same `sp` both in the scope and in the `IFNE` argument.
 If `IFNE` required a cell to be allocated when inlining the scope, then all the mentions of `sp` in the scope should be increased by 1.
 
@@ -141,7 +141,7 @@ this implementation will make use of a flag representing wheter or not `IFNE` wa
 ]
 ```
 
-Once again I encurage you to test it:
+Once again I encourage you to test it:
 
 ```basm
 // .. IFEQ and IFNE definition here

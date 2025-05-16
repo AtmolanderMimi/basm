@@ -6,4 +6,4 @@ Here is a list of keywords specific to basm and their meaning.
 * `address number`: a value of numeric type in the basm source code file, which represents the **address of a cell**. 
 * `pure number`: a value of numeric type in the basm source code file, which represents **a number**. 
 * `static`: an access to memory which the address is known to the compiler at compile time. It does not vary over executions.
-* `inlining`: expanding the code refered to in the caller's body, all meta-instructions inline in basm.
+* `inlining`: expanding the code referred to in the caller's body, all meta-instructions inline in basm.

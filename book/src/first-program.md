@@ -20,13 +20,13 @@ This source code file, once transpiled through the `basm` cli would compile down
 [-]+++++++++++++++++++++++++++++++++.[-]
 ```
 
-This program usues cell 0 as a buffer to increment and output each character in the string `"Hello, world!"` consecutively.
+This program uses cell 0 as a buffer to increment and output each character in the string `"Hello, world!"` consecutively.
 Quite simple isn't it? *(compared to the bf at least)*
 
 Let's start dissecting what it all means.
 First, we begin at the top with the `[main]` decorator which indicates that the following
 scope will be a main field. There can only be one main field per program, and by the name you
-have probably already guessed what it is. It's the entrypoint of our program! Any instruction put inside the scope of the `[main]` field will be transpiled and then executed at runtime. In this example, the main field only held one instruction, which is `PSTR 0 "Hello, world!"`.
+have probably already guessed what it is. It's the entry point of our program! Any instruction put inside the scope of the `[main]` field will be transpiled and then executed at runtime. In this example, the main field only held one instruction, which is `PSTR 0 "Hello, world!"`.
 
 ## Instructions Statement
 
@@ -43,10 +43,10 @@ INSTRUCTION_NAME arg1 arg2 .. ;
 ```
 
 `INSTRUCTION_NAME` is the name of the instruction.
-An instruction's name is not required to be fully capitalised,
+An instruction's name is not required to be fully capitalized,
 although it is the standard that I am going to use.
 `arg1` and `arg2` are the arguments to the instruction.
-Arguments are seperated by whitespaces (don't put commas!).
+Arguments are separated by whitespaces (don't put commas!).
 To end an instruction we need to put a semicolon, and we are done here.
 In the case of the `PSTR` instruction above:
 
@@ -101,7 +101,7 @@ INCR 0 42;
 ]
 ```
 
-Scope staments (for inlining) and scope expressions (for instruction arguments) are written exactly the same.
+Scope statements (for inlining) and scope expressions (for instruction arguments) are written exactly the same.
 Their expression-*ness* is dependent on context.
 When in a scope, a scope is parsed as a statement. Whereas, when in an instruction argument (which is most of the time), a scope is an expression.
 

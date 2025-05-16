@@ -171,12 +171,12 @@ In memory the sections should look like this:
 [operation][instruction][tape]
 ```
 
-The tape array will be allowed to grow infinitly, as there is no ranges of allocated allocated cells after it.
-This is unlike the instruction array, which is stuck inbetween the operation and tape array,
+The tape array will be allowed to grow infinitely, as there is no ranges of allocated allocated cells after it.
+This is unlike the instruction array, which is stuck in-between the operation and tape array,
 meaning that we will need to reserve it a static size so that it does not overwrite the tape array's cells.
-Since we can't expand infinitly before the 0'th cell, as using cells before the 0'th is invalid bf
+Since we can't expand infinitely before the 0'th cell, as using cells before the 0'th is invalid bf
 (not the one we are going to interpret, but the one our program is made of),
-we cannot grow infinitly backwards, only forwards.
+we cannot grow infinitely backwards, only forwards.
 
 ## Taking User Input
 
@@ -212,7 +212,7 @@ To address these issues, we will discard all non-operators characters
 and we will map all operators to the lowest values possible.
 We can also use 0 to denote the start/end of the array contents.
 Since all cells are zero by default, we won't need to add 0's manually, which is quite nifty.
-(You could also store the array lenght to know when you reach the end of the contents,
+(You could also store the array length to know when you reach the end of the contents,
 but that will not be possible with our implementation)
 Here is the mapping:
 
@@ -239,11 +239,11 @@ So we are going to work around having to use them by making a dedicated instruct
 ### Writing The Flyer
 
 Instead of having a flyer go out for each operator through the use of `ADDD`,
-we can simply write a specilized flyer to fill the array.
+we can simply write a specialized flyer to fill the array.
 This input flyer will be able to take advantage of the context to have zero cells of state!
 That's right, we don't care about where we are or where we are going, so no index needed.
 Furthermore, since the array it will be constructing does not contain arbitrary data,
-we can guarenty that certain values will not show up (like 0).
+we can guaranty that certain values will not show up (like 0).
 So, we can return without having to store a return cell.
 For the return, we will look for 0, which is not mapped to any instructions,
 but is present in the parking.
@@ -356,9 +356,9 @@ It's more like operation memory than state, since we won't carry that flag along
 
 We also, despite having a flyer, use `sp`.
 We can safely do this as we can assume that the un-visited parts of the array are still zeroed.
-Also, our input safely overwites the flag when getting user input,
-meaning that our code will always comsume our flag, leaving no trash on the array.
-Once again, taking advantage of safe array assumptions saves us from using `ADDD`/`GETD` which operate on no assumtion and are much less efficient.
+Also, our input safely overwrites the flag when getting user input,
+meaning that our code will always consume our flag, leaving no trash on the array.
+Once again, taking advantage of safe array assumptions saves us from using `ADDD`/`GETD` which operate on no assumption and are much less efficient.
 
 ## Memory Layout in `[main]`
 
@@ -409,7 +409,7 @@ Since we can't edit cells directly in their array, we need to keep them in a sta
 
 This alias defines the start of the program array (at its parking).
 The way it is defined is that it comes straight after the operating memory segment,
-meaning that its address can be defined as the lenght of the operating memory segment!
+meaning that its address can be defined as the length of the operating memory segment!
 That means that the starting position of the instruction array is relative to the end of the reserved operation cells range.
 This would cause an off by 1 error if basm started indexing cells from 1, but it indexes from 0,
 so we are good!
@@ -427,7 +427,7 @@ but beware you will also need to use cells of more than 8 bits to be able to ind
 
 All that I specified about `Aprog` applies to `Amem`.
 The value is the start of the array (at its parking).
-While the memory array is technically not limited by memory, since it cannot ovewrite other memory,
+While the memory array is technically not limited by memory, since it cannot overwrite other memory,
 it is still practically limited by the (un)efficiency of indexing
 and the maximum value storable in the cells, limiting the number of indexable cells.
 
@@ -444,7 +444,7 @@ You are probably going to understand it better when you'll see the code managing
 
 ## Writing `[main]` Logic
 
-The bread and butter of our logic is of couse going to be a loop.
+The bread and butter of our logic is of course going to be a loop.
 We'll loop over every operator in the program until we reach the end,
 applying the effects of them as we go.
 To be more precise here's the broken down version of what the loop does:
@@ -459,7 +459,7 @@ This is because it would be incredibly wasteful to get and set the cell in the t
 since the cell mostly remains over operators.
 Only `>` and `<` change the cell index, we will set and get a new cell only when these operators appear.
 Think about interpreting the very common pattern `+++`.
-If we were to get the cell, increase it by one and then put it back 3 times performance would be horrendus!
+If we were to get the cell, increase it by one and then put it back 3 times performance would be horrendous!
 So, to combat this, `Acell` functions more like a cell "cache" then its `Aoperator` counterpart.
 We only get/set the memory cell when moving the tape pointer with `>` and `<`.
 
@@ -563,8 +563,8 @@ WHNE Aflag Vexit [
 
 With that that's *seemingly* most of the bf interpreter done already!
 (with the exception of `[` and `]`)
-You can take it easy from here we're already on the final strech.
-With this stipped down bf interpreter, we don't have access to looping or conditionals, but we have enough to print some basic characters.
+You can take it easy from here we're already on the final stretch.
+With this stripped down bf interpreter, we don't have access to looping or conditionals, but we have enough to print some basic characters.
 Try the following code: (don't forget to use `!` to end program input!)
 
 ```bf
@@ -585,7 +585,7 @@ we follow this procedure to find the index of the opposing matching bracket:
 
 1. Initiate a counter at 1
 2. Initiate a search pointer at the current program pointer
-3. Add/Substract the search pointer by 1
+3. Add/Subtract the search pointer by 1
 4. Get the operator at the search pointer
 5. If the operator is a bracket and it is the **same as the original, add 1** to the counter.
    Else, if the operator is a bracket and the **bracket is opposite, remove 1** to the counter
@@ -709,14 +709,14 @@ Try it out with this fancier "Hello Word!" example:
 
 You now own a bf interpreter, problem: *it's slooooooooow...*
 I highly encourage you to keep on working on this code
-to get a better handle on the logic that goes beind it.
+to get a better handle on the logic that goes behind it.
 You can probably improve your knowledge of the language overall just by reviewing the interpreter.
-In implementing tweaks, you will find your own perfered way to approach writing basm code
+In implementing tweaks, you will find your own preferred way to approach writing basm code
 and find how you typically make mistakes. Making mistakes is part of learning, don't forget that!
 
 The bf interpreter may have seemed like an easy project
 if you just copied and pasted the code provided in this book, but let me tell you **it isn't!**
-Myself, despite having already written an extemely similar interpreter in basm and despite basm being a language I created,
+Myself, despite having already written an extremely similar interpreter in basm and despite basm being a language I created,
 has struggled with many bugs which were not mentioned in this book for brevity *and also for my ego a little*.
 For example, as I was rewriting every meta-instruction from scratch for the book,
 I made a mistake in the original `IFEQ` definition. I forgot to zero the flag.
@@ -732,18 +732,18 @@ but I can point out areas that you can thinker with if you crave performance.
 ### Bulking Operators
 
 Adjacent operators of the same type can be merged into one single 2 cell wide item on the program array.
-For example, you could lay bulked operator on the array with this layout: `[operator][reccurence]`.
+For example, you could lay bulked operator on the array with this layout: `[operator][recurrence]`.
 So, `[+][+][+][+]` could be represented as `[+][4]` saving both space and the time to get those cells.
 (Saving space also comes with saving time, as the bigger the array is, the longer it will take to index)
 
-You could also store the precomputed index of the matching partner for brackets instead of reccurence.
+You could also store the precomputed index of the matching partner for brackets instead of recurrence.
 That would save iterating over the program array every time a bracket jumps.
 
 While at storing items of two cells wide in an indexable array,
 you could also implement indexable arrays of 2 cell big elements.
 Firstly, that would save you having to do two gets/sets for each element.
 Secondly, you could index by element rather than by cell,
-increasing the lenght of programs that can be stored with 8 bit cells.
+increasing the length of programs that can be stored with 8 bit cells.
 
 ### Flipping The Program Array
 
@@ -756,7 +756,7 @@ Currently memory is layed-out as such:
 This is perfectly fine if you don't care what the transpiled bf looks like.
 If you do care about what the compiled bf looks like you should be worried.
 
-The compiled basm (with optimisation) looks like this:
+The compiled basm (with optimization) looks like this:
 
 ```bf
 >>>>>>>>>>>>>>>>>>>>>--[++<,[->>>+>+<<<<]>>>>[-<<<<+>>>>]<-------------------------------------------[[-]<+>][-]<[->+>+<<]>>[-<<+>>]<-[[-]<<+<[-]+>>>][-]---------------------------------------------<[-]<<[->>>+>+<<<<]>>>>[-<<<<+>>>>]<[[-]<+>][-]<[->+>+<<]>>[-<<+>>]<-[[-]<<+<[-]++>>>][-]--------------------------------------------------------------<[-]<<[->>>+>+<<<<]>>>>[-<<<<+>>>>]<[[-]<+>][-]<[->+>+<<]>>[-<<+>>]<-[[-]<<+<[-]+++>>>][-]------------------------------------------------------------<[-]<<[->>>+>+<<<<]>>>>[-<<<<+>>>>]<[[-]<+>][-]<[->+>+<<]>>[-<<+>>]<-[[-]<<+<[-]++++>>>][-]-------------------------------------------------------------------------------------------<[-]<<[->>>+>+<<<<]>>>>[-<<<<+>>>>]<[[-]<+>][-]<[->+>+<<]>>[-<<+>>]<-[[-]<<+<[-]+++++>>>][-]---------------------------------------------------------------------------------------------<[-]<<[->>>+>+<<<<]>>>>[-<<<<+>>>>]<[[-]<+>][-]<[->+>+<<]>>[-<<+>>]<-[[-]<<+<[-]++++++>>>][-]--------------------------------------------<[-]<<[->>>+>+<<<<]>>>>[-<<<<+>>>>]<[[-]<+>][-]<[->+>+<<]>>[-<<+>>]<-[[-]<<+<[-]+++++++>>>][-]----------------------------------------------<[-]<<[->>>+>+<<<<]>>>>[-<<<<+>>>>]<[[-]<+>][-]<[->+>+<<]>>[-<<+>>]<-[[-]<<+<[-]++++++++>>>][-]---------------------------------<[-]<<[->>>+>+<<<<]>>>>[-<<<<+>>>>]<[[-]<+>][-]<[->+>+<<]>>[-<<+>>]<-[[-]<<<[-]>[-]++>>][-]-<[-]<[->>+>+<<<]>>>[-<<<+>>>]<[[-]<+>][-]<[->+>+<<]>>[-<<+>>]<-[[-]<<[-]>>>][-]<[-]<--][-]<<[<]<<<<<<<<<<<<<<<<<-[+<<[->>>>>>+>+<<<<<<<]>>>>>>[->>>>>>>>>>>>>+<<<<<<<<<<<<<]>[-<<<<<<<+>>>>>>>]>>>>>>>>>>>>[->[-<<<+>>>]<[->+<]<+[->+<]>>]>[-<+>]<<[-[-<+>]>[-<+>]<<<[->>>+<<<]>]>[-<<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>>]<<<<<<<<<<<<<<<<[->>>>>+>+<<<<<<]>>>>>>[-<<<<<<+>>>>>>]<-[[-]<+>][-]<[->+>+<<]>>[-<<+>>]<-[[-]<<<<+>>>>][-]--<[-]<<<<[->>>>>+>+<<<<<<]>>>>>>[-<<<<<<+>>>>>>]<[[-]<+>][-]<[->+>+<<]>>[-<<+>>]<-[[-]<<<<->>>>][-]---<[-]<<<<[->>>>>+>+<<<<<<]>>>>>>[-<<<<<<+>>>>>>]<[[-]<+>][-]<[->+>+<<]>>[-<<+>>]<-[[-]<<<<<<<[->>>>>+>+<<<<<<]>>>[->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]>>[->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]>[-<<<<<<+>>>>>>]>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>[->>[-<<<<+>>>>]<[->+<]<[->+<]<+[->+<]>>]>[->+<]<<[-[-<+>]<<[->>>>+<<<<]>]<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<+[->>>>>+>+<<<<<<]>>>>>[->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]>[-<<<<<<+>>>>>>]>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>[->[-<<<+>>>]<[->+<]<+[->+<]>>]>[-<+>]<<[-[-<+>]>[-<+>]<<<[->>>+<<<]>]>[-<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>]<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<][-]----<[-]<<<<[->>>>>+>+<<<<<<]>>>>>>[-<<<<<<+>>>>>>]<[[-]<+>][-]<[->+>+<<]>>[-<<+>>]<-[[-]<<<<<<<[->>>>>+>+<<<<<<]>>>[->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]>>[->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]>[-<<<<<<+>>>>>>]>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>[->>[-<<<<+>>>>]<[->+<]<[->+<]<+[->+<]>>]>[->+<]<<[-[-<+>]<<[->>>>+<<<<]>]<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<-[->>>>>+>+<<<<<<]>>>>>[->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<]>[-<<<<<<+>>>>>>]>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>[->[-<<<+>>>]<[->+<]<+[->+<]>>]>[-<+>]<<[-[-<+>]>[-<+>]<<<[->>>+<<<]>]>[-<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>]<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<][-]<[-]<<<<[->>>>>>>+>+<<<<<<<<]>>>>>>>>[-<<<<<<<<+>>>>>>>>]<-----[[-]<+>][-]<[->+>+<<]>>[-<<+>>]<-[[-]<<<<<<[->>>>>>+>+<<<<<<<]>>>>>>>[-<<<<<<<+>>>>>>>]<[[-]<+>][-]<[->+>+<<]>>[-<<+>>]<-[[-]<<<+<<<<<<<[->>>>>+>>>>+<<<<<<<<<]>>>>>>>>>[-<<<<<<<<<+>>>>>>>>>]<<[<<+[->+>>>+<<<<]>[->>>>>>>>>>>>>+<<<<<<<<<<<<<]>>>[-<<<<+>>>>]>>>>>>>>>>[->[-<<<+>>>]<[->+<]<+[->+<]>>]>[-<+>]<<[-[-<+>]>[-<+>]<<<[->>>+<<<]>]>[-<<<<<<<<<<<+>>>>>>>>>>>]<<<<<<<<<<<[->>+>+<<<]>>>[-<<<+>>>]<-----[[-]<+>][-]<[->+>+<<]>>[-<<+>>]<-[[-]<<<+>>>][-]------<[-]<[->>+>+<<<]>>>[-<<<+>>>]<[[-]<+>][-]<[->+>+<<]>>[-<<+>>]<-[[-]<<<->>>][-]<[-]<[->>>>>>>>>>>+<<<<<<<<<<<]<<<[->+>>>+<<<<]>[->>>>>>>>>>>>+<<<<<<<<<<<<]>>>[-<<<<+>>>>]>>>>>>>>>[->>[-<<<<+>>>>]<[->+<]<[->+<]<+[->+<]>>]>[->+<]<<[-[-<+>]<<[->>>>+<<<<]>]<<<<<<<<<<]<<<<<++>>>>>>>>][-]<[-]>][-]<[-]<<<<<<[->>>>>>>>>+>+<<<<<<<<<<]>>>>>>>>>>[-<<<<<<<<<<+>>>>>>>>>>]<------[[-]<+>][-]<[->+>+<<]>>[-<<+>>]<-[[-]<<<<<<<<[->>>>>>>+>+<<<<<<<<]>>>>>>>>[-<<<<<<<<+>>>>>>>>]<[[-]<<+<<<<<<<<<[->>>>>+>>>>>>+<<<<<<<<<<<]>>>>>>>>>>>[-<<<<<<<<<<<+>>>>>>>>>>>]<<[<<<<-[->+>>>>>+<<<<<<]>[->>>>>>>>>>>>>+<<<<<<<<<<<<<]>>>>>[-<<<<<<+>>>>>>]>>>>>>>>[->[-<<<+>>>]<[->+<]<+[->+<]>>]>[-<+>]<<[-[-<+>]>[-<+>]<<<[->>>+<<<]>]>[-<<<<<<<<<+>>>>>>>>>]<<<<<<<<<[->>+>+<<<]>>>[-<<<+>>>]<-----[[-]<+>][-]<[->+>+<<]>>[-<<+>>]<-[[-]<<<->>>][-]------<[-]<[->>+>+<<<]>>>[-<<<+>>>]<[[-]<+>][-]<[->+>+<<]>>[-<<+>>]<-[[-]<<<+>>>][-]<[-]<[->>>>>>>>>+<<<<<<<<<]<<<<<[->+>>>>>+<<<<<<]>[->>>>>>>>>>>>+<<<<<<<<<<<<]>>>>>[-<<<<<<+>>>>>>]>>>>>>>[->>[-<<<<+>>>>]<[->+<]<[->+<]<+[->+<]>>]>[->+<]<<[-[-<+>]<<[->>>>+<<<<]>]<<<<<<<<]<<<<<<<++>>>>>>>>>][-]>][-]-------<[-]<<<<<<<<[->>>>>>>>>+>+<<<<<<<<<<]>>>>>>>>>>[-<<<<<<<<<<+>>>>>>>>>>]<[[-]<+>][-]<[->+>+<<]>>[-<<+>>]<-[[-]<<<<<<<<,>>>>>>>>][-]--------<[-]<<<<<<<<[->>>>>>>>>+>+<<<<<<<<<<]>>>>>>>>>>[-<<<<<<<<<<+>>>>>>>>>>]<[[-]<+>][-]<[->+>+<<]>>[-<<+>>]<-[[-]<<<<<<<<.>>>>>>>>][-]<[-]<<<<<<<<[->>>>>>>>>+>+<<<<<<<<<<]>>>>>>>>>>[-<<<<<<<<<<+>>>>>>>>>>]<[[-]<+>][-]<[->+>+<<]>>[-<<+>>]<-[[-]<<<<<<<<<<+>>>>>>>>>>][-]<[-]<<<<<<<<<<<[->>>>>>+>>>>>+<<<<<<<<<<<]>>>[->>>>>>>>>>>>>>>>+<<<<<<<<<<<<<<<<]>>>[->>>>>>>>>>>>+<<<<<<<<<<<<]>>>>>[-<<<<<<<<<<<+>>>>>>>>>>>]>>>>>>>[->>[-<<<<+>>>>]<[->+<]<[->+<]<+[->+<]>>]>[->+<]<<[-[-<+>]<<[->>>>+<<<<]>]<<<<<<<<<<<<<<<[->>>>>>>>>>+>+<<<<<<<<<<<]>>>>>>>>>>>[-<<<<<<<<<<<+>>>>>>>>>>>]<--[[-]<+>][-]<[->+>+<<]>>[-<<+>>]<-[[-]<<<<<<<<<<<<[-]>>[-]>>>[-<<<<<+>>>>>]>>>>>>>][-]<[-]<<<<<<<<<<<+>>-]+
@@ -788,7 +788,7 @@ since you probably just need to change the assumed pointer increments by decreme
 and decrements by increments for the most part.
 If you make it, please don't show it to "**D**on't **R**epeat **Y**ourself" (aka DRY) people!
 
-While this would probably save many operations, it still would not be enough to cram the interpreter in itself without a little fenagleing.
+While this would probably save many operations, it still would not be enough to cram the interpreter in itself without a little finagling.
 In the advent you would want to make this bf interpreter run itself,
 you would need to find a way to move from 0 to the operating memory segment while using `>` less than `Vprog_array_cap` to move over the program array.
 Not being able to do so would mean that your interpreter is always bigger than its program array.
@@ -811,5 +811,5 @@ You can then use that transpiled bf output in another bf interpreter / compiler.
 You've now learnt possibly one of the most useless languages of the world, should I congratulate you?
 Yes! (but you should really find other things to do with your time)
 
-If you still have unaswered questions, want to contribute to this book or
+If you still have unanswered questions, want to contribute to this book or
 want to contribute to the basm programming language head over to the [github repository](https://github.com/AtmolanderMimi/basm).

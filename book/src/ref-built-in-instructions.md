@@ -7,7 +7,7 @@ Here is the list of all built-in instructions.
 | **INCR** | addr, value         | increments the value of the`addr` cell by `value`                         |
 | **DECR** | addr, value         | decrements the value of the`addr` cell by `value`                         |
 | **ADDP** | addr1, addr2        | adds`addr2` to `addr1`, the result is stored in `addr1` (in place)        |
-| **SUBP** | addr1, addr2        | substract`addr2` from `addr1`, the result is stored in `addr1` (in place) |
+| **SUBP** | addr1, addr2        | subtract`addr2` from `addr1`, the result is stored in `addr1` (in place) |
 | **COPY** | addr1, addr2, addr3 | copies the value of`addr1` into `addr2` and `addr3`                       |
 | **WHNE** | addr, value, [scope] | while the value of`addr` cell is not equal to `value` runs the `[scope]`. `addr` is not consumed |
 | **IN**   | addr              | takes input from the user and sets it in`addr`, behaviour will vary between bf implementations |
