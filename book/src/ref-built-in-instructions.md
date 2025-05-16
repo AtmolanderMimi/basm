@@ -1,5 +1,5 @@
 # Built-in Instructions
-Here is a list of all built-in instructions.
+Here is the list of all built-in instructions.
 
 | Name     | Arguments           | Function                                                                  |
 | ---------- | --------------------- | --------------------------------------------------------------------------- |

@@ -1,4 +1,4 @@
-use std::{fs, io::Write, path};
+use std::{env, fs, io::Write, path::{self, PathBuf}};
 
 use basm::{clap_cli::CompileArgs, source::SourceFile, CliCommand, CompilerError};
 use clap::Parser;
@@ -14,11 +14,11 @@ fn main() {
     let cli = CliCommand::parse();
     
     let file_path = match &cli {
-        CliCommand::Compile(args) => &args.file_path,
-        CliCommand::Run(args) => &args.file_path,
+        CliCommand::Compile(args) => PathBuf::from(&args.file_path),
+        CliCommand::Run(args) => PathBuf::from(&args.file_path),
     };
 
-    let abs_path = path::absolute(file_path)
+    let abs_path = path::absolute(&file_path)
         .unwrap_or_else(|_| error_out(MALFORMED_INPUT));
 
     let is_basm_file = match &cli {
@@ -45,7 +45,7 @@ fn main() {
 
         program
     } else {
-        fs::read_to_string(&abs_path)
+        fs::read_to_string(&file_path)
             .unwrap_or_else(|_| error_out(INACCESSIBLE_INPUT))
     };
 
@@ -71,11 +71,24 @@ fn main() {
     // writing to output file (if necessary)
     if let CliCommand::Compile(CompileArgs { out, .. }) = &cli {
         let out_path = out.clone().unwrap_or_else(|| {
-            let mut file_path = abs_path.clone();
-            file_path.set_extension("bf");
+            // get the name of the current operated on file
+            let file_name = file_path.file_name()
+            .unwrap_or_else(|| error_out(MALFORMED_INPUT));
+
+            // get the current working directory
+            let mut out_path = env::current_dir()
+            .unwrap_or_else(|_| error_out(INACCESSIBLE_OUTPUT));
             
-            file_path.to_string_lossy().to_string()
+            // mash the both of them together
+            out_path.push(file_name);
+
+            // and change basm -> bf
+            out_path.set_extension("bf");
+
+            out_path.to_string_lossy().to_string()
         });
+
+        dbg!(&out_path);
 
         let mut output_file = fs::File::create(&out_path)
         .unwrap_or_else(|_| error_out(INACCESSIBLE_OUTPUT));
