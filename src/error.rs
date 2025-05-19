@@ -62,18 +62,31 @@ pub trait CompilerError: Error {
                 };
 
                 out.push_str(&"[...] ".black().to_string());
-                out.push_str(source.slice(pre_context_range).unwrap().as_ref());
+                out.push_str(&source.slice(pre_context_range).unwrap().as_ref().white().to_string());
 
                 out.push_str(&slice.as_ref().color(gravity.associated_color()).underline().bold().to_string());
 
-                out.push_str(source.slice(post_context_range).unwrap().as_ref());
+                out.push_str(&source.slice(post_context_range).unwrap().as_ref().white().to_string());
                 out.push_str(&" [...]".black().to_string());
             }
         } else {
             out.push_str(&format!(" {}", self.to_string()).underline().to_string());
         }
         
+        // adds the cause of this error
+        if let Some(e) = self.compiler_source() {
+            out.push_str("\n\n");
+            out.push_str(&"..which is caused by:\n".underline().bold().on_black().white().to_string());
+            out.push_str(&CompilerError::description(e));    
+        }
+
         out
+    }
+
+    /// Returns the source of the error if there is any.
+    /// Only returns the source, if the source is another type implementing `CompilerError`
+    fn compiler_source(&self) -> Option<&dyn CompilerError> {
+        None
     }
 }
 

@@ -291,8 +291,7 @@ impl CompilerErrorTrait for CompilerError {
             CompilerError::AliasNotDefined(e) => e.slice(),
             CompilerError::Instruction(ie, instruction) => {
                 match ie {
-                    InstructionError::CouldNotInlineMeta(_, e)
-                    | InstructionError::ArgumentScopeError(_, e) => return e.lint(),
+                    InstructionError::ArgumentScopeError(_, e) => return e.lint(),
                     _ => instruction.slice(),
                 }
             },
@@ -301,6 +300,13 @@ impl CompilerErrorTrait for CompilerError {
         };
 
         Some(Lint::new_error_range(slice.source(), slice.range()).unwrap())
+    }
+
+    fn compiler_source(&self) -> Option<&dyn CompilerErrorTrait> {
+        match self {
+            Self::Instruction(e, _) => e.compiler_source().map(|e| e as &dyn CompilerErrorTrait),
+            _ => None
+        }
     }
 }
 

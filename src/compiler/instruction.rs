@@ -580,6 +580,7 @@ fn move_pointer_to(buf: &mut String, ctx: &MainContext, nposition: u32) {
     ctx.set_pointer(nposition);
 }
 
+/// Subtype of `CompilerError`, when instruction error at compile (writing to bf) time.
 #[derive(Debug, Clone, Error)]
 pub enum InstructionError {
     #[error("too many arguments, expected {expected}, got {got}")]
@@ -598,14 +599,28 @@ pub enum InstructionError {
         expected: ArgumentKind,
         place: usize,
     },
-    #[error("failed to inline meta-instruction, because {1}")]
-    CouldNotInlineMeta(MetaField, Box<CompilerError>),
-    #[error("failed to inline scope, because: {1}")]
-    CouldNotInlineScope(Scope, Box<CompilerError>),
+    #[error("failed to inline meta-instruction")]
+    CouldNotInlineMeta(MetaField, #[source] Box<CompilerError>),
+    #[error("failed to inline scope")]
+    CouldNotInlineScope(Scope, #[source] Box<CompilerError>),
     #[error("the alis statement is malformed")]
     MalformedAlis,
-    #[error("error in argument scope: {1}")]
-    ArgumentScopeError(Scope, Box<CompilerError>),
+    #[error("error in scope argument")]
+    ArgumentScopeError(Scope, #[source] Box<CompilerError>),
+}
+
+impl InstructionError {
+    /// Returns the source of the error if there is any.
+    /// This is not to be confused to the method of the same name in the `CompilerError` trait
+    /// and the `CompilerError` here is the type, not the trait.
+    pub fn compiler_source(&self) -> Option<&CompilerError> {
+        match self {
+            Self::CouldNotInlineMeta(_, e) => Some(&**e),
+            Self::CouldNotInlineScope(_, e) => Some(&**e),
+            Self::ArgumentScopeError(_, e) => Some(&**e),
+            _ => None,
+        }
+    }
 }
 
 #[cfg(test)]
