@@ -88,8 +88,6 @@ fn main() {
             out_path.to_string_lossy().to_string()
         });
 
-        dbg!(&out_path);
-
         let mut output_file = fs::File::create(&out_path)
         .unwrap_or_else(|_| error_out(INACCESSIBLE_OUTPUT));
 

@@ -1,0 +1,503 @@
+// a better brainfuck interpreter
+// follows all advice given in the at the end of the
+// syntesis chapter about making a bf interpreter
+// that being:
+//  [x] bulking operators,
+//  [] (and precalculating matching brackets),
+//  [] indexing elements of width 2,
+//  [] and flipping the program array
+
+// sets a value to a specific value by zeroing it before writing
+[@SET Aaddr Vval] [
+ZERO Aaddr;
+INCR Aaddr Vval;
+]
+
+// doubles the cell into the other cell
+[@DOUB Asrc Adst] [
+// evil aliasing (but actually cool??)
+COPY Asrc Adst Adst;
+]
+
+// Copies the content of a cell whilst keeping the source (conservatively)
+[@COPC Asrc Adst sp] [
+	ALIS Atmp sp;
+	COPY Asrc Adst Atmp;
+	ADDP Asrc Atmp;
+]
+
+// if not equal conditional
+[@IFNE addr val [scp] sp] [
+ALIS tmp sp;
+ALIS tmp2 sp+1;
+
+COPY addr tmp tmp2;
+ADDP addr tmp2;
+WHNE tmp val [
+	ZERO tmp;
+	
+	INLN [scp];
+
+	INCR tmp val;
+];
+
+ZERO tmp;
+]
+
+// if equal conditional
+[@IFEQ addr val [scp] sp] [
+ALIS tmp sp;
+ALIS sp sp+1;
+
+IFNE addr val [
+	INCR tmp 1;
+] sp;
+
+IFNE tmp 1 [scp] sp;
+ZERO tmp;
+]
+
+// Forward assumed pointer
+[@FASU Vval] [
+BBOX Vval;
+ASUM 0;
+]
+
+// Backward assumed pointer
+[@BASU Vval] [
+BBOX Vval;
+ASUM 0;
+]
+
+// Gets a value from an indexable array dynamically and destructively.
+// Indexable arrays require 4 zeroed cells at the start of them.
+// (Although the getting behaviour requires only 3)
+// At the start we use them like so: `[empty][swap][return][index] ...`.
+// Where `swap` is going to be use to swap the first element,
+// `index` is the index in the array we desire to get and
+// `return` is a value increased every time index is decreased, effectively giving us how far away we are from the start.
+// Each time we move forward we want to swap the element in from of us with the empty one at our back.
+// Then move the whole structure up by one.
+// This creates a kind of "glider" through memory.
+// We use the same strategy to go back, but now we don't care about `return` and instead have an element to carry.
+// At the end we should arrive at the start of the array like this: `[empty][swap][return][value]`.
+// Where `return` should now be 0. 
+[@GETD Aarray Aindex Aout] [
+ADDP Aarray+3 Aindex; // sets the index
+
+// -- going forward --
+// 0 is relative to the back swap cell
+BBOX Aarray+1;
+ASUM 0;
+
+ALIS Aback_swap 0;
+ALIS Areturn 1;
+ALIS Aindex 2;
+ALIS Aelem 3;
+
+WHNE Aindex 0 [
+	DECR Aindex 1;
+	INCR Areturn 1;
+
+	ADDP Aback_swap Aelem;
+	ADDP Aindex+1 Aindex;
+	ADDP Areturn+1 Areturn;
+
+	BBOX 1;
+	ASUM 0;
+];
+
+// -- reached --
+ALIS Avalue Aindex;
+ALIS Aback_swap Aelem;
+ALIS Aelem 0;
+
+ADDP Avalue Aback_swap;
+
+// -- going back --
+WHNE Areturn 0 [
+	DECR Areturn 1;
+
+	ADDP Areturn-1 Areturn;
+	ADDP Avalue-1 Avalue;
+
+	BBOX 0;
+	ASUM 1;
+
+	ADDP Aback_swap Aelem;
+];
+
+// -- got home --
+BBOX 0;
+ASUM Aarray+1;
+
+ADDP Aout Aarray+3;
+]
+
+// Adds a value to a cell in an indexable array dynamically.
+// Functions like the inverse of `GETD`.
+// We start like so: `[swap][return][index][value]`
+// We return like so: `[swap][return][0][0] ... `
+// (we omit carrying back index and value for return because they will be zero)
+[@ADDD Aarray Aindex Avalue] [
+ADDP Aarray+2 Aindex; // sets the index
+ADDP Aarray+3 Avalue; // sets the value
+
+// -- going forward --
+// 0 is relative to the back swap cell
+BBOX Aarray;
+ASUM 0;
+
+ALIS Aback_swap 0;
+ALIS Areturn 1;
+ALIS Aindex 2;
+ALIS Avalue 3;
+ALIS Aelem 4;
+
+WHNE Aindex 0 [
+	DECR Aindex 1;
+	INCR Areturn 1;
+
+	ADDP Aback_swap Aelem;
+	ADDP Avalue+1 Avalue;
+	ADDP Aindex+1 Aindex;
+	ADDP Areturn+1 Areturn;
+
+	BBOX 1;
+	ASUM 0;
+];
+
+// -- reached --
+ADDP Aelem Avalue;
+
+ALIS Aback_swap Aelem;
+ALIS Aelem 0;
+
+
+// -- going back --
+WHNE Areturn 0 [
+	DECR Areturn 1;
+
+	ADDP Areturn-1 Areturn;
+
+	BBOX 0;
+	ASUM 1;
+
+	ADDP Aback_swap Aelem;
+];
+
+// -- got home --
+BBOX 0;
+ASUM Aarray;
+]
+
+[@add_if_same_or_shift Vchar Vconvert sp] [
+ALIS Vmax_recurrence 255;
+ALIS Aid 0;
+ALIS Arecurrence 1;
+ALIS Ainput 2;
+
+IFEQ Ainput Vchar [ // if it is the right char
+    IFEQ Aid Vconvert [ // if it can extend recurrence
+        IFEQ Arecurrence Vmax_recurrence [
+            FASU 2;
+        ] sp;
+
+        // reset the Aid, or sets it if we moved
+        SET Aid Vconvert;
+        INCR Arecurrence 1;
+    ] sp;
+
+    IFNE Aid Vconvert [
+        FASU 2;
+        SET Aid Vconvert;
+        SET Arecurrence 1;
+    ] sp;
+] sp;
+]
+
+// Gets the program from the user and puts
+// it in an array from `sp`.
+// Does not store non bf tokens.
+// Transforms tokens into id like so:
+// * `+` -> 1
+// * `-` -> 2
+// * `>` -> 3
+// * `<` -> 4
+// * `[` -> 5
+// * `]` -> 6
+// * `,` -> 7
+// * `.` -> 8
+// * end -> 0
+// Alongside with the id, elements cells will be next to their recurrence.
+// Creating items 2 cells wide like so: [id][recurrence]
+// To avoid overflowing the recurrence index, it is capped by a constant.
+// Reaching the max, will cause another block to be created.
+// Brackets do not store their recurrence (will always be 0).
+// User input ends when they enter "!".
+// This is an indexable array, this means that the array requires 4 zeroed cells
+// at the start of it so that they can later be used to index into the array.
+[@input_program sp] [
+ALIS prog sp;
+
+BBOX prog+4;
+ASUM 0;
+
+// while we don't get any characters other than '!' to end add to array.
+ALIS Aid 0;
+ALIS Arecurrence 1;
+ALIS Ainput 2;
+ALIS Aflag 3;
+ALIS Vexit 1;
+
+ALIS sp 4;
+WHNE Aflag Vexit [
+    IN Ainput;
+
+	add_if_same_or_shift '+' 1 sp;
+	add_if_same_or_shift '-' 2 sp;
+	add_if_same_or_shift '>' 3 sp;
+	add_if_same_or_shift '<' 4 sp;
+
+    // these below will always shift, as they can't really recur
+	IFEQ Ainput '[' [
+        ZERO Ainput;
+        FASU 2;
+
+        INCR Aid 5;
+        INCR Arecurrence 1;
+    ] sp;
+	IFEQ Ainput ']' [
+        ZERO Ainput;
+        FASU 2;
+
+        INCR Aid 6;
+        INCR Arecurrence 1;
+    ] sp;
+	IFEQ Ainput ',' [
+        ZERO Ainput;
+        FASU 2;
+
+        INCR Aid 7;
+        INCR Arecurrence 1;
+    ] sp;
+	IFEQ Ainput '.' [
+        ZERO Ainput;
+        FASU 2;
+
+        INCR Aid 8;
+        INCR Arecurrence 1;
+    ] sp;
+
+	IFEQ Ainput '!' [
+		ZERO Ainput;
+		INCR Aflag Vexit;
+	] sp;
+];
+ZERO Aflag;
+
+BBOX Aid;
+RAW "[<]"; // return to the start
+ASUM prog+3;
+]
+
+// loads the operator from the Aprog array at Aprog_pointer.
+// does not consume Aprog_pointer
+[@load_operator Aprog Aprog_pointer Aoperator sp] [
+ALIS tmp sp;
+ALIS tmp2 sp+1;
+ALIS sp sp+2;
+
+// get the operator (at Aprog_pointer*2)
+ZERO Aoperator;
+COPC Aprog_pointer tmp sp;
+DOUB tmp tmp2;
+GETD Aprog tmp2 Aoperator;   
+]
+
+// loads the operator from the Aprog array at Aprog_pointer.
+// does not consume Aprog_pointer
+[@load_recurrence Aprog Aprog_pointer Arecurrence sp] [
+ALIS tmp sp;
+ALIS tmp2 sp+1;
+ALIS sp sp+2;
+
+// and recurrence (at (Aprog_pointer*2+1)
+ZERO Arecurrence;
+COPC Aprog_pointer tmp sp;
+DOUB tmp tmp2;
+INCR tmp2 1;
+GETD Aprog tmp2 Arecurrence;  
+]
+
+// unloads the operator (returns it)
+[@unload_operator Aprog Aprog_pointer Aoperator sp] [
+ALIS tmp sp;
+ALIS tmp2 sp+1;
+ALIS sp sp+2;
+
+// reset the operator
+COPC Aprog_pointer tmp sp;
+DOUB tmp tmp2;
+ADDD Aprog tmp2 Aoperator;
+]
+
+// unloads the recurrence (returns it)
+[@unload_recurrence Aprog Aprog_pointer Arecurrence sp] [
+ALIS tmp sp;
+ALIS tmp2 sp+1;
+ALIS sp sp+2;
+
+// reset the recurrence
+COPC Aprog_pointer tmp sp;
+DOUB tmp tmp2;
+INCR tmp2 1;
+ADDD Aprog tmp2 Arecurrence;
+]
+
+[main] [
+ALIS Vgeneral_memory 15;
+ALIS Aprog_pointer 0; // points to the element index, not cell index
+ALIS Amem_pointer 1;
+ALIS Aflag 2;
+ALIS Vexit 1;
+ALIS Vbracket 2;
+ALIS Aoperator 3;
+ALIS Arecurrence 4;
+ALIS Acell 5;
+ALIS Abracket_jump 6; // used to know the pointer position when Aflag is Vbracket
+ALIS sp 7;
+
+ALIS Vmax_array_size 250;
+ALIS Aprog Vgeneral_memory;
+ALIS Amem Aprog+Vmax_array_size+1;
+
+// -- loading program --
+input_program Aprog;
+
+WHNE Aflag Vexit [
+	ALIS tmp sp;
+	ALIS sp sp+1;
+
+    // loads the operator and recurrence, this does not consume Aprog_pointer
+	load_operator   Aprog Aprog_pointer Aoperator   sp;
+    load_recurrence Aprog Aprog_pointer Arecurrence sp;
+
+	IFEQ Aoperator 1 [ // '+'
+        COPC Arecurrence tmp sp;
+		ADDP Acell tmp;
+	] sp;
+	IFEQ Aoperator 2 [ // '-'
+        COPC Arecurrence tmp sp;
+		SUBP Acell tmp;
+	] sp;
+	IFEQ Aoperator 3 [ // '>'
+		// set the last cell back
+		COPC Amem_pointer tmp sp;
+		ADDD Amem tmp Acell;
+
+		// get the next cell
+        COPC Arecurrence tmp sp;
+		ADDP Amem_pointer tmp;
+		COPC Amem_pointer tmp sp;
+		GETD Amem tmp Acell;
+	] sp;
+	IFEQ Aoperator 4 [ // '<'
+		// set the last cell back
+		COPC Amem_pointer tmp sp;
+		ADDD Amem tmp Acell;
+
+		// get the next cell
+        COPC Arecurrence tmp sp;
+		SUBP Amem_pointer tmp; // TODO: may underflow tape pointer
+		COPC Amem_pointer tmp sp;
+		GETD Amem tmp Acell;
+	] sp;
+
+	// -- brackets code upcoming --
+	IFEQ Aoperator 5 [ // '['
+		IFEQ Acell 0 [
+			ALIS Abracket_count sp;
+			INCR Abracket_count 1;
+			ALIS Ainvestigating_operator sp+1;
+			ALIS sp sp+2;
+
+			COPC Aprog_pointer Abracket_jump sp;
+
+			WHNE Abracket_count 0 [
+				// get the operator
+                INCR Abracket_jump 1;
+                load_operator Aprog Abracket_jump Ainvestigating_operator sp;
+
+				IFEQ Ainvestigating_operator 5 [ // '['
+					INCR Abracket_count 1;
+				] sp;
+
+				IFEQ Ainvestigating_operator 6 [ // ']'
+					DECR Abracket_count 1;
+				] sp;
+
+				// setting the operator back
+                unload_operator Aprog Abracket_jump Ainvestigating_operator sp;
+			];
+
+			// sets the flag
+			INCR Aflag Vbracket;
+		] sp;
+	] sp;
+
+	IFEQ Aoperator 6 [ // ']'
+		IFNE Acell 0 [
+			ALIS Abracket_count sp;
+			INCR Abracket_count 1;
+			ALIS Ainvestigating_operator sp+1;
+			ALIS sp sp+2;
+
+			COPC Aprog_pointer Abracket_jump sp;
+
+			WHNE Abracket_count 0 [
+				// get the operator
+				DECR Abracket_jump 1;
+				load_operator Aprog Abracket_jump Ainvestigating_operator sp;
+
+				IFEQ Ainvestigating_operator 5 [ // '['
+					DECR Abracket_count 1;
+				] sp;
+
+				IFEQ Ainvestigating_operator 6 [ // ']'
+					INCR Abracket_count 1;
+				] sp;
+
+				// setting the operator back
+				unload_operator Aprog Abracket_jump Ainvestigating_operator sp;
+			];
+
+			// sets the flag
+			INCR Aflag Vbracket;
+		] sp;
+	] sp;
+
+	IFEQ Aoperator 7 [ // ','
+		IN Acell;
+	] sp;
+	IFEQ Aoperator 8 [ // '.'
+		OUT Acell;
+	] sp;
+
+	IFEQ Aoperator 0 [ // end
+		INCR Aflag Vexit;
+	] sp;
+
+	// setting the operator back
+    unload_operator   Aprog Aprog_pointer Aoperator   sp;
+    unload_recurrence Aprog Aprog_pointer Arecurrence sp;
+
+	IFEQ Aflag Vbracket [
+		ZERO Aprog_pointer;
+		ADDP Aprog_pointer Abracket_jump;
+		ZERO Aflag;
+	] sp;
+
+	INCR Aprog_pointer 1;
+];
+]
