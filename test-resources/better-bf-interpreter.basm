@@ -103,8 +103,7 @@ WHNE Aindex 0 [
 	ADDP Aindex+1 Aindex;
 	ADDP Areturn+1 Areturn;
 
-	BBOX 1;
-	ASUM 0;
+	FASU 1;
 ];
 
 // -- reached --
@@ -121,8 +120,7 @@ WHNE Areturn 0 [
 	ADDP Areturn-1 Areturn;
 	ADDP Avalue-1 Avalue;
 
-	BBOX 0;
-	ASUM 1;
+	BASU 1;
 
 	ADDP Aback_swap Aelem;
 ];
@@ -163,8 +161,7 @@ WHNE Aindex 0 [
 	ADDP Aindex+1 Aindex;
 	ADDP Areturn+1 Areturn;
 
-	BBOX 1;
-	ASUM 0;
+	FASU 1;
 ];
 
 // -- reached --
@@ -180,8 +177,7 @@ WHNE Areturn 0 [
 
 	ADDP Areturn-1 Areturn;
 
-	BBOX 0;
-	ASUM 1;
+	BASU 1;
 
 	ADDP Aback_swap Aelem;
 ];
@@ -301,6 +297,67 @@ RAW "<+[-<+]-";
 
 ASUM prog+3;
 INCR prog+3 1; // remove the -1 flag
+]
+
+// calculates the address of matching brackets and puts them in the recurrence
+[@calculate_bracket Aprog sp] [
+ALIS Aoperator sp;
+ALIS Abracket_address sp+1;
+ALIS Ainvestigating_address sp+2;
+ALIS Aflag sp+3;
+ALIS Vexit 1;
+ALIS Atmp sp+4;
+ALIS sp sp+5;
+
+// iterate through all operators
+WHNE Aflag Vexit [
+	load_operator Aprog Abracket_address Aoperator sp;
+	// we reached the end
+	IFEQ 0 Aoperator [
+		INCR Aflag Vexit;
+	] sp;
+
+	// if '['
+	// we only check for '[', not ']', but they will be matched togheter
+	IFEQ Aoperator 5 [
+		COPC Abracket_address Ainvestigating_address sp;
+		ALIS Abracket_count sp;
+		INCR Abracket_count 1;
+		ALIS Ainvestigating_operator sp+1;
+		ALIS sp sp+2;
+
+		WHNE Abracket_count 0 [
+			// get the operator
+            INCR Ainvestigating_address 1;
+            load_operator Aprog Ainvestigating_address Ainvestigating_operator sp;
+
+			IFEQ Ainvestigating_operator 5 [ // '['
+				INCR Abracket_count 1;
+			] sp;
+
+			IFEQ Ainvestigating_operator 6 [ // ']'
+				DECR Abracket_count 1;
+			] sp;
+
+			// TODO: add check for end of array
+
+			// setting the operator back
+            unload_operator Aprog Ainvestigating_address Ainvestigating_operator sp;
+		];
+
+		// we are done, Ainvestigating_address is at the matching
+
+		// set recurrence for [
+		COPC Ainvestigating_address tmp sp;
+		unload_recurrence Aprog Abracket_address tmp sp;
+
+		// set recurrence for ]
+		COPC Abracket_address tmp sp;
+		unload_recurrence Aprog Ainvestigating_address tmp sp;
+	] sp;
+
+	unload_operator Aprog Abracket_address Aoperator sp;
+];
 ]
 
 // loads the operator from the Aprog array at Aprog_pointer.
