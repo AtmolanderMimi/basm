@@ -65,8 +65,8 @@ ASUM 0;
 
 // Backward assumed pointer
 [@BASU Vval] [
-BBOX Vval;
-ASUM 0;
+BBOX 0;
+ASUM Vval;
 ]
 
 // Gets a value from an indexable array dynamically and destructively.
@@ -192,7 +192,7 @@ ASUM Aarray;
 ]
 
 [@add_if_same_or_shift Vchar Vconvert sp] [
-ALIS Vmax_recurrence 255;
+ALIS Vmax_recurrence 254; // 1 less than max, because max is -1 flag
 ALIS Aid 0;
 ALIS Arecurrence 1;
 ALIS Ainput 2;
@@ -240,8 +240,11 @@ IFEQ Ainput Vchar [ // if it is the right char
 [@input_program sp] [
 ALIS prog sp;
 
+DECR prog+3 1; // used to set a -1 flag
 BBOX prog+4;
 ASUM 0;
+
+BASU 2;
 
 // while we don't get any characters other than '!' to end add to array.
 ALIS Aid 0;
@@ -265,28 +268,24 @@ WHNE Aflag Vexit [
         FASU 2;
 
         INCR Aid 5;
-        INCR Arecurrence 1;
     ] sp;
 	IFEQ Ainput ']' [
         ZERO Ainput;
         FASU 2;
 
         INCR Aid 6;
-        INCR Arecurrence 1;
     ] sp;
 	IFEQ Ainput ',' [
         ZERO Ainput;
         FASU 2;
 
         INCR Aid 7;
-        INCR Arecurrence 1;
     ] sp;
 	IFEQ Ainput '.' [
         ZERO Ainput;
         FASU 2;
 
         INCR Aid 8;
-        INCR Arecurrence 1;
     ] sp;
 
 	IFEQ Ainput '!' [
@@ -296,9 +295,12 @@ WHNE Aflag Vexit [
 ];
 ZERO Aflag;
 
-BBOX Aid;
-RAW "[<]"; // return to the start
+BBOX 0;
+// going back until we reach the -1 flag
+RAW "<+[-<+]-";
+
 ASUM prog+3;
+INCR prog+3 1; // remove the -1 flag
 ]
 
 // loads the operator from the Aprog array at Aprog_pointer.
