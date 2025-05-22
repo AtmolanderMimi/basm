@@ -3,7 +3,7 @@
 // syntesis chapter about making a bf interpreter
 // that being:
 //  [x] bulking operators,
-//  [] (and precalculating matching brackets),
+//  [x] (and precalculating matching brackets),
 //  [] indexing elements of width 2,
 //  [] and flipping the program array
 
@@ -313,11 +313,11 @@ ALIS sp sp+5;
 WHNE Aflag Vexit [
 	load_operator Aprog Abracket_address Aoperator sp;
 	// we reached the end
-	IFEQ 0 Aoperator [
+	IFEQ Aoperator 0 [
 		INCR Aflag Vexit;
 	] sp;
 
-	// if '['
+	// if '[' //++[-[-]]!
 	// we only check for '[', not ']', but they will be matched togheter
 	IFEQ Aoperator 5 [
 		COPC Abracket_address Ainvestigating_address sp;
@@ -348,16 +348,21 @@ WHNE Aflag Vexit [
 		// we are done, Ainvestigating_address is at the matching
 
 		// set recurrence for [
-		COPC Ainvestigating_address tmp sp;
-		unload_recurrence Aprog Abracket_address tmp sp;
+		COPC Ainvestigating_address Atmp sp;
+		unload_recurrence Aprog Abracket_address Atmp sp;
 
 		// set recurrence for ]
-		COPC Abracket_address tmp sp;
-		unload_recurrence Aprog Ainvestigating_address tmp sp;
+		COPC Abracket_address Atmp sp;
+		unload_recurrence Aprog Ainvestigating_address Atmp sp;
+		ZERO Ainvestigating_address;
 	] sp;
 
 	unload_operator Aprog Abracket_address Aoperator sp;
+	INCR Abracket_address 1;
 ];
+ZERO Aflag;
+
+ZERO Abracket_address;
 ]
 
 // loads the operator from the Aprog array at Aprog_pointer.
@@ -415,7 +420,7 @@ ADDD Aprog tmp2 Arecurrence;
 ]
 
 [main] [
-ALIS Vgeneral_memory 15;
+ALIS Vgeneral_memory 20;
 ALIS Aprog_pointer 0; // points to the element index, not cell index
 ALIS Amem_pointer 1;
 ALIS Aflag 2;
@@ -433,6 +438,7 @@ ALIS Amem Aprog+Vmax_array_size+1;
 
 // -- loading program --
 input_program Aprog;
+calculate_bracket Aprog sp;
 
 WHNE Aflag Vexit [
 	ALIS tmp sp;
@@ -476,29 +482,8 @@ WHNE Aflag Vexit [
 	// -- brackets code upcoming --
 	IFEQ Aoperator 5 [ // '['
 		IFEQ Acell 0 [
-			ALIS Abracket_count sp;
-			INCR Abracket_count 1;
-			ALIS Ainvestigating_operator sp+1;
-			ALIS sp sp+2;
-
-			COPC Aprog_pointer Abracket_jump sp;
-
-			WHNE Abracket_count 0 [
-				// get the operator
-                INCR Abracket_jump 1;
-                load_operator Aprog Abracket_jump Ainvestigating_operator sp;
-
-				IFEQ Ainvestigating_operator 5 [ // '['
-					INCR Abracket_count 1;
-				] sp;
-
-				IFEQ Ainvestigating_operator 6 [ // ']'
-					DECR Abracket_count 1;
-				] sp;
-
-				// setting the operator back
-                unload_operator Aprog Abracket_jump Ainvestigating_operator sp;
-			];
+			COPC Arecurrence tmp sp;
+			ADDP Abracket_jump tmp;
 
 			// sets the flag
 			INCR Aflag Vbracket;
@@ -507,29 +492,8 @@ WHNE Aflag Vexit [
 
 	IFEQ Aoperator 6 [ // ']'
 		IFNE Acell 0 [
-			ALIS Abracket_count sp;
-			INCR Abracket_count 1;
-			ALIS Ainvestigating_operator sp+1;
-			ALIS sp sp+2;
-
-			COPC Aprog_pointer Abracket_jump sp;
-
-			WHNE Abracket_count 0 [
-				// get the operator
-				DECR Abracket_jump 1;
-				load_operator Aprog Abracket_jump Ainvestigating_operator sp;
-
-				IFEQ Ainvestigating_operator 5 [ // '['
-					DECR Abracket_count 1;
-				] sp;
-
-				IFEQ Ainvestigating_operator 6 [ // ']'
-					INCR Abracket_count 1;
-				] sp;
-
-				// setting the operator back
-				unload_operator Aprog Abracket_jump Ainvestigating_operator sp;
-			];
+			COPC Arecurrence tmp sp;
+			ADDP Abracket_jump tmp;
 
 			// sets the flag
 			INCR Aflag Vbracket;
