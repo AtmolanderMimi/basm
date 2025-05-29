@@ -189,7 +189,7 @@ mod tests {
             TokenType::InstructionDelimitor,
             TokenType::Eof,
         ].into_iter()
-        .map(|tt| bogus_token(tt)).collect();
+        .map(|tt| bogus_token(tt)).collect::<Vec<_>>();
 
         let res = solve_pattern::<InstructionPattern>(&tokens).unwrap();
         assert_eq!(res.arguments.len(), 2);
@@ -207,7 +207,7 @@ mod tests {
             TokenType::InstructionDelimitor,
             TokenType::Eof,
         ].into_iter()
-        .map(|tt| bogus_token(tt)).collect();
+        .map(|tt| bogus_token(tt)).collect::<Vec<_>>();
 
         let res = solve_pattern::<InstructionPattern>(&tokens).unwrap();
         assert_eq!(res.arguments.len(), 3);
@@ -222,7 +222,7 @@ mod tests {
             TokenType::InstructionDelimitor,
             TokenType::Eof,
         ].into_iter()
-        .map(|tt| bogus_token(tt)).collect();
+        .map(|tt| bogus_token(tt)).collect::<Vec<_>>();
 
         let res = solve_pattern::<InstructionPattern>(&tokens);
         assert!(res.is_err());
@@ -242,7 +242,7 @@ mod tests {
             TokenType::InstructionDelimitor,
             TokenType::Eof,
         ].into_iter()
-        .map(|tt| bogus_token(tt)).collect();
+        .map(|tt| bogus_token(tt)).collect::<Vec<_>>();
 
         let res = solve_pattern::<InstructionPattern>(&tokens).unwrap();
         assert_matches!(res.arguments[2], Argument::ScopeIdent(_));

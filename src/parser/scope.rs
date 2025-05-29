@@ -97,7 +97,7 @@ mod tests {
             TokenType::RSquare,
             TokenType::Eof,
         ].into_iter()
-        .map(|tt| bogus_token(tt)).collect();
+        .map(|tt| bogus_token(tt)).collect::<Vec<_>>();
 
         let res = solve_pattern::<ScopePattern>(&tokens).unwrap();
         let num_instructions = res.contents.iter().filter(|i| i.is_left()).count();
@@ -123,7 +123,7 @@ mod tests {
                 TokenType::RSquare,
             TokenType::Eof,
         ].into_iter()
-        .map(|tt| bogus_token(tt)).collect();
+        .map(|tt| bogus_token(tt)).collect::<Vec<_>>();
 
         let res = solve_pattern::<ScopePattern>(&tokens);
         assert!(res.is_err())

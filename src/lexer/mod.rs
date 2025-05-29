@@ -100,7 +100,7 @@ impl Lexer {
 /// This is why the return type on this function is `(Vec<Token>, <Vec<LexerError>)`.
 /// Although errors are not fatal, they should be investigated since an error means
 /// that a token could not be correctly formed and as thus the token list is partially invalid.
-pub fn lex_file(source_file: &'static SourceFile) -> (Vec<Token>, Vec<LexerError>) {
+pub fn lex_file(source_file: &'static SourceFile) -> Result<Vec<Token>, (Vec<Token>, Vec<LexerError>)> {
     let mut errors = Vec::new();
     let mut lexer = Lexer::new(source_file);
     loop {
@@ -117,7 +117,11 @@ pub fn lex_file(source_file: &'static SourceFile) -> (Vec<Token>, Vec<LexerError
     let eof = Token::new(TokenType::Eof, eof_slice);
     lexer.tokens.push(eof);
 
-    (lexer.tokens, errors)
+    if errors.is_empty() {
+        Ok(lexer.tokens)
+    } else {
+        Err((lexer.tokens, errors))
+    }
 }
 
 enum Advancement {
@@ -197,11 +201,11 @@ mod tests {
 
     #[test]
     fn lexing_does_not_panic() {
-        lex_file(test_file().leak());
+        let _ = lex_file(test_file().leak());
     }
 
     #[test]
     fn lexing_does_not_error() {
-        assert_eq!(lex_file(test_file().leak()).1.len(), 0);
+        assert!(lex_file(test_file().leak()).is_ok());
     }
 }

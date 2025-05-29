@@ -8,10 +8,10 @@ mod normalized_items;
 mod expressions_eval_impl;
 use std::{collections::HashMap, fmt::Debug, rc::Rc, sync::Mutex};
 
-use crate::{parser::{Ident, Instruction as ParsedInstruction, LanguageItem, MetaField, ParsedProgram}, CompilerError as CompilerErrorTrait, Lint};
+use crate::{parser::{Ident, Instruction as ParsedInstruction, LanguageItem, MetaField, ParsedFile}, CompilerError as CompilerErrorTrait, Lint};
 
 /// Compiles a [`ParsedProgram`] into a brainfuck program in string format.
-pub fn compile(program: &ParsedProgram) -> Result<String, CompilerError> {
+pub fn compile(program: &ParsedFile) -> Result<String, CompilerError> {
     Compiler::compile(program)
 }
 
@@ -182,8 +182,9 @@ pub struct Compiler {
 }
 
 impl Compiler {
-    /// Compiles a [`ParsedProgram`] into a string representation of the brainfuck program.
-    pub fn compile(program: &ParsedProgram) -> Result<String, CompilerError> {
+    /// Compiles a [`ParsedFile`] into a string representation of the brainfuck program.
+    /// Errors if the program does not contain a main field.
+    pub fn compile(program: &ParsedFile) -> Result<String, CompilerError> {
         let mut compiler = Compiler {
             program_buffer: String::new(),
             context: MainContext::new(),
@@ -193,7 +194,10 @@ impl Compiler {
             compiler.walk_meta_instruction_declaration(meta)?;
         }
 
-        let normalized_main = NormalizedScope::new(program.main_field.contents.clone(), &mut compiler.context.build_scope())?;
+        let Some(main_field) = program.main_field.clone() else {
+            return Err(CompilerError::MissingMain)
+        };
+        let normalized_main = NormalizedScope::new(main_field.contents, &mut compiler.context.build_scope())?;
         normalized_main.compile(&compiler.context, &mut compiler.program_buffer)?;
 
         Ok(compiler.program_buffer)
@@ -283,6 +287,10 @@ pub enum CompilerError {
     /// Note that meta-instructions can use another meta-instruction, but only if it was defined higher.
     #[error("instruction is not defined")]
     InstructionNotDefined(Ident),
+    /// A program which is compiled, needs a main field definied in a file.
+    /// If there is no main field, this error will be thrown.
+    #[error("the program is missing a [main] field")]
+    MissingMain,
 }
 
 impl CompilerErrorTrait for CompilerError {
@@ -297,6 +305,7 @@ impl CompilerErrorTrait for CompilerError {
             },
             CompilerError::InstructionNotDefined(i) => i.slice(),
             CompilerError::DoubleDeclaration(f) => f.name.slice(),
+            CompilerError::MissingMain => return None,
         };
 
         Some(Lint::new_error_range(slice.source(), slice.range()).unwrap())

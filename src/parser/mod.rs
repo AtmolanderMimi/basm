@@ -8,9 +8,11 @@ mod scope;
 mod fields;
 mod meta_field;
 
+use std::usize;
+
 use componants::{Many, Then};
-use fields::MainFieldPattern;
-use meta_field::MetaFieldPattern;
+use fields::{Field, FieldPattern, SetupField};
+use terminals::EofPattern;
 use thiserror::Error;
 
 use crate::{lexer::token::{Token, TokenType}, source::SfSlice, CompilerError, Lint};
@@ -80,6 +82,14 @@ pub enum PatternMatchingError {
         /// The token that was gotten.
         got: Token,
     },
+
+    /// More than one main field was parsed, there can only be one main field per file.
+    #[error("more than one main field was parsed; there can only be one main field per file")]
+    MoreThanOneMain(MainField),
+
+    /// More than one setup field was parsed, there can only be one setup field per file.
+    #[error("more than one setup field was parsed, there can only be one setup field per file")]
+    MoreThanOneSetup(SetupField),
 }
 
 impl CompilerError for PatternMatchingError {
@@ -87,7 +97,9 @@ impl CompilerError for PatternMatchingError {
         let l = match self {
             Self::UnexpectedToken { got, .. } => {
                 Lint::from_slice_error(got.slice.clone())
-            }
+            },
+            Self::MoreThanOneMain(m) => Lint::from_slice_error(m.slice()),
+            Self::MoreThanOneSetup(s) => Lint::from_slice_error(s.slice()),
         };
 
         Some(l)
@@ -98,12 +110,12 @@ impl CompilerError for PatternMatchingError {
 #[derive(Debug, Clone, PartialEq)]
 struct PatternFeeder<'a, T: Pattern> {
     pattern: T,
-    tokens: &'a Vec<Token>,
+    tokens: &'a [Token],
     current_token: usize,
 }
 
 impl<'a, T: Pattern> PatternFeeder<'a, T> {
-    fn new(tokens: &'a Vec<Token>) -> Self {
+    fn new(tokens: &'a [Token]) -> Self {
         PatternFeeder {
             pattern: T::default(),
             tokens,
@@ -124,7 +136,7 @@ impl<'a, T: Pattern> PatternFeeder<'a, T> {
     }
 }
 
-fn solve_pattern<T: Pattern>(tokens: &Vec<Token>) -> Result<T::ParseResult, PatternMatchingError> {
+fn solve_pattern<T: Pattern>(tokens: &[Token]) -> Result<T::ParseResult, PatternMatchingError> {
     let mut feeder: PatternFeeder<'_, T> = PatternFeeder::new(tokens);
 
     loop {
@@ -138,23 +150,26 @@ fn solve_pattern<T: Pattern>(tokens: &Vec<Token>) -> Result<T::ParseResult, Patt
 
 /// Pattern for constructing a [`ParsedProgram`].
 #[derive(Debug, Clone, PartialEq, Default)]
-struct ProgramPattern(
-    Then<Many<MetaFieldPattern>, MainFieldPattern>
+struct FilePattern(
+    Then<Many<FieldPattern>, EofPattern>
 );
 
-/// A whole, parsed, basm program.
-/// A basm program only needs a valid [`MainField`], to be considered complete,
-/// but it can be augmented by any one or more [`MetaField`] before the `[main]`.
+/// A whole, parsed, basm file.
+/// A basm file contain 0 or 1 [`MainField`] and [`SetupField`],
+/// but it can be augmented by any one or more [`MetaField`].
 #[derive(Debug, Clone, PartialEq)]
-pub struct ParsedProgram {
+pub struct ParsedFile {
     #[allow(missing_docs)]
     pub meta_instructions: Vec<MetaField>,
     #[allow(missing_docs)]
-    pub main_field: MainField,
+    // main may be none, if the file is a library file
+    pub main_field: Option<MainField>,
+    #[allow(missing_docs)]
+    pub setup_field: Option<SetupField>,
 }
 
-impl Pattern for ProgramPattern {
-    type ParseResult = ParsedProgram;
+impl Pattern for FilePattern {
+    type ParseResult = ParsedFile;
 
     fn advance(&mut self, token: &Token) -> Advancement<Self::ParseResult> {
         use AdvancementState as AdvState;
@@ -165,9 +180,45 @@ impl Pattern for ProgramPattern {
         match adv.state {
             AdvState::Advancing => Advancement::new(AdvState::Advancing, overeach),
             AdvState::Done(res) => {
-                let val = ParsedProgram {
-                    meta_instructions: res.0,
-                    main_field: res.1,
+                let mut fields = res.0;
+                let main_index = fields.iter().enumerate()
+                    .find(|(_, f)| f.is_main())
+                    .map(|(i, _)| i);
+                let main = if let Some(main_index) = main_index {
+                    Some(fields.remove(main_index).unwrap_main().unwrap())
+                } else {
+                    None
+                };
+
+                let setup_index = fields.iter().enumerate()
+                    .find(|(_, f)| f.is_setup())
+                    .map(|(i, _)| i);
+                let setup = if let Some(setup_index) = setup_index {
+                    Some(fields.remove(setup_index).unwrap_setup().unwrap())
+                } else {
+                    None
+                };
+
+                // check for extra unwanted fields, which are not metas,
+                // at this point only metas should be left in the iterator
+                let maybe_unwanted = fields.iter().find(|f| !f.is_meta());
+                if let Some(unwanted) = maybe_unwanted {
+                    let err = match unwanted {
+                        Field::Main(m) => PatternMatchingError::MoreThanOneMain(m.clone()),
+                        Field::Setup(s) => PatternMatchingError::MoreThanOneSetup(s.clone()),
+                        _ => panic!()
+                    };
+
+                    // TODO: fix this to use the overeach of the Many<> 
+                    return Advancement::new(AdvState::Error(err), 0);
+                }
+
+                let metas = fields.into_iter().map(|f| f.unwrap_meta().unwrap());
+
+                let val = ParsedFile {
+                    meta_instructions: Vec::from_iter(metas),
+                    main_field: main,
+                    setup_field: setup,
                 };
 
                 Advancement::new(AdvState::Done(val), overeach)
@@ -190,8 +241,8 @@ impl LanguageItem for Token {
 }
 
 /// Parses the tokens into a structured form ([`ParsedProgram`]).
-pub fn parse_tokens(tokens: &Vec<Token>) -> Result<ParsedProgram, PatternMatchingError> {
-    solve_pattern::<ProgramPattern>(tokens)
+pub fn parse_tokens(tokens: &[Token]) -> Result<ParsedFile, PatternMatchingError> {
+    solve_pattern::<FilePattern>(tokens)
 }
 
 #[cfg(test)]
@@ -236,9 +287,9 @@ mod tests {
             TokenType::RSquare,
             TokenType::Eof,
         ].into_iter()
-        .map(|tt| bogus_token(tt)).collect();
+        .map(|tt| bogus_token(tt)).collect::<Vec<_>>();
 
-        let res = solve_pattern::<ProgramPattern>(&tokens).unwrap();
+        let res = solve_pattern::<FilePattern>(&tokens).unwrap();
         assert_eq!(res.meta_instructions.len(), 1);
 
         // no [main]
@@ -260,10 +311,10 @@ mod tests {
             TokenType::RSquare,
             TokenType::Eof,
         ].into_iter()
-        .map(|tt| bogus_token(tt)).collect();
+        .map(|tt| bogus_token(tt)).collect::<Vec<_>>();
 
-        let res = solve_pattern::<ProgramPattern>(&tokens);
-        assert!(res.is_err());
+        let res = solve_pattern::<FilePattern>(&tokens);
+        assert!(res.unwrap().main_field.is_none());
 
         // no meta
         let tokens = vec![
@@ -278,9 +329,9 @@ mod tests {
             TokenType::RSquare,
             TokenType::Eof,
         ].into_iter()
-        .map(|tt| bogus_token(tt)).collect();
+        .map(|tt| bogus_token(tt)).collect::<Vec<_>>();
 
-        let res = solve_pattern::<ProgramPattern>(&tokens).unwrap();
+        let res = solve_pattern::<FilePattern>(&tokens).unwrap();
         assert_eq!(res.meta_instructions.len(), 0);
     }
 
@@ -289,11 +340,10 @@ mod tests {
         let abs_path = absolute("./test-resources/fib.basm").unwrap();
         let file = SourceFile::from_file(&abs_path).unwrap().leak();
         let res = lex_file(&file);
-        assert!(res.1.is_empty());
-        let tokens = res.0;
-        let program = solve_pattern::<ProgramPattern>(&tokens).unwrap();
+        let tokens = res.unwrap();
+        let program = solve_pattern::<FilePattern>(&tokens).unwrap();
 
         assert_eq!(program.meta_instructions.len(), 1);
-        assert_eq!(program.main_field.contents.contents.len(), 7);
+        assert_eq!(program.main_field.unwrap().contents.contents.len(), 7);
     }
 }

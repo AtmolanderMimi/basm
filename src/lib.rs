@@ -37,13 +37,15 @@ pub use optimiser::optimise;
 
 /// Transpiles bfu source code into bf.
 pub fn transpile<'a>(sf: &'static SourceFile) -> Result<String, Vec<Box<dyn CompilerError + 'a>>> {
-    let (tokens, errors) = lexer::lex_file(sf);
-    if !errors.is_empty() {
-        let boxed_errs = errors.into_iter()
+    let tokens = match lexer::lex_file(sf) {
+        Ok(tokens) => tokens,
+        Err((_, errors)) => {
+            let boxed_errs = errors.into_iter()
             .map(|e| Box::new(e) as Box<dyn CompilerError>)
             .collect();
-        return Err(boxed_errs)
-    }
+            return Err(boxed_errs)
+        }
+    };
 
     let program = match parser::parse_tokens(&tokens) {
         Ok(p) => p,

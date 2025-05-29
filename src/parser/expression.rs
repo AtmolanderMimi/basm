@@ -202,7 +202,7 @@ mod tests {
             TokenType::Ident("i".to_string()),
             TokenType::Eof,
         ].into_iter()
-        .map(|tt| bogus_token(tt)).collect();
+        .map(|tt| bogus_token(tt)).collect::<Vec<_>>();
 
         let expr = solve_pattern::<ExpressionPattern>(&tokens);
         let expr = expr.unwrap();
@@ -216,7 +216,7 @@ mod tests {
             TokenType::Minus,
             TokenType::Eof,
         ].into_iter()
-        .map(|tt| bogus_token(tt)).collect();
+        .map(|tt| bogus_token(tt)).collect::<Vec<_>>();
 
         let expr = solve_pattern::<ExpressionPattern>(&tokens);
         let expr = expr.unwrap();
@@ -228,7 +228,7 @@ mod tests {
             TokenType::Minus,
             TokenType::Eof,
         ].into_iter()
-        .map(|tt| bogus_token(tt)).collect();
+        .map(|tt| bogus_token(tt)).collect::<Vec<_>>();
 
         let expr = solve_pattern::<ExpressionPattern>(&tokens);
         assert!(expr.is_err())
