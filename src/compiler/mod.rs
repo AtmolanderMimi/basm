@@ -6,6 +6,9 @@ pub use normalized_items::NormalizedScope;
 use thiserror::Error;
 mod normalized_items;
 mod expressions_eval_impl;
+mod aliases;
+use aliases::Aliases;
+pub use aliases::AliasValue;
 use std::{collections::HashMap, fmt::Debug, rc::Rc, sync::Mutex};
 
 use crate::{parser::{Ident, Instruction as ParsedInstruction, LanguageItem, MetaField, ParsedFile}, CompilerError as CompilerErrorTrait, Lint};
@@ -50,8 +53,7 @@ impl MainContext {
         ScopeContext {
             main: self,
             parent: None,
-            local_value_aliases: Vec::new(),
-            local_scope_aliases: Vec::new(),
+            local_aliases: Aliases::default(),
         }
     }
 
@@ -85,8 +87,7 @@ impl MainContext {
 pub struct ScopeContext<'a> {
     main: &'a MainContext,
     parent: Option<&'a ScopeContext<'a>>,
-    local_value_aliases: Vec<(String, u32)>,
-    local_scope_aliases: Vec<(String, NormalizedScope)>,
+    local_aliases: Aliases,
 }
 
 impl<'a> ScopeContext<'a> {
@@ -95,40 +96,45 @@ impl<'a> ScopeContext<'a> {
     /// In this context "extending" means adding new aliases whilst keeping the parent's aliases.
     /// Aliases added to this children context cannot be accessed by it's parent.
     /// ```
-    /// use basm::compiler::MainContext;
+    /// use basm::compiler::{MainContext, AliasValue};
     /// 
     /// let mut main = MainContext::new();
     /// let mut parent = main.build_scope();
-    /// parent.add_value_alias("a".to_string(), 32);
+    /// parent.add_alias("a".to_string(), AliasValue::Numeric(32));
     /// 
     /// let mut child = parent.sub_scope();
-    /// child.add_value_alias("b".to_string(), 64);
+    /// child.add_alias("b".to_string(), AliasValue::Numeric(64));
     /// 
-    /// assert!(child.find_value_alias("a").is_some());
-    /// assert!(child.find_value_alias("b").is_some());
+    /// assert!(child.find_numeric_alias("a").is_some());
+    /// assert!(child.find_numeric_alias("b").is_some());
     /// drop(child);
-    /// assert!(parent.find_value_alias("a").is_some());
-    /// assert!(parent.find_value_alias("b").is_none());
+    /// assert!(parent.find_numeric_alias("a").is_some());
+    /// assert!(parent.find_numeric_alias("b").is_none());
     /// ```
     pub fn sub_scope(&'a self) -> ScopeContext<'a> {
         ScopeContext {
             main: self.main,
             parent: Some(self),
-            local_value_aliases: Vec::new(),
-            local_scope_aliases: Vec::new(),
+            local_aliases: Aliases::default(),
         }
     }
 
-    /// Adds an numeric alias onto the alias stack.
+    /// Adds an alias of any type, aliases do not overwrite themselves when they are of different types.
     /// Only this [`ScopeContext`] and those created from this one will be able to see it.
-    pub fn add_value_alias(&mut self, ident: String, value: u32) {
-        self.local_value_aliases.push((ident, value));
+    pub fn add_alias(&mut self, ident: String, value: AliasValue) {
+        self.local_aliases.add_alias(ident, value);
     }
 
-    /// Adds an scope alias onto the alias stack.
+    /// Adds an numeric alias, aliases do not overwrite themselves when they are of different types.
     /// Only this [`ScopeContext`] and those created from this one will be able to see it.
-    pub fn add_scope_alias(&mut self, ident: String, scope: NormalizedScope) {
-        self.local_scope_aliases.push((ident, scope));
+    pub fn add_numeric_alias(&mut self, ident: String, value: u32) {
+        self.add_alias(ident, AliasValue::Numeric(value));
+    }
+
+    /// Adds a scope alias, aliases do not overwrite themselves when they are of different types.
+    /// Only this [`ScopeContext`] and those created from this one will be able to see it.
+    pub fn add_scope_alias(&mut self, ident: String, value: NormalizedScope) {
+        self.add_alias(ident, AliasValue::Scope(value));
     }
 
     /// Finds the newest alias matching the `ident`.
@@ -138,15 +144,12 @@ impl<'a> ScopeContext<'a> {
     /// May return `None` if there was no alias defined matching the ident.
     /// This returns `None` even if a numeric alias was already defined earlier,
     /// if it was overshadowed by an alias of other type.
-    pub fn find_value_alias(&self, ident: &str) -> Option<u32> {
-        // we reverse so that we can prioritise oldest match
-        let local_find = self.local_value_aliases.iter().rev()
-            .find(|(a, _)| a == ident)
-            .map(|(_, v)| *v);
+    pub fn find_numeric_alias(&self, ident: &str) -> Option<u32> {
+        let local_find = self.local_aliases.find_numeric_alias(ident);
 
         // if we did not find an alias in the current scope with keep searching down recusively
         if local_find.is_none() {
-            self.parent.and_then(|p| p.find_value_alias(ident))
+            self.parent.and_then(|p| p.find_numeric_alias(ident))
         } else {
             local_find
         }
@@ -160,10 +163,7 @@ impl<'a> ScopeContext<'a> {
     /// This returns `None` even if a numeric alias was already defined earlier,
     /// if it was overshadowed by an alias of other type.
     pub fn find_scope_alias(&self, ident: &str) -> Option<&NormalizedScope> {
-        // we reverse so that we can prioritise oldest match
-        let local_find = self.local_scope_aliases.iter().rev()
-            .find(|(a, _)| a == ident)
-            .map(|(_, v)| v);
+        let local_find = self.local_aliases.find_scope_alias(ident);
 
         // if we did not find an alias in the current scope with keep searching down recusively
         if local_find.is_none() {
@@ -328,19 +328,19 @@ mod tests {
         // this test is here just to check if modification to the lifetimes would prevent compiling
         let main = MainContext::new();
         let mut parent = main.build_scope();
-        parent.add_value_alias("a".to_string(), 32);
+        parent.add_alias("a".to_string(), AliasValue::Numeric(32));
         {   
             let mut child = parent.sub_scope();
-            child.add_value_alias("b".to_string(), 64);
+            child.add_alias("b".to_string(), AliasValue::Numeric(64));
 
-            assert!(child.find_value_alias("a").is_some());
-            assert!(child.find_value_alias("b").is_some());
+            assert!(child.find_numeric_alias("a").is_some());
+            assert!(child.find_numeric_alias("b").is_some());
             drop(child);
         }
-        assert!(parent.find_value_alias("a").is_some());
-        assert!(parent.find_value_alias("b").is_none());
+        assert!(parent.find_numeric_alias("a").is_some());
+        assert!(parent.find_numeric_alias("b").is_none());
 
-        parent.add_value_alias("c".to_string(), 128);
-        assert!(parent.find_value_alias("c").is_some())
+        parent.add_alias("c".to_string(), AliasValue::Numeric(128));
+        assert!(parent.find_numeric_alias("c").is_some())
     }
 }

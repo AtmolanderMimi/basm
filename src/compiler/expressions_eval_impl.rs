@@ -33,7 +33,7 @@ impl ValueRepresentation {
             Self::NumLit(n) => n.value(),
             Self::CharLit(c) => c.value().into(),
             Self::Ident(i) => {
-                if let Some(v) = ctx.find_value_alias(i.value()) {
+                if let Some(v) = ctx.find_numeric_alias(i.value()) {
                     v
                 } else {
                     return Err(CompilerError::AliasNotDefined(i.clone()))

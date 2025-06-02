@@ -179,7 +179,7 @@ fn alis(ctx: &mut ScopeContext<'_>, instruction: ParsedInstruction) -> Result<()
     match &instruction.arguments[1] {
         ParsedArgument::Expression(exp) => {
             let value = exp.evaluate(ctx)?;
-            ctx.add_value_alias(alis_name.to_string(), value);
+            ctx.add_numeric_alias(alis_name.to_string(), value);
         },
         ParsedArgument::Scope(scp) => {
             let val = NormalizedScope::new(scp.clone(), ctx)?;

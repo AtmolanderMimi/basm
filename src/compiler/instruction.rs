@@ -528,7 +528,7 @@ impl Instruction for MetaInstruction {
 
         for ((i, name), kind) in self.argument_names.iter().enumerate().zip(self.arguments()) {
             match kind {
-                ArgumentKind::Operand => scope_ctx.add_value_alias(name.clone(), args[i].clone().unwrap_operand()),
+                ArgumentKind::Operand => scope_ctx.add_numeric_alias(name.clone(), args[i].clone().unwrap_operand()),
                 ArgumentKind::Scope => scope_ctx.add_scope_alias(name.clone(), args[i].clone().unwrap_scope()),
                 kind @ ArgumentKind::String => panic!("meta-instructions don't support {kind:?}"),
             }
