@@ -7,7 +7,7 @@ use thiserror::Error;
 
 use crate::parser::{MetaField, Scope, SignatureArgument};
 
-use super::{normalized_items::NormalizedScope, AliasesTrait, Argument, CompilerError, MainContext};
+use super::{context::ContextTrait, normalized_items::NormalizedScope, AliasesTrait, Argument, CompilerError, MainContext};
 
 pub fn built_in() -> HashMap<String, Rc<dyn SendSyncInstruction>> {
     let mut map = HashMap::new();
@@ -38,7 +38,7 @@ pub trait Instruction {
 
     /// Compiles the given instruction into string format, checks the validity of the arguments passed in.
     /// Will return an error if the number of arguments does not match the one specified by [`Instruction::arguments`].
-    fn compile_checked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+    fn compile_checked(&self, buf: &mut String, ctx: &mut MainContext, args: &[Argument]) -> Result<(), InstructionError> {
         if args.len() > self.arguments().len() {
             return Err(InstructionError::TooManyArguments { got: args.len(), expected: self.arguments().len() })
         } else if args.len() < self.arguments().len() {
@@ -71,7 +71,7 @@ pub trait Instruction {
     
     /// Compiles the given instructions into string format.
     /// It can be assummed that the arguments passed in are valid.
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError>;
+    fn compile_unchecked(&self, buf: &mut String, ctx: &mut MainContext, args: &[Argument]) -> Result<(), InstructionError>;
 }
 
 pub trait SendSyncInstruction: Instruction + Send + Sync {}
@@ -95,11 +95,11 @@ impl Instruction for Alis {
         &[]
     }
 
-    fn compile_checked(&self, _buf: &mut String, _ctx: &MainContext, _args: &[Argument]) -> Result<(), InstructionError> {
+    fn compile_checked(&self, _buf: &mut String, _ctx: &mut MainContext, _args: &[Argument]) -> Result<(), InstructionError> {
         //panic!("ALIS, cannot be compiled like other built-in's, it should be catched before")
         Ok(())
     }
-    fn compile_unchecked(&self, _buf: &mut String, _ctx: &MainContext, _args: &[Argument]) -> Result<(), InstructionError> {
+    fn compile_unchecked(&self, _buf: &mut String, _ctx: &mut MainContext, _args: &[Argument]) -> Result<(), InstructionError> {
         //panic!("ALIS, cannot be compiled like other built-in's, it should be catched before")
         Ok(())
     }
@@ -112,7 +112,7 @@ impl Instruction for Inln {
         &[ArgumentKind::Scope]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+    fn compile_unchecked(&self, buf: &mut String, ctx: &mut MainContext, args: &[Argument]) -> Result<(), InstructionError> {
         let scope = args[0].clone().unwrap_scope();
         let res = args[0].clone().unwrap_scope().compile(ctx, buf);
         if let Err(cpm_err) = res {
@@ -130,7 +130,7 @@ impl Instruction for Raw {
         &[ArgumentKind::String]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, _ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+    fn compile_unchecked(&self, buf: &mut String, _ctx: &mut MainContext, args: &[Argument]) -> Result<(), InstructionError> {
         buf.push_str(&args[0].clone().unwrap_string());
 
         Ok(())
@@ -144,7 +144,7 @@ impl Instruction for Bbox {
         &[ArgumentKind::Operand]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+    fn compile_unchecked(&self, buf: &mut String, ctx: &mut MainContext, args: &[Argument]) -> Result<(), InstructionError> {
         move_pointer_to(buf, ctx, args[0].clone().unwrap_operand());
 
         Ok(())
@@ -158,7 +158,7 @@ impl Instruction for Asum {
         &[ArgumentKind::Operand]
     }
 
-    fn compile_unchecked(&self, _buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+    fn compile_unchecked(&self, _buf: &mut String, ctx: &mut MainContext, args: &[Argument]) -> Result<(), InstructionError> {
         ctx.set_pointer(args[0].clone().unwrap_operand());
 
         Ok(())
@@ -172,7 +172,7 @@ impl Instruction for Zero {
         &[ArgumentKind::Operand]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+    fn compile_unchecked(&self, buf: &mut String, ctx: &mut MainContext, args: &[Argument]) -> Result<(), InstructionError> {
         move_pointer_to(buf, ctx, args[0].clone().unwrap_operand());
         buf.push_str("[-]");
 
@@ -187,7 +187,7 @@ impl Instruction for Incr {
         &[ArgumentKind::Operand, ArgumentKind::Operand]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+    fn compile_unchecked(&self, buf: &mut String, ctx: &mut MainContext, args: &[Argument]) -> Result<(), InstructionError> {
         let pos = args[0].clone().unwrap_operand();
         let incrementation = args[1].clone().unwrap_operand();
 
@@ -207,7 +207,7 @@ impl Instruction for Decr {
         &[ArgumentKind::Operand, ArgumentKind::Operand]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+    fn compile_unchecked(&self, buf: &mut String, ctx: &mut MainContext, args: &[Argument]) -> Result<(), InstructionError> {
         let pos = args[0].clone().unwrap_operand();
         let incrementation = args[1].clone().unwrap_operand();
 
@@ -227,7 +227,7 @@ impl Instruction for Copy {
         &[ArgumentKind::Operand, ArgumentKind::Operand, ArgumentKind::Operand]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+    fn compile_unchecked(&self, buf: &mut String, ctx: &mut MainContext, args: &[Argument]) -> Result<(), InstructionError> {
         let origin = args[0].clone().unwrap_operand();
         let pos1 = args[1].clone().unwrap_operand();
         let pos2 = args[2].clone().unwrap_operand();
@@ -254,7 +254,7 @@ impl Instruction for Addp {
         &[ArgumentKind::Operand, ArgumentKind::Operand]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+    fn compile_unchecked(&self, buf: &mut String, ctx: &mut MainContext, args: &[Argument]) -> Result<(), InstructionError> {
         let pos1 = args[0].clone().unwrap_operand();
         let pos2 = args[1].clone().unwrap_operand();
 
@@ -278,7 +278,7 @@ impl Instruction for Subp {
         &[ArgumentKind::Operand, ArgumentKind::Operand]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+    fn compile_unchecked(&self, buf: &mut String, ctx: &mut MainContext, args: &[Argument]) -> Result<(), InstructionError> {
         let pos1 = args[0].clone().unwrap_operand();
         let pos2 = args[1].clone().unwrap_operand();
 
@@ -302,7 +302,7 @@ impl Instruction for Whne {
         &[ArgumentKind::Operand, ArgumentKind::Operand, ArgumentKind::Scope]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+    fn compile_unchecked(&self, buf: &mut String, ctx: &mut MainContext, args: &[Argument]) -> Result<(), InstructionError> {
         let variable = args[0].clone().unwrap_operand();
         let compared = args[1].clone().unwrap_operand();
         let scope = args[2].clone().unwrap_scope();
@@ -340,7 +340,7 @@ impl Instruction for In {
         &[ArgumentKind::Operand]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+    fn compile_unchecked(&self, buf: &mut String, ctx: &mut MainContext, args: &[Argument]) -> Result<(), InstructionError> {
         let pos1 = args[0].clone().unwrap_operand();
 
         move_pointer_to(buf, ctx, pos1);
@@ -357,7 +357,7 @@ impl Instruction for Out {
         &[ArgumentKind::Operand]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+    fn compile_unchecked(&self, buf: &mut String, ctx: &mut MainContext, args: &[Argument]) -> Result<(), InstructionError> {
         let pos1 = args[0].clone().unwrap_operand();
 
         move_pointer_to(buf, ctx, pos1);
@@ -374,7 +374,7 @@ impl Instruction for Lstr {
         &[ArgumentKind::Operand, ArgumentKind::String]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+    fn compile_unchecked(&self, buf: &mut String, ctx: &mut MainContext, args: &[Argument]) -> Result<(), InstructionError> {
         let start_addr = args[0].clone().unwrap_operand();
         let string = args[1].clone().unwrap_string();
 
@@ -397,7 +397,7 @@ impl Instruction for Pstr {
         &[ArgumentKind::Operand, ArgumentKind::String]
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+    fn compile_unchecked(&self, buf: &mut String, ctx: &mut MainContext, args: &[Argument]) -> Result<(), InstructionError> {
         let buf_cell = args[0].clone().unwrap_operand();
         let string = args[1].clone().unwrap_string();
 
@@ -496,7 +496,7 @@ impl Instruction for MetaInstruction {
         &self.arguments
     }
 
-    fn compile_checked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+    fn compile_checked(&self, buf: &mut String, ctx: &mut MainContext, args: &[Argument]) -> Result<(), InstructionError> {
         if args.len() > self.arguments().len() {
             return Err(InstructionError::TooManyArguments { got: args.len(), expected: self.arguments().len() })
         } else if args.len() < self.arguments().len() {
@@ -524,7 +524,7 @@ impl Instruction for MetaInstruction {
             })
         }
 
-        let mut scope_ctx = ctx.build_scope();
+        let mut scope_ctx = ctx.build_subscope_context();
 
         for ((i, name), kind) in self.argument_names.iter().enumerate().zip(self.arguments()) {
             match kind {
@@ -548,7 +548,7 @@ impl Instruction for MetaInstruction {
         }
     }
 
-    fn compile_unchecked(&self, buf: &mut String, ctx: &MainContext, args: &[Argument]) -> Result<(), InstructionError> {
+    fn compile_unchecked(&self, buf: &mut String, ctx: &mut MainContext, args: &[Argument]) -> Result<(), InstructionError> {
         self.compile_checked(buf, ctx, args)
     }
 }
@@ -562,7 +562,7 @@ impl Debug for MetaInstruction {
 }
 
 /// Adds the number of required '>' or '<' to set the pointer to the right position.
-fn move_pointer_to(buf: &mut String, ctx: &MainContext, nposition: u32) {
+fn move_pointer_to(buf: &mut String, ctx: &mut MainContext, nposition: u32) {
     let opointer = ctx.pointer() as i64;
     let npointer = nposition as i64;
     let delta = npointer - opointer;

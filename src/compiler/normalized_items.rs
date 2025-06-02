@@ -33,7 +33,7 @@ impl NormalizedInstruction {
         if instruction.name.value() == "ALIS" {
             return Ok(NormalizedInstruction {
                 from: instruction,
-                kind: ctx.main.find_instruction("ALIS").unwrap(),
+                kind: ctx.main_ctx().find_instruction("ALIS").unwrap(),
                 arguments: Vec::new(),
             })
         }
