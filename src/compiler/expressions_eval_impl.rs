@@ -2,7 +2,7 @@
 
 use crate::parser::{Expression, Mod, ValueRepresentation};
 
-use super::{CompilerError, ScopeContext};
+use super::{AliasesTrait, CompilerError, ScopeContext};
 
 impl Expression {
     /// Evaluates the expression in the context.

@@ -4,7 +4,7 @@ use either::Either;
 
 use crate::parser::{Expression, Instruction as ParsedInstruction, Scope as ParsedScope, ValueRepresentation, Argument as ParsedArgument};
 
-use super::{instruction::{InstructionError, SendSyncInstruction}, Argument, CompilerError, MainContext, ScopeContext};
+use super::{instruction::{InstructionError, SendSyncInstruction}, AliasesTrait, Argument, CompilerError, MainContext, ScopeContext};
 
 /// An instruction with all arguments normalized.
 #[derive(Clone)]

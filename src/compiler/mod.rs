@@ -1,14 +1,14 @@
 //! The basm compiler.
 
 mod instruction;
-use instruction::{built_in, InstructionError, MetaInstruction, SendSyncInstruction};
+use instruction::{InstructionError, MetaInstruction, SendSyncInstruction};
 pub use normalized_items::NormalizedScope;
 use thiserror::Error;
 mod normalized_items;
 mod expressions_eval_impl;
 mod aliases;
 use aliases::Aliases;
-pub use aliases::AliasValue;
+pub use aliases::{AliasValue, AliasesTrait};
 use std::{collections::HashMap, fmt::Debug, rc::Rc, sync::Mutex};
 
 use crate::{parser::{Ident, Instruction as ParsedInstruction, LanguageItem, MetaField, ParsedFile}, CompilerError as CompilerErrorTrait, Lint};
@@ -21,6 +21,7 @@ pub fn compile(program: &ParsedFile) -> Result<String, CompilerError> {
 struct InnerMainContext {
     pointer: u32,
     instructions: HashMap<String, Rc<dyn SendSyncInstruction>>,
+    global_aliases: Aliases,
 }
 
 impl Debug for InnerMainContext {
@@ -34,7 +35,25 @@ impl Debug for InnerMainContext {
 
 impl Default for InnerMainContext {
     fn default() -> Self {
-        Self { pointer: Default::default(), instructions: built_in() }
+        Self {
+            pointer: Default::default(),
+            instructions: instruction::built_in(),
+            global_aliases: Aliases::default(),
+        }
+    }
+}
+
+impl AliasesTrait for InnerMainContext {
+    fn add_alias(&mut self, ident: String, value: AliasValue) {
+        self.global_aliases.add_alias(ident, value)
+    }
+
+    fn find_numeric_alias(&self, ident: &str) -> Option<u32> {
+        self.global_aliases.find_numeric_alias(ident)
+    }
+
+    fn find_scope_alias(&self, ident: &str) -> Option<&NormalizedScope> {
+        self.global_aliases.find_scope_alias(ident)
     }
 }
 
@@ -118,33 +137,14 @@ impl<'a> ScopeContext<'a> {
             local_aliases: Aliases::default(),
         }
     }
+}
 
-    /// Adds an alias of any type, aliases do not overwrite themselves when they are of different types.
-    /// Only this [`ScopeContext`] and those created from this one will be able to see it.
-    pub fn add_alias(&mut self, ident: String, value: AliasValue) {
+impl<'a> AliasesTrait for ScopeContext<'a> {
+    fn add_alias(&mut self, ident: String, value: AliasValue) {
         self.local_aliases.add_alias(ident, value);
     }
 
-    /// Adds an numeric alias, aliases do not overwrite themselves when they are of different types.
-    /// Only this [`ScopeContext`] and those created from this one will be able to see it.
-    pub fn add_numeric_alias(&mut self, ident: String, value: u32) {
-        self.add_alias(ident, AliasValue::Numeric(value));
-    }
-
-    /// Adds a scope alias, aliases do not overwrite themselves when they are of different types.
-    /// Only this [`ScopeContext`] and those created from this one will be able to see it.
-    pub fn add_scope_alias(&mut self, ident: String, value: NormalizedScope) {
-        self.add_alias(ident, AliasValue::Scope(value));
-    }
-
-    /// Finds the newest alias matching the `ident`.
-    /// This means that if a `x` was aliased twice only the latest alised `x` will be taken.
-    /// (newer aliases shadow older ones)
-    /// 
-    /// May return `None` if there was no alias defined matching the ident.
-    /// This returns `None` even if a numeric alias was already defined earlier,
-    /// if it was overshadowed by an alias of other type.
-    pub fn find_numeric_alias(&self, ident: &str) -> Option<u32> {
+    fn find_numeric_alias(&self, ident: &str) -> Option<u32> {
         let local_find = self.local_aliases.find_numeric_alias(ident);
 
         // if we did not find an alias in the current scope with keep searching down recusively
@@ -155,14 +155,7 @@ impl<'a> ScopeContext<'a> {
         }
     }
 
-    /// Finds the newest alias matching the `ident`.
-    /// This means that if a `x` was aliased twice only the latest alised `x` will be taken.
-    /// (newer aliases shadow older ones)
-    /// 
-    /// May return `None` if there was no alias defined matching the ident.
-    /// This returns `None` even if a numeric alias was already defined earlier,
-    /// if it was overshadowed by an alias of other type.
-    pub fn find_scope_alias(&self, ident: &str) -> Option<&NormalizedScope> {
+    fn find_scope_alias(&self, ident: &str) -> Option<&NormalizedScope> {
         let local_find = self.local_aliases.find_scope_alias(ident);
 
         // if we did not find an alias in the current scope with keep searching down recusively

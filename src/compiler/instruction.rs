@@ -7,7 +7,7 @@ use thiserror::Error;
 
 use crate::parser::{MetaField, Scope, SignatureArgument};
 
-use super::{normalized_items::NormalizedScope, Argument, CompilerError, MainContext};
+use super::{normalized_items::NormalizedScope, AliasesTrait, Argument, CompilerError, MainContext};
 
 pub fn built_in() -> HashMap<String, Rc<dyn SendSyncInstruction>> {
     let mut map = HashMap::new();
