@@ -1,5 +1,6 @@
 use either::Either;
 
+use crate::impl_language_item;
 use crate::lexer::token::Token;
 use crate::source::SfSlice;
 use crate::utils::Sliceable;
@@ -76,15 +77,7 @@ impl Pattern for MetaFieldPattern {
     }
 }
 
-impl LanguageItem for MetaField {
-    fn slice(&self) -> SfSlice {
-        let start = self.left_bracket.0.slice.start();
-        let end = self.contents.slice().end();
-
-        self.left_bracket.0.slice.source().slice(start..end)
-            .unwrap()
-    }
-}
+impl_language_item!(MetaField, left_bracket, contents);
 
 /// Pattern to create [`SignatureArgument`].
 #[derive(Debug, Clone, PartialEq, Default)]

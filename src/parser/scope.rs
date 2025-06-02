@@ -1,5 +1,6 @@
 use either::Either;
 
+use crate::impl_language_item;
 use crate::lexer::token::Token;
 use crate::source::SfSlice;
 use crate::utils::Sliceable;
@@ -57,14 +58,7 @@ impl Pattern for ScopePattern {
     }
 }
 
-impl LanguageItem for Scope {
-    fn slice(&self) -> SfSlice {
-        let start = self.left_bracket.0.slice.start();
-        let end = self.right_bracket.0.slice.end();
-        self.left_bracket.0.slice.source().slice(start..end)
-            .unwrap()
-    }
-}
+impl_language_item!(Scope, left_bracket, right_bracket);
 
 #[cfg(test)]
 mod tests {

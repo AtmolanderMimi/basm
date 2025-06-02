@@ -3,6 +3,7 @@
 
 use either::Either;
 
+use crate::impl_language_item;
 use crate::lexer::token::Token;
 use crate::source::SfSlice;
 use crate::utils::Sliceable;
@@ -110,18 +111,6 @@ impl Field {
             Some(m)
         } else {
             None
-        }
-    }
-
-    /// Returns a token identifiying the field.
-    /// This is the "main" identifier for [main] fields,
-    /// the "setup" identifier for the [setup] fields and
-    /// the "@" symbol for the [meta] fields.
-    pub fn identifier(&self) -> &Token {
-        match self {
-            Self::Main(m) => &m.main.0,
-            Self::Meta(m) => &m.at.0,
-            Self::Setup(s) => &s.setup.0,
         }
     }
 }
@@ -238,15 +227,7 @@ impl Pattern for SetupFieldPattern {
     }
 }
 
-impl LanguageItem for SetupField {
-    fn slice(&self) -> SfSlice {
-        let start = self.left_bracket.0.slice.start();
-        let end = self.contents.slice().end();
-
-        self.left_bracket.0.slice.source().slice(start..end)
-            .unwrap()
-    }
-}
+impl_language_item!(SetupField, left_bracket, contents);
 
 #[cfg(test)]
 mod tests {

@@ -240,6 +240,24 @@ impl LanguageItem for Token {
     }
 }
 
+#[macro_export]
+/// Used to implement the [`LanguageItem`] trait's `slice()` method in a generic method.
+/// Creates an implementation which creates a slice from the start of `start` to the end of `end`. 
+macro_rules! impl_language_item {
+    ($type:ty, $start:ident, $end:ident) => {
+        impl LanguageItem for $type {
+            fn slice(&self) -> SfSlice {
+                let start_slice = self.$start.slice();
+                let start = start_slice.start();
+                let end = self.$end.slice().end();
+                
+                start_slice.source().slice(start..end)
+                .unwrap()
+            }
+        }
+    };
+}
+
 /// Parses the tokens into a structured form ([`ParsedProgram`]).
 pub fn parse_tokens(tokens: &[Token]) -> Result<ParsedFile, PatternMatchingError> {
     solve_pattern::<FilePattern>(tokens)

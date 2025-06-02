@@ -1,5 +1,6 @@
 use either::Either;
 
+use crate::impl_language_item;
 use crate::lexer::token::Token;
 use crate::source::SfSlice;
 use crate::utils::Sliceable;
@@ -155,14 +156,7 @@ impl Pattern for InstructionPattern {
     }
 }
 
-impl LanguageItem for Instruction {
-    fn slice(&self) -> SfSlice {
-        let start = self.name.0.slice.start();
-        let end = self.semicolon.0.slice.end();
-        self.name.0.slice.source().slice(start..end)
-            .unwrap()
-    }
-}
+impl_language_item!(Instruction, name, semicolon);
 
 #[cfg(test)]
 mod tests {
