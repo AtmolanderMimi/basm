@@ -37,6 +37,11 @@ impl Compiler {
             context: MainContext::new(),
         };
 
+        if let Some(setup_field) = program.setup_field.clone() {
+            let normalized_setup = NormalizedScope::new(setup_field.contents, &mut compiler.context)?;
+            normalized_setup.compile(&mut compiler.context, &mut compiler.program_buffer)?;
+        }
+
         for meta in &program.meta_instructions {
             compiler.walk_meta_instruction_declaration(meta)?;
         }

@@ -4,7 +4,7 @@ use either::Either;
 
 use crate::parser::{Expression, Instruction as ParsedInstruction, Scope as ParsedScope, ValueRepresentation, Argument as ParsedArgument};
 
-use super::{context::ContextTrait, instruction::{InstructionError, SendSyncInstruction}, AliasesTrait, Argument, CompilerError, MainContext, ScopeContext};
+use super::{context::ContextTrait, instruction::{InstructionError, SendSyncInstruction}, Argument, CompilerError, MainContext};
 
 /// An instruction with all arguments normalized.
 #[derive(Clone)]
@@ -25,7 +25,7 @@ impl Debug for NormalizedInstruction {
 
 impl NormalizedInstruction {
     /// Creates a new [`CompiledInstruction`] from a (parsed) [`Instruction`].
-    pub fn new(instruction: ParsedInstruction, ctx: &mut ScopeContext<'_>) -> Result<NormalizedInstruction, CompilerError> {
+    pub fn new(instruction: ParsedInstruction, ctx: &mut impl ContextTrait) -> Result<NormalizedInstruction, CompilerError> {
         // we skip normalizing arguments to ALIS
         // since it is the whole point of ALIS to have undefined arguments.
         // (specifically it's scope identifiers that mess it up because we try to 
@@ -106,7 +106,7 @@ pub struct NormalizedScope {
 
 impl NormalizedScope {
     /// Tries to normalize a [`ParsedScope`] using `ctx`.
-    pub fn new(scope: ParsedScope, ctx: &mut ScopeContext<'_>) -> Result<NormalizedScope, CompilerError> {
+    pub fn new(scope: ParsedScope, ctx: &mut impl ContextTrait) -> Result<NormalizedScope, CompilerError> {
         // -- we normalize the arguments --
         let contents_impure = scope.contents.iter()
         .map(|a| match a {
@@ -152,7 +152,7 @@ impl NormalizedScope {
 }
 
 /// Here's our happy little ALIS implementation.
-fn alis(ctx: &mut ScopeContext<'_>, instruction: ParsedInstruction) -> Result<(), CompilerError> {
+fn alis(ctx: &mut impl ContextTrait, instruction: ParsedInstruction) -> Result<(), CompilerError> {
     // check arguments, since this is not run as a normal instruction this is done manually
     if instruction.arguments.len() > 2 {
         let v = InstructionError::TooManyArguments { got: instruction.arguments.len(), expected: 2 };

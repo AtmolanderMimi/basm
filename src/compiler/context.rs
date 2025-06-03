@@ -56,7 +56,7 @@ impl Default for MainContext {
         Self {
             pointer: Default::default(),
             instructions: instruction::built_in(),
-            global_aliases: Aliases::default(),
+            global_aliases: Aliases::new(),
         }
     }
 }
@@ -114,7 +114,7 @@ impl ContextTrait for MainContext {
         ScopeContext {
             main: self,
             parent: None,
-            local_aliases: Aliases::default(),
+            local_aliases: Aliases::new(),
         }
     }
 }
@@ -174,7 +174,7 @@ impl<'a> ContextTrait for ScopeContext<'a> {
         ScopeContext {
             main: self.main,
             parent: Some(self),
-            local_aliases: Aliases::default(),
+            local_aliases: Aliases::new(),
         }
     }
 }
