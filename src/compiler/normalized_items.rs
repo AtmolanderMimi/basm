@@ -4,7 +4,7 @@ use either::Either;
 
 use crate::parser::{Expression, Instruction as ParsedInstruction, Scope as ParsedScope, ValueRepresentation, Argument as ParsedArgument};
 
-use super::{instruction::{InstructionError, SendSyncInstruction}, AliasesTrait, Argument, CompilerError, MainContext, ScopeContext};
+use super::{context::ContextTrait, instruction::{InstructionError, SendSyncInstruction}, AliasesTrait, Argument, CompilerError, MainContext, ScopeContext};
 
 /// An instruction with all arguments normalized.
 #[derive(Clone)]
@@ -75,7 +75,7 @@ impl NormalizedInstruction {
 
         // -- kind --
         let instruction_ident = instruction.name.value();
-        let Some(kind) = ctx.main.find_instruction(instruction_ident) else {
+        let Some(kind) = ctx.main_ctx().find_instruction(instruction_ident) else {
             return Err(CompilerError::InstructionNotDefined(instruction.name))
         };
 
@@ -87,7 +87,7 @@ impl NormalizedInstruction {
     }
 
     /// Compiles the current instruction into the `buf` in string format.
-    pub fn compile(&self, ctx: &MainContext, buf: &mut String) -> Result<(), CompilerError> {
+    pub fn compile(&self, ctx: &mut MainContext, buf: &mut String) -> Result<(), CompilerError> {
         if let Err(ie) = self.kind.compile_checked(buf, ctx, &self.arguments) {
             Err(CompilerError::Instruction(ie, self.from.clone()))
         } else {
@@ -119,7 +119,7 @@ impl NormalizedScope {
                 Ok::<Either<_, _>, CompilerError>(Either::Left(v))
             },
             Either::Right(s) => {
-                let mut nctx = ctx.sub_scope();
+                let mut nctx = ctx.build_subscope_context();
                 let v = NormalizedScope::new(s.clone(), &mut nctx)?;
                 Ok(Either::Right(v))
             },
@@ -143,7 +143,7 @@ impl NormalizedScope {
     }
 
     /// Compiles the current scope into the `buf` in string format.
-    pub fn compile(&self, ctx: &MainContext, buf: &mut String) -> Result<(), CompilerError> {
+    pub fn compile(&self, ctx: &mut MainContext, buf: &mut String) -> Result<(), CompilerError> {
         self.contents.iter().try_for_each(|c| match c {
             Either::Left(i) => i.compile(ctx, buf),
             Either::Right(s) => s.compile(ctx, buf),

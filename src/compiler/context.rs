@@ -4,8 +4,9 @@ use super::NormalizedScope;
 use super::Aliases;
 use super::{AliasValue, AliasesTrait};
 
-use std::{collections::HashMap, fmt::Debug, rc::Rc, sync::Mutex};
+use std::{collections::HashMap, fmt::Debug, rc::Rc};
 
+/// Trait abstracting over the logic of aliasing and subscoping of contexts.
 pub trait ContextTrait: AliasesTrait {
     /// Returns the [`MainContext`] linked to this context.
     /// This may be the type itself, if the type is [`MainContext`].
@@ -16,13 +17,13 @@ pub trait ContextTrait: AliasesTrait {
     /// In this context "extending" means adding new aliases whilst keeping the parent's aliases.
     /// Aliases added to this children context cannot be accessed by it's parent.
     /// ```
-    /// use basm::compiler::{MainContext, AliasValue};
+    /// use basm::compiler::{MainContext, AliasValue, ContextTrait, AliasesTrait};
     /// 
     /// let mut main = MainContext::new();
-    /// let mut parent = main.build_scope();
+    /// let mut parent = main.build_subscope_context();
     /// parent.add_alias("a".to_string(), AliasValue::Numeric(32));
     /// 
-    /// let mut child = parent.sub_scope();
+    /// let mut child = parent.build_subscope_context();
     /// child.add_alias("b".to_string(), AliasValue::Numeric(64));
     /// 
     /// assert!(child.find_numeric_alias("a").is_some());
@@ -97,7 +98,7 @@ impl MainContext {
     }
 
     /// Tries to find a defined instruction with the matching identifier.
-    pub fn find_instruction(&mut self, ident: &str) -> Option<Rc<dyn SendSyncInstruction>> {
+    pub fn find_instruction(&self, ident: &str) -> Option<Rc<dyn SendSyncInstruction>> {
         self.instructions.get(ident).map(|i| {
             Rc::clone(i)
         })
@@ -126,36 +127,6 @@ pub struct ScopeContext<'a> {
     local_aliases: Aliases,
 }
 
-impl<'a> ScopeContext<'a> {
-    /// Creates a new "sub-context" from this [`ScopeContext`].
-    /// A sub-context is a context extending this current context.
-    /// In this context "extending" means adding new aliases whilst keeping the parent's aliases.
-    /// Aliases added to this children context cannot be accessed by it's parent.
-    /// ```
-    /// use basm::compiler::{MainContext, AliasValue};
-    /// 
-    /// let mut main = MainContext::new();
-    /// let mut parent = main.build_scope();
-    /// parent.add_alias("a".to_string(), AliasValue::Numeric(32));
-    /// 
-    /// let mut child = parent.sub_scope();
-    /// child.add_alias("b".to_string(), AliasValue::Numeric(64));
-    /// 
-    /// assert!(child.find_numeric_alias("a").is_some());
-    /// assert!(child.find_numeric_alias("b").is_some());
-    /// drop(child);
-    /// assert!(parent.find_numeric_alias("a").is_some());
-    /// assert!(parent.find_numeric_alias("b").is_none());
-    /// ```
-    pub fn sub_scope(&'a self) -> ScopeContext<'a> {
-        ScopeContext {
-            main: self.main,
-            parent: Some(self),
-            local_aliases: Aliases::default(),
-        }
-    }
-}
-
 impl<'a> AliasesTrait for ScopeContext<'a> {
     fn add_alias(&mut self, ident: String, value: AliasValue) {
         self.local_aliases.add_alias(ident, value);
@@ -165,21 +136,71 @@ impl<'a> AliasesTrait for ScopeContext<'a> {
         let local_find = self.local_aliases.find_numeric_alias(ident);
 
         // if we did not find an alias in the current scope with keep searching down recusively
-        if local_find.is_none() {
-            self.parent.and_then(|p| p.find_numeric_alias(ident))
-        } else {
-            local_find
+        if local_find.is_some() {
+            return local_find;
         }
+
+        let child_find = self.parent.and_then(|p| p.find_numeric_alias(ident));
+        if child_find.is_some() {
+            return child_find;
+        }
+
+        self.main.find_numeric_alias(ident)
     }
 
     fn find_scope_alias(&self, ident: &str) -> Option<&NormalizedScope> {
         let local_find = self.local_aliases.find_scope_alias(ident);
 
         // if we did not find an alias in the current scope with keep searching down recusively
-        if local_find.is_none() {
-            self.parent.and_then(|p| p.find_scope_alias(ident))
-        } else {
-            local_find
+        if local_find.is_some() {
+            return local_find;
         }
+
+        let child_find = self.parent.and_then(|p| p.find_scope_alias(ident));
+        if child_find.is_some() {
+            return child_find;
+        }
+
+        self.main.find_scope_alias(ident)
+    }
+}
+
+impl<'a> ContextTrait for ScopeContext<'a> {
+    fn main_ctx(&self) -> &MainContext {
+        self.main
+    }
+
+    fn build_subscope_context(&self) -> ScopeContext {
+        ScopeContext {
+            main: self.main,
+            parent: Some(self),
+            local_aliases: Aliases::default(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn global_aliases() {
+        let mut main = MainContext::new();
+        main.add_numeric_alias("Vtruth".to_string(), 42);
+        main.add_numeric_alias("Vlies".to_string(), 732);
+        let subscope1 = main.build_subscope_context();
+        assert_eq!(main.find_numeric_alias("Vtruth"), Some(42));
+        assert_eq!(main.find_numeric_alias("Vlies"), Some(732));
+
+        assert_eq!(subscope1.find_numeric_alias("Vtruth"), Some(42));
+
+        let mut subscope2 = subscope1.build_subscope_context();
+        subscope2.add_numeric_alias("Vtruth".to_string(), 1);
+        let subscope3 = subscope2.build_subscope_context();
+        assert_eq!(subscope2.find_numeric_alias("Vtruth"), Some(1));
+        assert_eq!(subscope2.find_numeric_alias("Vlies"), Some(732));
+
+        assert_eq!(subscope3.find_numeric_alias("Vtruth"), Some(1));
+        assert_eq!(subscope3.find_numeric_alias("Vlies"), Some(732));
     }
 }

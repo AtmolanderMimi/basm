@@ -10,9 +10,9 @@ mod aliases;
 use aliases::Aliases;
 pub use aliases::{AliasValue, AliasesTrait};
 mod context;
-use context::{ContextTrait, MainContext, ScopeContext};
+pub use context::{ContextTrait, MainContext, ScopeContext};
 
-use std::{collections::HashMap, fmt::Debug, rc::Rc, sync::Mutex};
+use std::fmt::Debug;
 
 use crate::{parser::{Ident, Instruction as ParsedInstruction, LanguageItem, MetaField, ParsedFile}, CompilerError as CompilerErrorTrait, Lint};
 
@@ -45,7 +45,7 @@ impl Compiler {
             return Err(CompilerError::MissingMain)
         };
         let normalized_main = NormalizedScope::new(main_field.contents, &mut compiler.context.build_subscope_context())?;
-        normalized_main.compile(&compiler.context, &mut compiler.program_buffer)?;
+        normalized_main.compile(&mut compiler.context, &mut compiler.program_buffer)?;
 
         Ok(compiler.program_buffer)
     }
@@ -177,7 +177,7 @@ mod tests {
         let mut parent = main.build_subscope_context();
         parent.add_alias("a".to_string(), AliasValue::Numeric(32));
         {   
-            let mut child = parent.sub_scope();
+            let mut child = parent.build_subscope_context();
             child.add_alias("b".to_string(), AliasValue::Numeric(64));
 
             assert!(child.find_numeric_alias("a").is_some());
