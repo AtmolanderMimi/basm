@@ -14,6 +14,7 @@
 - [Dynamically Indexing](./dynamic-array.md)
 - [Synthesis: Making a Bf Interpreter](./bf-interpreter.md)
     - [Full Code](./code-bf-interpreter.md)
+- [Addendum - The \[setup\] scope](./setup-field.md)
 
 # Reference
 - [Built-in Instructions](./ref-built-in-instructions.md)

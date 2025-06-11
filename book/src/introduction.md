@@ -38,7 +38,7 @@ This means that, in a basm source file, you can safely refer to the 3rd cell and
 no matter the operations you performed before.
 That's possible thanks to the tape pointer being automatically managed by the compiler.
 Also, because of the abstraction over raw bf operations, basm makes it impossible to reach a "relative state" without you wanting to. You cannot accidentally write `[>]`!
-You must implicitly use a `RAW` or `ASUM` operation with the intent of entering a relative state to enter a relative state. Reaching a relative state with these two operation is valid as it is needed to write things like dynamic array getting/setting. *(Implementing these operations is really interesting and involves a lot of language features that I describe throghly???? in the `Writing Relative Code` chapter)*
+You must implicitly use a `RAW` or `ASUM` operation with the intent of entering a relative state to enter a relative state. Reaching a relative state with these two operation is valid as it is needed to write things like dynamic array getting/setting. *(Implementing these operations is really interesting and involves a lot of language features that I describe throghly in the `Writing Relative Code` chapter)*
 
 In brief, relative is when you don't know where the cell pointer is in the program.
 As a rule of thumb when programming in basm: relative bad *(mostly)*, static good *(mostly)*.

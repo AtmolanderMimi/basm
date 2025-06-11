@@ -107,6 +107,4 @@ When in a scope, a scope is parsed as a statement. Whereas, when in an instructi
 
 ### Note
 
-From now on, basm code in code blocks will not always be surrounded by a `[main]` field
-for ease of reading *(and writing ;))*.
-All code will be implicitly contained in `[main]` unless otherwise noted.
+From now on, all code will be implicitly contained in `[main]` unless otherwise noted for ease of reading *(and writing ;))*.
