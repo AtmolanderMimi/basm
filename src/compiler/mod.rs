@@ -173,6 +173,8 @@ impl CompilerErrorTrait for CompilerError {
 
 #[cfg(test)]
 mod tests {
+    use crate::{interpreter::{InterpreterBuilder}, source::SourceFile, transpile};
+
     use super::*;
 
     #[test]
@@ -194,5 +196,142 @@ mod tests {
 
         parent.add_alias("c".to_string(), AliasValue::Numeric(128));
         assert!(parent.find_numeric_alias("c").is_some())
+    }
+
+    #[test]
+    fn fields_work_in_any_order() {
+        let prog_str = "
+        [main] [
+        META 2;
+        OUT 2;
+        ]
+        
+        [@META Aacc] [
+        INCR Aacc GVinc;
+        ]
+        
+        [setup] [
+        ALIS GVinc 42;
+        ]";
+
+        let sf = SourceFile::from_raw_parts("testfile".into(), prog_str.to_string())
+            .leak();
+
+        let bf_prog = transpile(sf).unwrap();
+        let mut inter = InterpreterBuilder::new(&bf_prog)
+            .with_output_as_number()
+            .finish();
+        inter.complete().unwrap();
+        assert_eq!(inter.captured_output().trim(), "42");
+
+        let prog_str = "
+        [setup] [
+        ALIS GVinc 42;
+        ]
+        
+        [@META Aacc] [
+        INCR Aacc GVinc;
+        ]
+
+        [main] [
+        META 2;
+        OUT 2;
+        ]";
+
+        let sf = SourceFile::from_raw_parts("testfile".into(), prog_str.to_string())
+            .leak();
+
+        let bf_prog = transpile(sf).unwrap();
+        let mut inter = InterpreterBuilder::new(&bf_prog)
+            .with_output_as_number()
+            .finish();
+        inter.complete().unwrap();
+        assert_eq!(inter.captured_output().trim(), "42");
+    }
+
+    #[test]
+    fn global_aliases_getting_shadowed() {
+        let prog_str = "
+        [setup] [
+        ALIS Vshadow 0;
+        ALIS Vshadow 3;
+        ]
+
+        [main] [
+        INCR 0 Vshadow;
+        ALIS Vshadow 4;
+        INCR 0 Vshadow;
+        META;
+        OUT 0;
+        ]
+
+        [@META] [
+        INCR 0 Vshadow;
+        ]";
+
+        let sf = SourceFile::from_raw_parts("testfile".into(), prog_str.to_string())
+            .leak();
+
+        let bf_prog = transpile(sf).unwrap();
+        let mut inter = InterpreterBuilder::new(&bf_prog)
+            .with_output_as_number()
+            .finish();
+        inter.complete().unwrap();
+        assert_eq!(inter.captured_output().trim(), "10");
+    }
+
+    #[test]
+    fn only_builtins_in_setup() {
+        // -- this should work --
+        let prog_str = "
+        [@META] []
+
+        [setup] [
+        INCR 0 2;
+        INCR 1 5;
+        ADDP 0 1;
+        OUT 0;
+        ]
+
+        [main] [
+        ZERO 0;
+        INCR 0 42;
+        OUT 0;
+        ]";
+
+        let sf = SourceFile::from_raw_parts("testfile".into(), prog_str.to_string())
+            .leak();
+
+        let bf_prog = transpile(sf).unwrap();
+        let mut inter = InterpreterBuilder::new(&bf_prog)
+            .with_output_as_number()
+            .finish();
+        inter.complete().unwrap();
+        assert_eq!(inter.captured_output().trim(), "7 42");
+
+        // -- this shouldn't work!! --
+        let prog_str = "
+        [@META] [
+        INCR 0 2;
+        INCR 1 5;
+        ADDP 0 1;
+        OUT 0;
+        ]
+
+        [setup] [
+        META;
+        ]
+
+        [main] [
+        ZERO 0;
+        INCR 0 42;
+        OUT 0;
+        ]";
+
+        let sf = SourceFile::from_raw_parts("testfile".into(), prog_str.to_string())
+            .leak();
+
+        // this is error
+        transpile(sf).unwrap_err();
     }
 }
