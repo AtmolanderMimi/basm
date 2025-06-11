@@ -749,7 +749,7 @@ increasing the length of programs that can be stored with 8 bit cells.
 
 Currently memory is layed-out as such:
 
-```text
+```txt
 [operating memory].[prog parking][prog content].[mem parking][mem content]
 ```
 
@@ -769,7 +769,7 @@ we need to move across the whole the program array.
 
 We can fix this by moving around the memory layout a little bit:
 
-```text
+```txt
 [prog content][prog parking].[operating memory].[mem parking][mem content]
 ```
 

@@ -42,13 +42,13 @@ We will also need to reserve an empty space (which we will call `[swap]`) to swa
 
 A diagram of our flyer would look like so:
 
-```text
+```txt
 [swap].[return][index].[element] ->
 ```
 
 And then on the return, once index is depleted:
 
-```text
+```txt
 <- [element].[return][cell].[swap]
 ```
 
@@ -108,7 +108,7 @@ That glider will be much simpler! We won't need `[return]` or `[cell]`, making i
 
 For context, diagram of our flyer would look like so:
 
-```text
+```txt
 [swap].[index].[element] ->
 ```
 
@@ -210,7 +210,7 @@ The first notable difference of `GETD` from what we just wrote is the memory lay
 we already saw what we needed extensively in the [layout section](#flyer-layout).
 Just keep in mind that our parking layout should look like this:
 
-```text
+```txt
 [empty][swap][return][index]
 ```
 
@@ -297,7 +297,7 @@ ADDP Adst Aarray+3;
 We can now try the same `[main]` as with `INCD` before, but with `INCD Aarray Aindex;`
 changed to `GETD Aarray Aindex 0;`:
 
-```text
+```txt
 -- TAPE STATE NUMERIC --
 0: 4
 1: 0
@@ -341,13 +341,13 @@ So, sadly, this requires us to make the flyer have **3 reserved data cells** at 
 
 A diagram of our flyer would look like so:
 
-```text
+```txt
 [swap].[return][index][cell].[element] ->
 ```
 
 And then on the return, once index is depleted:
 
-```text
+```txt
 <- [element].[return][empty][empty].[swap]
 ```
 
