@@ -7,6 +7,19 @@
 //  [] indexing elements of width 2,
 //  [] and flipping the program array
 
+[setup] [
+ALIS GVplus_op 1;          // `+` -> 1
+ALIS GVminus_op 2;         // `-` -> 2
+ALIS GVright_tape_op 3;    // `>` -> 3
+ALIS GVleft_tape_op 4;     // `<` -> 4
+ALIS GVleft_bracket_op 5;  // `[` -> 5
+ALIS GVright_bracket_op 6; // `]` -> 6
+ALIS GVinput_op 7;         // `,` -> 7
+ALIS GVoutput_op 8;        // `.` -> 8
+
+ALIS GVparking 4;
+]
+
 // sets a value to a specific value by zeroing it before writing
 [@SET Aaddr Vval] [
 ZERO Aaddr;
@@ -70,8 +83,7 @@ ASUM Vval;
 ]
 
 // Gets a value from an indexable array dynamically and destructively.
-// Indexable arrays require 4 zeroed cells at the start of them.
-// (Although the getting behaviour requires only 3)
+// The indexable array must have at least 3 cells of parking before the provided address.
 // At the start we use them like so: `[empty][swap][return][index] ...`.
 // Where `swap` is going to be use to swap the first element,
 // `index` is the index in the array we desire to get and
@@ -83,11 +95,11 @@ ASUM Vval;
 // At the end we should arrive at the start of the array like this: `[empty][swap][return][value]`.
 // Where `return` should now be 0. 
 [@GETD Aarray Aindex Aout] [
-ADDP Aarray+3 Aindex; // sets the index
+ADDP Aarray-1 Aindex; // sets the index
 
 // -- going forward --
 // 0 is relative to the back swap cell
-BBOX Aarray+1;
+BBOX Aarray-3;
 ASUM 0;
 
 ALIS Aback_swap 0;
@@ -127,23 +139,24 @@ WHNE Areturn 0 [
 
 // -- got home --
 BBOX 0;
-ASUM Aarray+1;
+ASUM Aarray-3;
 
-ADDP Aout Aarray+3;
+ADDP Aout Aarray-1;
 ]
 
 // Adds a value to a cell in an indexable array dynamically.
+// The provided indexable array needs 4 parking cells present before the address.
 // Functions like the inverse of `GETD`.
 // We start like so: `[swap][return][index][value]`
 // We return like so: `[swap][return][0][0] ... `
 // (we omit carrying back index and value for return because they will be zero)
 [@ADDD Aarray Aindex Avalue] [
-ADDP Aarray+2 Aindex; // sets the index
-ADDP Aarray+3 Avalue; // sets the value
+ADDP Aarray-2 Aindex; // sets the index
+ADDP Aarray-1 Avalue; // sets the value
 
 // -- going forward --
 // 0 is relative to the back swap cell
-BBOX Aarray;
+BBOX Aarray-4;
 ASUM 0;
 
 ALIS Aback_swap 0;
@@ -184,7 +197,7 @@ WHNE Areturn 0 [
 
 // -- got home --
 BBOX 0;
-ASUM Aarray;
+ASUM Aarray-4;
 ]
 
 [@add_if_same_or_shift Vchar Vconvert sp] [
@@ -231,13 +244,15 @@ IFEQ Ainput Vchar [ // if it is the right char
 // Reaching the max, will cause another block to be created.
 // Brackets do not store their recurrence (will always be 0).
 // User input ends when they enter "!".
-// This is an indexable array, this means that the array requires 4 zeroed cells
-// at the start of it so that they can later be used to index into the array.
+// This is an indexable array, this means that the array requires has a set amount of parking determied by GVparking.
+// The created array's parking starts at sp and it's contents are at sp+GVparking.
 [@input_program sp] [
-ALIS prog sp;
+ALIS Aprog_parking sp;
+ALIS Aprog Aprog_parking+GVparking;
+ALIS sp Aprog+1;
 
-DECR prog+3 1; // used to set a -1 flag
-BBOX prog+4;
+DECR Aprog-1 1; // used to set a -1 flag at the first from last parking space
+BBOX Aprog;
 ASUM 0;
 
 BASU 2;
@@ -253,35 +268,35 @@ ALIS sp 4;
 WHNE Aflag Vexit [
     IN Ainput;
 
-	add_if_same_or_shift '+' 1 sp;
-	add_if_same_or_shift '-' 2 sp;
-	add_if_same_or_shift '>' 3 sp;
-	add_if_same_or_shift '<' 4 sp;
+	add_if_same_or_shift '+' GVplus_op       sp;
+	add_if_same_or_shift '-' GVminus_op      sp;
+	add_if_same_or_shift '>' GVright_tape_op sp;
+	add_if_same_or_shift '<' GVleft_tape_op  sp;
 
     // these below will always shift, as they can't really recur
 	IFEQ Ainput '[' [
         ZERO Ainput;
         FASU 2;
 
-        INCR Aid 5;
+        INCR Aid GVleft_bracket_op;
     ] sp;
 	IFEQ Ainput ']' [
         ZERO Ainput;
         FASU 2;
 
-        INCR Aid 6;
+        INCR Aid GVright_bracket_op;
     ] sp;
 	IFEQ Ainput ',' [
         ZERO Ainput;
         FASU 2;
 
-        INCR Aid 7;
+        INCR Aid GVinput_op;
     ] sp;
 	IFEQ Ainput '.' [
         ZERO Ainput;
         FASU 2;
 
-        INCR Aid 8;
+        INCR Aid GVoutput_op;
     ] sp;
 
 	IFEQ Ainput '!' [
@@ -295,8 +310,8 @@ BBOX 0;
 // going back until we reach the -1 flag
 RAW "<+[-<+]-";
 
-ASUM prog+3;
-INCR prog+3 1; // remove the -1 flag
+ASUM Aprog-1;
+INCR Aprog-1 1; // remove the -1 flag
 ]
 
 // calculates the address of matching brackets and puts them in the recurrence
@@ -317,9 +332,9 @@ WHNE Aflag Vexit [
 		INCR Aflag Vexit;
 	] sp;
 
-	// if '[' //++[-[-]]!
+	// if '['
 	// we only check for '[', not ']', but they will be matched togheter
-	IFEQ Aoperator 5 [
+	IFEQ Aoperator GVleft_bracket_op [
 		COPC Abracket_address Ainvestigating_address sp;
 		ALIS Abracket_count sp;
 		INCR Abracket_count 1;
@@ -331,11 +346,11 @@ WHNE Aflag Vexit [
             INCR Ainvestigating_address 1;
             load_operator Aprog Ainvestigating_address Ainvestigating_operator sp;
 
-			IFEQ Ainvestigating_operator 5 [ // '['
+			IFEQ Ainvestigating_operator GVleft_bracket_op [ // '['
 				INCR Abracket_count 1;
 			] sp;
 
-			IFEQ Ainvestigating_operator 6 [ // ']'
+			IFEQ Ainvestigating_operator GVright_bracket_op [ // ']'
 				DECR Abracket_count 1;
 			] sp;
 
@@ -433,11 +448,12 @@ ALIS Abracket_jump 6; // used to know the pointer position when Aflag is Vbracke
 ALIS sp 7;
 
 ALIS Vmax_array_size 250;
-ALIS Aprog Vgeneral_memory;
+ALIS Aprog_parking Vgeneral_memory;
+ALIS Aprog Aprog_parking+GVparking;
 ALIS Amem Aprog+Vmax_array_size+1;
 
 // -- loading program --
-input_program Aprog;
+input_program Aprog_parking;
 calculate_bracket Aprog sp;
 
 WHNE Aflag Vexit [
@@ -448,15 +464,15 @@ WHNE Aflag Vexit [
 	load_operator   Aprog Aprog_pointer Aoperator   sp;
     load_recurrence Aprog Aprog_pointer Arecurrence sp;
 
-	IFEQ Aoperator 1 [ // '+'
+	IFEQ Aoperator GVplus_op [ // '+'
         COPC Arecurrence tmp sp;
 		ADDP Acell tmp;
 	] sp;
-	IFEQ Aoperator 2 [ // '-'
+	IFEQ Aoperator GVminus_op [ // '-'
         COPC Arecurrence tmp sp;
 		SUBP Acell tmp;
 	] sp;
-	IFEQ Aoperator 3 [ // '>'
+	IFEQ Aoperator GVright_tape_op [ // '>'
 		// set the last cell back
 		COPC Amem_pointer tmp sp;
 		ADDD Amem tmp Acell;
@@ -467,7 +483,7 @@ WHNE Aflag Vexit [
 		COPC Amem_pointer tmp sp;
 		GETD Amem tmp Acell;
 	] sp;
-	IFEQ Aoperator 4 [ // '<'
+	IFEQ Aoperator GVleft_tape_op [ // '<'
 		// set the last cell back
 		COPC Amem_pointer tmp sp;
 		ADDD Amem tmp Acell;
@@ -480,7 +496,7 @@ WHNE Aflag Vexit [
 	] sp;
 
 	// -- brackets code upcoming --
-	IFEQ Aoperator 5 [ // '['
+	IFEQ Aoperator GVleft_bracket_op [ // '['
 		IFEQ Acell 0 [
 			COPC Arecurrence tmp sp;
 			ADDP Abracket_jump tmp;
@@ -490,7 +506,7 @@ WHNE Aflag Vexit [
 		] sp;
 	] sp;
 
-	IFEQ Aoperator 6 [ // ']'
+	IFEQ Aoperator GVright_bracket_op [ // ']'
 		IFNE Acell 0 [
 			COPC Arecurrence tmp sp;
 			ADDP Abracket_jump tmp;
@@ -500,10 +516,10 @@ WHNE Aflag Vexit [
 		] sp;
 	] sp;
 
-	IFEQ Aoperator 7 [ // ','
+	IFEQ Aoperator GVinput_op [ // ','
 		IN Acell;
 	] sp;
-	IFEQ Aoperator 8 [ // '.'
+	IFEQ Aoperator GVoutput_op [ // '.'
 		OUT Acell;
 	] sp;
 
