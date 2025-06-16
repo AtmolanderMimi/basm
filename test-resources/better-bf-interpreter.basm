@@ -4,7 +4,7 @@
 // that being:
 //  [x] bulking operators,
 //  [x] (and precalculating matching brackets),
-//  [] indexing elements of width 2,
+//  [x] indexing elements of width 2 (did it with interlacing, which results to about the same),
 //  [] and flipping the program array
 
 [setup] [
@@ -17,7 +17,7 @@ ALIS GVright_bracket_op 6; // `]` -> 6
 ALIS GVinput_op 7;         // `,` -> 7
 ALIS GVoutput_op 8;        // `.` -> 8
 
-ALIS GVparking 4;
+ALIS GVparking 8;
 ]
 
 // sets a value to a specific value by zeroing it before writing
@@ -84,7 +84,7 @@ ASUM Vval;
 
 // Gets a value from an indexable array dynamically and destructively.
 // The indexable array must have at least 3 cells of parking before the provided address.
-// At the start we use them like so: `[empty][swap][return][index] ...`.
+// At the start we use them like so: `[swap][return][index] ...`.
 // Where `swap` is going to be use to swap the first element,
 // `index` is the index in the array we desire to get and
 // `return` is a value increased every time index is decreased, effectively giving us how far away we are from the start.
@@ -92,7 +92,7 @@ ASUM Vval;
 // Then move the whole structure up by one.
 // This creates a kind of "glider" through memory.
 // We use the same strategy to go back, but now we don't care about `return` and instead have an element to carry.
-// At the end we should arrive at the start of the array like this: `[empty][swap][return][value]`.
+// At the end we should arrive at the start of the array like this: `[swap][return][value]`.
 // Where `return` should now be 0. 
 [@GETD Aarray Aindex Aout] [
 ADDP Aarray-1 Aindex; // sets the index
@@ -147,8 +147,8 @@ ADDP Aout Aarray-1;
 // Adds a value to a cell in an indexable array dynamically.
 // The provided indexable array needs 4 parking cells present before the address.
 // Functions like the inverse of `GETD`.
-// We start like so: `[swap][return][index][value]`
-// We return like so: `[swap][return][0][0] ... `
+// We start like so: `[swap][return][index][value] ... `
+// We return like so: `[swap][return][empty][empty] ... `
 // (we omit carrying back index and value for return because they will be zero)
 [@ADDD Aarray Aindex Avalue] [
 ADDP Aarray-2 Aindex; // sets the index
@@ -198,6 +198,134 @@ WHNE Areturn 0 [
 // -- got home --
 BBOX 0;
 ASUM Aarray-4;
+]
+
+// Gets a value from an **interlaced** indexable array dynamically and destructively.
+// The interlaced array must have only two laces which alternate at every cell.
+// `Aindex` will refer to the index within the lace, not the one of the whole array.
+// `Vlace` refers to which lace is selected, either 0 or 1.
+// The indexable array must have at least 6 cells of parking before the provided address.
+// In function, this meta-instruction functions much like GETD, but moves two cells at a time,
+// ignoring the cells of the intermediate cells of the other lace.
+// At the start we use them like so: `[swap][return][index][value] ...` (with cells interlaced).
+// And we should return like this: `[swap][return][empty][empty] ...` (with cells interlaced).
+[@GETDI Aarray Aindex Vlace Aout] [
+// the logic behind accomodating values do work with laces is:
+// take the relative address values and multiply it by the number of laces (2)
+// then index into the specific lace with Vlace (by adding Vlace)
+// (same thing applies with ADDDI)
+// (this could be applied in a much more generic way if basm included multiplications in numeric expressions)
+
+// -- seting up the base state --
+// ends up in one of this two configs:
+// Vlace = 0: [empty][empty][empty][empty][index][empty]
+// Vlace = 1: [empty][empty][empty][empty][empty][index]
+ADDP Aarray-2+Vlace Aindex; // sets the index
+
+// -- going forward --
+// 0 is relative to the back swap cell
+BBOX Aarray-6+Vlace;
+ASUM 0;
+
+ALIS Aback_swap 0;
+ALIS Areturn 2;
+ALIS Aindex 4;
+ALIS Aelem 6;
+
+WHNE Aindex 0 [
+	DECR Aindex 1;
+	INCR Areturn 1;
+
+	ADDP Aback_swap Aelem;
+	ADDP Aindex+2 Aindex;
+	ADDP Areturn+2 Areturn;
+
+	FASU 2;
+];
+
+// -- reached --
+ALIS Avalue Aindex;
+ALIS Aback_swap Aelem;
+ALIS Aelem 0;
+
+ADDP Avalue Aback_swap;
+
+// -- going back --
+WHNE Areturn 0 [
+	DECR Areturn 1;
+
+	ADDP Areturn-2 Areturn;
+	ADDP Avalue-2 Avalue;
+
+	BASU 2;
+
+	ADDP Aback_swap Aelem;
+];
+
+// -- got home --
+BBOX 0;
+ASUM Aarray-6+Vlace;
+
+ADDP Aout Aarray-2+Vlace;
+]
+
+// Adds to a value a value in an **interlaced** indexable array dynamically.
+// The interlaced array must have only two laces which alternate at every cell.
+// `Aindex` will refer to the index within the lace, not the one of the whole array.
+// `Vlace` refers to which lace is selected, either 0 or 1.
+// The indexable array must have at least 8 cells of parking before the provided address.
+// In function, this meta-instruction functions much like ADDD, but moves two cells at a time,
+// ignoring the cells of the intermediate cells of the other lace.
+// At the start we use them like so: `[swap][return][index][value] ...` (with cells interlaced).
+// And we should return like this: `[swap][return][empty][empty] ...` (with cells interlaced).
+[@ADDDI Aarray Aindex Vlace Avalue] [
+ADDP Aarray-4+Vlace Aindex; // sets the index
+ADDP Aarray-2+Vlace Avalue; // sets the value
+
+// -- going forward --
+// 0 is relative to the back swap cell
+BBOX Aarray-8+Vlace;
+ASUM 0;
+
+ALIS Aback_swap 0;
+ALIS Areturn 2;
+ALIS Aindex 4;
+ALIS Avalue 6;
+ALIS Aelem 8;
+
+WHNE Aindex 0 [
+	DECR Aindex 1;
+	INCR Areturn 1;
+
+	ADDP Aback_swap Aelem;
+	ADDP Avalue+2 Avalue;
+	ADDP Aindex+2 Aindex;
+	ADDP Areturn+2 Areturn;
+
+	FASU 2;
+];
+
+// -- reached --
+ADDP Aelem Avalue;
+
+ALIS Aback_swap Aelem;
+ALIS Aelem 0;
+
+
+// -- going back --
+WHNE Areturn 0 [
+	DECR Areturn 1;
+
+	ADDP Areturn-2 Areturn;
+
+	BASU 2;
+
+	ADDP Aback_swap Aelem;
+];
+
+// -- got home --
+BBOX 0;
+ASUM Aarray-8+Vlace;
 ]
 
 [@add_if_same_or_shift Vchar Vconvert sp] [
@@ -384,54 +512,44 @@ ZERO Abracket_address;
 // does not consume Aprog_pointer
 [@load_operator Aprog Aprog_pointer Aoperator sp] [
 ALIS tmp sp;
-ALIS tmp2 sp+1;
-ALIS sp sp+2;
+ALIS sp sp+1;
 
 // get the operator (at Aprog_pointer*2)
 ZERO Aoperator;
 COPC Aprog_pointer tmp sp;
-DOUB tmp tmp2;
-GETD Aprog tmp2 Aoperator;   
+GETDI Aprog tmp 0 Aoperator;
 ]
 
 // loads the operator from the Aprog array at Aprog_pointer.
 // does not consume Aprog_pointer
 [@load_recurrence Aprog Aprog_pointer Arecurrence sp] [
 ALIS tmp sp;
-ALIS tmp2 sp+1;
-ALIS sp sp+2;
+ALIS sp sp+1;
 
 // and recurrence (at (Aprog_pointer*2+1)
 ZERO Arecurrence;
 COPC Aprog_pointer tmp sp;
-DOUB tmp tmp2;
-INCR tmp2 1;
-GETD Aprog tmp2 Arecurrence;  
+GETDI Aprog tmp 1 Arecurrence;  
 ]
 
 // unloads the operator (returns it)
 [@unload_operator Aprog Aprog_pointer Aoperator sp] [
 ALIS tmp sp;
-ALIS tmp2 sp+1;
-ALIS sp sp+2;
+ALIS sp sp+1;
 
 // reset the operator
 COPC Aprog_pointer tmp sp;
-DOUB tmp tmp2;
-ADDD Aprog tmp2 Aoperator;
+ADDDI Aprog tmp 0 Aoperator;
 ]
 
 // unloads the recurrence (returns it)
 [@unload_recurrence Aprog Aprog_pointer Arecurrence sp] [
 ALIS tmp sp;
-ALIS tmp2 sp+1;
-ALIS sp sp+2;
+ALIS sp sp+1;
 
 // reset the recurrence
 COPC Aprog_pointer tmp sp;
-DOUB tmp tmp2;
-INCR tmp2 1;
-ADDD Aprog tmp2 Arecurrence;
+ADDDI Aprog tmp 1 Arecurrence;
 ]
 
 [main] [
