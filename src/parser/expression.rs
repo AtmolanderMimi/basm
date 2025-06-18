@@ -3,6 +3,7 @@
 use either::Either;
 
 use crate::lexer::token::Token;
+use crate::parser::terminals::{Slash, SlashPattern, Star, StarPattern};
 use crate::source::SfSlice;
 use crate::utils::Sliceable;
 
@@ -58,7 +59,7 @@ impl Pattern for ValuePattern {
 /// Pattern for building a [`Mod`].
 #[derive(Debug, Clone, PartialEq, Default)]
 struct ModPattern(
-    Then<Or<PlusPattern, MinusPattern>, ValuePattern>
+    Then<Or<PlusPattern, Or<MinusPattern, Or<StarPattern, SlashPattern>>>, ValuePattern>
 );
 
 impl Pattern for ModPattern {
@@ -73,7 +74,9 @@ impl Pattern for ModPattern {
             AdvState::Done(res) => {
                 let val = match res.0 {
                     Either::Left(p) => Mod::Increment { plus_token: p, value: res.1 },
-                    Either::Right(m) => Mod::Decrement { minus_token: m, value: res.1 },
+                    Either::Right(Either::Left(m)) => Mod::Decrement { minus_token: m, value: res.1 },
+                    Either::Right(Either::Right(Either::Left(s))) => Mod::Multiply { star_token: s, value: res.1 },
+                    Either::Right(Either::Right(Either::Right(s))) => Mod::Divide { slash_token: s, value: res.1 },
                 };
 
                 Advancement::new(AdvState::Done(val), overeach)
@@ -96,6 +99,18 @@ pub enum Mod {
     #[allow(missing_docs)]
     Decrement {
         minus_token: Minus,
+        value: ValueRepresentation,
+    },
+    /// A multiply modifyer.
+    #[allow(missing_docs)]
+    Multiply {
+        star_token: Star,
+        value: ValueRepresentation,
+    },
+    /// A divide modifyer.
+    #[allow(missing_docs)]
+    Divide {
+        slash_token: Slash,
         value: ValueRepresentation,
     },
 }
@@ -175,16 +190,28 @@ impl LanguageItem for Mod {
                 let end = value.slice().end();
                 minus_token.slice().source().slice(start..end)
                     .unwrap()
-            }
+            },
+            Self::Multiply { star_token, value } => {
+                let start = star_token.slice().start();
+                let end = value.slice().end();
+                star_token.slice().source().slice(start..end)
+                    .unwrap()
+            },
+            Self::Divide { slash_token, value } => {
+                let start = slash_token.slice().start();
+                let end = value.slice().end();
+                slash_token.slice().source().slice(start..end)
+                    .unwrap()
+            },
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::assert_matches::assert_matches;
+    use std::{assert_matches::assert_matches, path::PathBuf};
 
-    use crate::{lexer::token::TokenType, parser::solve_pattern, source::SfSlice};
+    use crate::{lex_file, lexer::token::TokenType, parser::solve_pattern, source::{SfSlice, SourceFile}};
 
     use super::*;
 
@@ -232,5 +259,34 @@ mod tests {
 
         let expr = solve_pattern::<ExpressionPattern>(&tokens);
         assert!(expr.is_err())
+    }
+
+    #[test]
+    fn expression_token_pattern_mult_and_div() {
+        // times
+        let contents = "  3*2/3-3";
+        let sf = SourceFile::from_raw_parts(PathBuf::default(), contents.to_string()).leak();
+        let tokens = lex_file(sf).unwrap();
+
+        let expr = solve_pattern::<ExpressionPattern>(&tokens);
+        let expr = expr.unwrap();
+        if let Mod::Multiply { .. } = expr.mods[0] {
+            // good
+        } else {
+            panic!("that was a multiplication")
+        }
+
+        // divide
+        let contents = "  3/3-3";
+        let sf = SourceFile::from_raw_parts(PathBuf::default(), contents.to_string()).leak();
+        let tokens = lex_file(sf).unwrap();
+
+        let expr = solve_pattern::<ExpressionPattern>(&tokens);
+        let expr = expr.unwrap();
+        if let Mod::Divide { .. } = expr.mods[0] {
+            // good
+        } else {
+            panic!("that was a division")
+        }
     }
 }

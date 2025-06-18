@@ -14,7 +14,7 @@ pub use context::{ContextTrait, MainContext, ScopeContext};
 
 use std::fmt::Debug;
 
-use crate::{parser::{Ident, Instruction as ParsedInstruction, LanguageItem, MetaField, ParsedFile}, CompilerError as CompilerErrorTrait, Lint};
+use crate::{parser::{Expression, Ident, Instruction as ParsedInstruction, LanguageItem, MetaField, ParsedFile}, CompilerError as CompilerErrorTrait, Lint};
 
 /// Compiles a [`ParsedProgram`] into a brainfuck program in string format.
 pub fn compile(program: &ParsedFile) -> Result<String, CompilerError> {
@@ -139,6 +139,9 @@ pub enum CompilerError {
     /// Note that meta-instructions can use another meta-instruction, but only if it was defined higher.
     #[error("instruction is not defined")]
     InstructionNotDefined(Ident),
+    /// An expression tried to divide by 0.
+    #[error("expression tried to divide by zero")]
+    DivisionByZero(Expression),
     /// A program which is compiled, needs a main field definied in a file.
     /// If there is no main field, this error will be thrown.
     #[error("the program is missing a [main] field")]
@@ -157,6 +160,7 @@ impl CompilerErrorTrait for CompilerError {
             },
             CompilerError::InstructionNotDefined(i) => i.slice(),
             CompilerError::DoubleDeclaration(f) => f.name.slice(),
+            CompilerError::DivisionByZero(e) => e.slice(),
             CompilerError::MissingMain => return None,
         };
 

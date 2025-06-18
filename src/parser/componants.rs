@@ -12,7 +12,7 @@ use super::{Advancement, AdvancementState as AdvState, Pattern};
 /// Requires one of the patterns to be valid.
 /// If both are valid, then the first one to be completed gets returned.
 /// If both are completed at the same time, then the pattern `T` is prioritised.
-pub(super) struct Or<T, U>
+pub struct Or<T, U>
 where T: Pattern, U: Pattern {
     t: T,
     u: Option<U>, // only loads u if it is needed
@@ -61,7 +61,7 @@ where T: Pattern, U: Pattern {
 
 #[derive(Debug, Clone, PartialEq)]
 /// Requires both patterns to be valid in order (`T` → `U`).
-pub(super) struct Then<T, U>
+pub struct Then<T, U>
 where T: Pattern, U: Pattern {
     t: T,
     t_res: Option<T::ParseResult>,

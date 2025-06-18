@@ -43,6 +43,10 @@ pub enum TokenType {
     Plus,
     /// "-", used to offset values.
     Minus,
+    /// "*", used to multiply values.
+    Star,
+    /// "/" used to integer divide values.
+    Slash,
     /// "[", an opening square bracket, many uses.
     LSquare,
     /// "]", an closing square bracket, many uses.
@@ -63,13 +67,17 @@ pub enum TokenType {
 }
 
 impl TokenType {
+    // these mappings should go from biggest to smallest
+    // (for some reason, i don't know why and can't be bothered to care until this gets a rewrite)
     const MAPPING: &'static [(&'static str, TokenType)] = &[
+        ("//", Self::LineComment),
         ("+", Self::Plus),
         ("-", Self::Minus),
+        ("/", Self::Slash),
+        ("*", Self::Star),
         ("[", Self::LSquare),
         ("]", Self::RSquare),
         ("@", Self::At),
-        ("//", Self::LineComment),
         (";", Self::InstructionDelimitor),
         // lits go here also idents in spirit, cus they can't be mapped like this
     ];
@@ -91,6 +99,8 @@ impl TokenType {
             Self::RSquare => (),
             Self::StrLit(_) => (),
             Self::InstructionDelimitor => (),
+            Self::Star => (),
+            Self::Slash => (),
             Self::Eof => (),
         }
     }
@@ -358,6 +368,19 @@ mod tests {
         non_lit_match(
             Token::parse_token_non_lit(&sfs(" &")),
             None
+        );
+
+        // -- the lexer knows the difference between div and line comment --
+        non_lit_match_range(
+            Token::parse_token_non_lit(&sfs(" / fish")),
+            TokenType::Slash,
+            1..2,
+        );
+
+        non_lit_match_range(
+            Token::parse_token_non_lit(&sfs(" // fish")),
+            TokenType::LineComment,
+            1..3,
         );
 
         // NOTE: parsing is not guarentied to be in order anymore (currently is in last first)

@@ -1,5 +1,9 @@
 //! Tools used to parse a string of tokens into sensible a sensible structure (the [`ParsedProgram`] struct).
 
+// because i want to share patterns, but users shouldn't have to use them directly
+// so it is fine they can't because of private bounds.
+#![allow(private_interfaces)]
+
 mod terminals;
 mod componants;
 mod expression;
@@ -31,7 +35,8 @@ pub use instruction::{Instruction, Argument};
 pub use scope::Scope;
 
 /// Defines a language pattern.
-trait Pattern: Default {
+#[allow(missing_docs, private_interfaces)]
+pub trait Pattern: Default {
     type ParseResult: Clone;
 
     /// Advances a pattern.
@@ -136,7 +141,8 @@ impl<'a, T: Pattern> PatternFeeder<'a, T> {
     }
 }
 
-fn solve_pattern<T: Pattern>(tokens: &[Token]) -> Result<T::ParseResult, PatternMatchingError> {
+/// A function that solves a string of [`Token`] via a pattern.
+pub fn solve_pattern<T: Pattern>(tokens: &[Token]) -> Result<T::ParseResult, PatternMatchingError> {
     let mut feeder: PatternFeeder<'_, T> = PatternFeeder::new(tokens);
 
     loop {
@@ -261,6 +267,28 @@ macro_rules! impl_language_item {
 /// Parses the tokens into a structured form ([`ParsedProgram`]).
 pub fn parse_tokens(tokens: &[Token]) -> Result<ParsedFile, PatternMatchingError> {
     solve_pattern::<FilePattern>(tokens)
+}
+
+/// The collection of patterns used to parse for structures.
+/// (At least all the patterns for the structures which are public)
+pub mod patterns {
+    pub use super::{solve_pattern, Pattern};
+
+    use crate::parser::terminals;
+    use crate::parser::componants;
+    use crate::parser::expression;
+    use crate::parser::instruction;
+    use crate::parser::scope;
+    use crate::parser::fields;
+    use crate::parser::meta_field;
+
+    pub use terminals::{AtPattern, EofPattern, StarPattern, IdentPattern, MinusPattern, NumLitPattern, StrLitPattern, CharLitPattern, MainIdentPattern, SemicolonPattern, LeftSquarePattern, RightSquarePattern};
+    pub use componants::{Or, Then, Many};
+    pub use expression::ExpressionPattern;
+    pub use instruction::{ArgumentPattern, ScopeIdentPattern, InstructionPattern};
+    pub use scope::ScopePattern;
+    pub use fields::{FieldPattern, MainFieldPattern, SetupFieldPattern};
+    pub use meta_field::{MetaFieldPattern, SignatureArgumentPattern};
 }
 
 #[cfg(test)]

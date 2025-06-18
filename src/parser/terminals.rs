@@ -19,9 +19,11 @@ macro_rules! single_token_pattern {
             }
         }
 
+        /// A pattern for the creation of a structure which is only one token long.
+        /// That struture is what the name implies. (Before the "Pattern")
         #[allow(unused)]
         #[derive(Debug, Clone, PartialEq, Default)]
-        pub(super) struct $b;
+        pub struct $b;
 
         impl Pattern for $b {
             type ParseResult = $r;
@@ -126,6 +128,20 @@ single_token_pattern!(
     MinusPattern,
     TokenType::Minus,
     TokenType::Minus
+);
+
+single_token_pattern!(
+    Star,
+    StarPattern,
+    TokenType::Star,
+    TokenType::Star
+);
+
+single_token_pattern!(
+    Slash,
+    SlashPattern,
+    TokenType::Slash,
+    TokenType::Slash
 );
 
 single_token_pattern!(
