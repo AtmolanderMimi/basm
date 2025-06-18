@@ -120,17 +120,25 @@ OUT 0;
 
 The way expressions are built is that they take a "base" value and then a "modifier".
 It merges the two values (the base and modifier value) into one expression and repeats.
-Currently, modifiers have two types which are implemented.
-Those being addition and subtraction which are identified via `+` and `-` respectively.
+Currently, modifiers have four types which are implemented.
+* Addition: `+`,
+* Substraction: `-`,
+* Multiplicaton: `*`,
+* Integer division (towards 0): `/`
 
-Basm uses left to right priority. If more modifier types where to be added, PEMDAS would not be respected.
-Now, what's nice about only having plus and minus is that left to right is already valid priority for them!
-The example above with explicit priority would look like this:
-*(this is not valid basm syntax)*
-
+Basm uses left to right priority, totally forgoing PEMDAS and any parentheses to denote priority.
+Here would be the implicit priority of that last example:
 ```
 ((75) - 32) - 1 = 42
 ```
+
+A little note on integer division modifiers, basm doesn't do decimal numbers.
+This means that division are kinda weird as they can't result a decimal number.
+So, all divisions made are truncated (practically, the decimal digits are removed) towards 0.
+As a result, `5/3`, which is in normal maths equal to 1.6666.., is equal to 1 in basm.
+This also introduces a loss of precision. `10/3*3` is not in fact 10, but 9.
+Since we execute from left to right we first compute `10/3` which is 3.3333..
+That gets rounded to 3 and then we execute the multiplication modifier on our rounded 3, so we get 9!
 
 #### The Difference Between Address Numbers and Pure Numbers
 
