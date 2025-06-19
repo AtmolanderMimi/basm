@@ -5,7 +5,8 @@
 //  [x] bulking operators,
 //  [x] (and precalculating matching brackets),
 //  [x] indexing elements of width 2 (did it with interlacing, which results to about the same),
-//  [] and flipping the program array
+//  [x] and flipping the program array (fixed the underlying problem by interlacing the program and memory arrays)
+//  [ ] new! index sub-laces (e.g: if pointer is odd take the odd sub-lace, if it is even take the even sub-lace)
 
 [setup] [
 ALIS GVplus_op 1;          // `+` -> 1
@@ -17,7 +18,15 @@ ALIS GVright_bracket_op 6; // `]` -> 6
 ALIS GVinput_op 7;         // `,` -> 7
 ALIS GVoutput_op 8;        // `.` -> 8
 
-ALIS GVparking 8;
+ALIS GVnb_program_laces 2;
+ALIS GVnb_memory_laces 1;
+ALIS GVnb_laces GVnb_program_laces+GVnb_memory_laces;
+
+ALIS GVprog_op_lace 0;
+ALIS GVprog_rec_lace 1;
+ALIS GVmem_lace 2;
+
+ALIS GVparking 4*GVnb_laces;
 ]
 
 // sets a value to a specific value by zeroing it before writing
@@ -82,165 +91,49 @@ BBOX 0;
 ASUM Vval;
 ]
 
-// Gets a value from an indexable array dynamically and destructively.
-// The indexable array must have at least 3 cells of parking before the provided address.
-// At the start we use them like so: `[swap][return][index] ...`.
-// Where `swap` is going to be use to swap the first element,
-// `index` is the index in the array we desire to get and
-// `return` is a value increased every time index is decreased, effectively giving us how far away we are from the start.
-// Each time we move forward we want to swap the element in from of us with the empty one at our back.
-// Then move the whole structure up by one.
-// This creates a kind of "glider" through memory.
-// We use the same strategy to go back, but now we don't care about `return` and instead have an element to carry.
-// At the end we should arrive at the start of the array like this: `[swap][return][value]`.
-// Where `return` should now be 0. 
-[@GETD Aarray Aindex Aout] [
-ADDP Aarray-1 Aindex; // sets the index
-
-// -- going forward --
-// 0 is relative to the back swap cell
-BBOX Aarray-3;
-ASUM 0;
-
-ALIS Aback_swap 0;
-ALIS Areturn 1;
-ALIS Aindex 2;
-ALIS Aelem 3;
-
-WHNE Aindex 0 [
-	DECR Aindex 1;
-	INCR Areturn 1;
-
-	ADDP Aback_swap Aelem;
-	ADDP Aindex+1 Aindex;
-	ADDP Areturn+1 Areturn;
-
-	FASU 1;
-];
-
-// -- reached --
-ALIS Avalue Aindex;
-ALIS Aback_swap Aelem;
-ALIS Aelem 0;
-
-ADDP Avalue Aback_swap;
-
-// -- going back --
-WHNE Areturn 0 [
-	DECR Areturn 1;
-
-	ADDP Areturn-1 Areturn;
-	ADDP Avalue-1 Avalue;
-
-	BASU 1;
-
-	ADDP Aback_swap Aelem;
-];
-
-// -- got home --
-BBOX 0;
-ASUM Aarray-3;
-
-ADDP Aout Aarray-1;
-]
-
-// Adds a value to a cell in an indexable array dynamically.
-// The provided indexable array needs 4 parking cells present before the address.
-// Functions like the inverse of `GETD`.
-// We start like so: `[swap][return][index][value] ... `
-// We return like so: `[swap][return][empty][empty] ... `
-// (we omit carrying back index and value for return because they will be zero)
-[@ADDD Aarray Aindex Avalue] [
-ADDP Aarray-2 Aindex; // sets the index
-ADDP Aarray-1 Avalue; // sets the value
-
-// -- going forward --
-// 0 is relative to the back swap cell
-BBOX Aarray-4;
-ASUM 0;
-
-ALIS Aback_swap 0;
-ALIS Areturn 1;
-ALIS Aindex 2;
-ALIS Avalue 3;
-ALIS Aelem 4;
-
-WHNE Aindex 0 [
-	DECR Aindex 1;
-	INCR Areturn 1;
-
-	ADDP Aback_swap Aelem;
-	ADDP Avalue+1 Avalue;
-	ADDP Aindex+1 Aindex;
-	ADDP Areturn+1 Areturn;
-
-	FASU 1;
-];
-
-// -- reached --
-ADDP Aelem Avalue;
-
-ALIS Aback_swap Aelem;
-ALIS Aelem 0;
-
-
-// -- going back --
-WHNE Areturn 0 [
-	DECR Areturn 1;
-
-	ADDP Areturn-1 Areturn;
-
-	BASU 1;
-
-	ADDP Aback_swap Aelem;
-];
-
-// -- got home --
-BBOX 0;
-ASUM Aarray-4;
-]
-
 // Gets a value from an **interlaced** indexable array dynamically and destructively.
-// The interlaced array must have only two laces which alternate at every cell.
+// The interlaced array may have any number of laces (including 1 at no overhead) which alternate at every cell.
 // `Aindex` will refer to the index within the lace, not the one of the whole array.
-// `Vlace` refers to which lace is selected, either 0 or 1.
-// The indexable array must have at least 6 cells of parking before the provided address.
-// In function, this meta-instruction functions much like GETD, but moves two cells at a time,
-// ignoring the cells of the intermediate cells of the other lace.
+// `Vlace` refers to which lace is selected.
+// `Vnb_laces` refers to the number of expected laces in the array.
+// The indexable array must have at least `3*Vnb_laces` cells of parking before the provided address.
+// In function, this meta-instruction functions much like GETD, but moves `Vnb_laces` cells at a time.
+// In fact, this meta-instruction can result into the exact same behaviour if there is one 1 lace.
+// ignoring the cells of the intermediate cells of the other laces.
 // At the start we use them like so: `[swap][return][index][value] ...` (with cells interlaced).
 // And we should return like this: `[swap][return][empty][empty] ...` (with cells interlaced).
-[@GETDI Aarray Aindex Vlace Aout] [
+[@GETDI Aarray Aindex Vlace Vnb_laces Aout] [
 // the logic behind accomodating values do work with laces is:
-// take the relative address values and multiply it by the number of laces (2)
+// take the relative address values and multiply it by the number of laces
 // then index into the specific lace with Vlace (by adding Vlace)
 // (same thing applies with ADDDI)
-// (this could be applied in a much more generic way if basm included multiplications in numeric expressions)
 
 // -- seting up the base state --
-// ends up in one of this two configs:
+// if there is 2 laces, ends up in one of this two configs:
 // Vlace = 0: [empty][empty][empty][empty][index][empty]
 // Vlace = 1: [empty][empty][empty][empty][empty][index]
-ADDP Aarray-2+Vlace Aindex; // sets the index
+ADDP Aarray-Vnb_laces+Vlace Aindex; // sets the index
 
 // -- going forward --
 // 0 is relative to the back swap cell
-BBOX Aarray-6+Vlace;
+ALIS Vtmp 3*Vnb_laces;
+BBOX Aarray-Vtmp+Vlace;
 ASUM 0;
 
 ALIS Aback_swap 0;
-ALIS Areturn 2;
-ALIS Aindex 4;
-ALIS Aelem 6;
+ALIS Areturn 1*Vnb_laces;
+ALIS Aindex 2*Vnb_laces;
+ALIS Aelem 3*Vnb_laces;
 
 WHNE Aindex 0 [
 	DECR Aindex 1;
 	INCR Areturn 1;
 
 	ADDP Aback_swap Aelem;
-	ADDP Aindex+2 Aindex;
-	ADDP Areturn+2 Areturn;
+	ADDP Aindex+Vnb_laces Aindex;
+	ADDP Areturn+Vnb_laces Areturn;
 
-	FASU 2;
+	FASU Vnb_laces;
 ];
 
 // -- reached --
@@ -254,55 +147,59 @@ ADDP Avalue Aback_swap;
 WHNE Areturn 0 [
 	DECR Areturn 1;
 
-	ADDP Areturn-2 Areturn;
-	ADDP Avalue-2 Avalue;
+	ADDP Areturn-Vnb_laces Areturn;
+	ADDP Avalue-Vnb_laces Avalue;
 
-	BASU 2;
+	BASU Vnb_laces;
 
 	ADDP Aback_swap Aelem;
 ];
 
 // -- got home --
 BBOX 0;
-ASUM Aarray-6+Vlace;
+ALIS Vtmp 3*Vnb_laces; 
+ASUM Aarray-Vtmp+Vlace;
 
-ADDP Aout Aarray-2+Vlace;
+ADDP Aout Aarray-Vnb_laces+Vlace;
 ]
 
 // Adds to a value a value in an **interlaced** indexable array dynamically.
-// The interlaced array must have only two laces which alternate at every cell.
+// The interlaced array may have any number of laces (including 1 at no overhead) which alternate at every cell.
 // `Aindex` will refer to the index within the lace, not the one of the whole array.
-// `Vlace` refers to which lace is selected, either 0 or 1.
-// The indexable array must have at least 8 cells of parking before the provided address.
-// In function, this meta-instruction functions much like ADDD, but moves two cells at a time,
-// ignoring the cells of the intermediate cells of the other lace.
+// `Vlace` refers to which lace is selected.
+// `Vnb_laces` refers to the number of expected laces in the array.
+// The indexable array must have at least `4*Vnb_laces` cells of parking before the provided address.
+// In function, this meta-instruction functions much like ADDD, but moves `Vnb_laces` cells at a time,
+// ignoring the cells of the intermediate cells of the other laces.
 // At the start we use them like so: `[swap][return][index][value] ...` (with cells interlaced).
 // And we should return like this: `[swap][return][empty][empty] ...` (with cells interlaced).
-[@ADDDI Aarray Aindex Vlace Avalue] [
-ADDP Aarray-4+Vlace Aindex; // sets the index
-ADDP Aarray-2+Vlace Avalue; // sets the value
+[@ADDDI Aarray Aindex Vlace Vnb_laces Avalue] [
+ALIS Vtmp 2*Vnb_laces;
+ADDP Aarray-Vtmp+Vlace Aindex;      // sets the index
+ADDP Aarray-Vnb_laces+Vlace Avalue; // sets the value
 
 // -- going forward --
 // 0 is relative to the back swap cell
-BBOX Aarray-8+Vlace;
+ALIS Vtmp 4*Vnb_laces;
+BBOX Aarray-Vtmp+Vlace;
 ASUM 0;
 
 ALIS Aback_swap 0;
-ALIS Areturn 2;
-ALIS Aindex 4;
-ALIS Avalue 6;
-ALIS Aelem 8;
+ALIS Areturn Vnb_laces;
+ALIS Aindex 2*Vnb_laces;
+ALIS Avalue 3*Vnb_laces;
+ALIS Aelem 4*Vnb_laces;
 
 WHNE Aindex 0 [
 	DECR Aindex 1;
 	INCR Areturn 1;
 
 	ADDP Aback_swap Aelem;
-	ADDP Avalue+2 Avalue;
-	ADDP Aindex+2 Aindex;
-	ADDP Areturn+2 Areturn;
+	ADDP Avalue+Vnb_laces Avalue;
+	ADDP Aindex+Vnb_laces Aindex;
+	ADDP Areturn+Vnb_laces Areturn;
 
-	FASU 2;
+	FASU Vnb_laces;
 ];
 
 // -- reached --
@@ -316,16 +213,17 @@ ALIS Aelem 0;
 WHNE Areturn 0 [
 	DECR Areturn 1;
 
-	ADDP Areturn-2 Areturn;
+	ADDP Areturn-Vnb_laces Areturn;
 
-	BASU 2;
+	BASU Vnb_laces;
 
 	ADDP Aback_swap Aelem;
 ];
 
 // -- got home --
 BBOX 0;
-ASUM Aarray-8+Vlace;
+ALIS Vtmp 4*Vnb_laces;
+ASUM Aarray-Vtmp+Vlace;
 ]
 
 [@add_if_same_or_shift Vchar Vconvert sp] [
@@ -337,7 +235,8 @@ ALIS Ainput 2;
 IFEQ Ainput Vchar [ // if it is the right char
     IFEQ Aid Vconvert [ // if it can extend recurrence
         IFEQ Arecurrence Vmax_recurrence [
-            FASU 2;
+			ZERO Ainput;
+            FASU GVnb_laces;
         ] sp;
 
         // reset the Aid, or sets it if we moved
@@ -346,7 +245,8 @@ IFEQ Ainput Vchar [ // if it is the right char
     ] sp;
 
     IFNE Aid Vconvert [
-        FASU 2;
+		ZERO Ainput;
+        FASU GVnb_laces;
         SET Aid Vconvert;
         SET Arecurrence 1;
     ] sp;
@@ -379,11 +279,11 @@ ALIS Aprog_parking sp;
 ALIS Aprog Aprog_parking+GVparking;
 ALIS sp Aprog+1;
 
-DECR Aprog-1 1; // used to set a -1 flag at the first from last parking space
+DECR Aprog-GVnb_laces 1; // used to set a -1 flag at the first from last parking space
 BBOX Aprog;
 ASUM 0;
 
-BASU 2;
+BASU GVnb_laces;
 
 // while we don't get any characters other than '!' to end add to array.
 ALIS Aid 0;
@@ -404,25 +304,25 @@ WHNE Aflag Vexit [
     // these below will always shift, as they can't really recur
 	IFEQ Ainput '[' [
         ZERO Ainput;
-        FASU 2;
+        FASU GVnb_laces;
 
         INCR Aid GVleft_bracket_op;
     ] sp;
 	IFEQ Ainput ']' [
         ZERO Ainput;
-        FASU 2;
+        FASU GVnb_laces;
 
         INCR Aid GVright_bracket_op;
     ] sp;
 	IFEQ Ainput ',' [
         ZERO Ainput;
-        FASU 2;
+        FASU GVnb_laces;
 
         INCR Aid GVinput_op;
     ] sp;
 	IFEQ Ainput '.' [
         ZERO Ainput;
-        FASU 2;
+        FASU GVnb_laces;
 
         INCR Aid GVoutput_op;
     ] sp;
@@ -438,8 +338,8 @@ BBOX 0;
 // going back until we reach the -1 flag
 RAW "<+[-<+]-";
 
-ASUM Aprog-1;
-INCR Aprog-1 1; // remove the -1 flag
+ASUM Aprog-GVnb_laces;
+INCR Aprog-GVnb_laces 1; // remove the -1 flag
 ]
 
 // calculates the address of matching brackets and puts them in the recurrence
@@ -517,7 +417,7 @@ ALIS sp sp+1;
 // get the operator (at Aprog_pointer*2)
 ZERO Aoperator;
 COPC Aprog_pointer tmp sp;
-GETDI Aprog tmp 0 Aoperator;
+GETDI Aprog tmp GVprog_op_lace GVnb_laces Aoperator;
 ]
 
 // loads the operator from the Aprog array at Aprog_pointer.
@@ -529,7 +429,7 @@ ALIS sp sp+1;
 // and recurrence (at (Aprog_pointer*2+1)
 ZERO Arecurrence;
 COPC Aprog_pointer tmp sp;
-GETDI Aprog tmp 1 Arecurrence;  
+GETDI Aprog tmp GVprog_rec_lace GVnb_laces Arecurrence;  
 ]
 
 // unloads the operator (returns it)
@@ -539,7 +439,7 @@ ALIS sp sp+1;
 
 // reset the operator
 COPC Aprog_pointer tmp sp;
-ADDDI Aprog tmp 0 Aoperator;
+ADDDI Aprog tmp GVprog_op_lace GVnb_laces Aoperator;
 ]
 
 // unloads the recurrence (returns it)
@@ -549,7 +449,7 @@ ALIS sp sp+1;
 
 // reset the recurrence
 COPC Aprog_pointer tmp sp;
-ADDDI Aprog tmp 1 Arecurrence;
+ADDDI Aprog tmp GVprog_rec_lace GVnb_laces Arecurrence;
 ]
 
 [main] [
@@ -565,22 +465,24 @@ ALIS Acell 5;
 ALIS Abracket_jump 6; // used to know the pointer position when Aflag is Vbracket
 ALIS sp 7;
 
-ALIS Vmax_array_size 250;
-ALIS Aprog_parking Vgeneral_memory;
-ALIS Aprog Aprog_parking+GVparking;
-ALIS Amem Aprog+Vmax_array_size+1;
+// in this "better" version, the program array and memory array are interweaved
+// this solves the problem of having arrays which must not overlap, limiting the size of one
+// and it also solves the problem of one of the parking of one being at the end of the other, since they now share the same array.
+// cells are layed out like so: [prog_id][prog_rec][mem][prog_id][prog_rec][mem] ...
+ALIS Aarray_parking Vgeneral_memory;
+ALIS Aarray Aarray_parking+GVparking;
 
 // -- loading program --
-input_program Aprog_parking;
-calculate_bracket Aprog sp;
+input_program Aarray_parking;
+calculate_bracket Aarray sp;
 
 WHNE Aflag Vexit [
 	ALIS tmp sp;
 	ALIS sp sp+1;
 
     // loads the operator and recurrence, this does not consume Aprog_pointer
-	load_operator   Aprog Aprog_pointer Aoperator   sp;
-    load_recurrence Aprog Aprog_pointer Arecurrence sp;
+	load_operator   Aarray Aprog_pointer Aoperator   sp;
+    load_recurrence Aarray Aprog_pointer Arecurrence sp;
 
 	IFEQ Aoperator GVplus_op [ // '+'
         COPC Arecurrence tmp sp;
@@ -593,24 +495,24 @@ WHNE Aflag Vexit [
 	IFEQ Aoperator GVright_tape_op [ // '>'
 		// set the last cell back
 		COPC Amem_pointer tmp sp;
-		ADDD Amem tmp Acell;
+		ADDDI Aarray tmp GVmem_lace GVnb_laces Acell;
 
 		// get the next cell
         COPC Arecurrence tmp sp;
 		ADDP Amem_pointer tmp;
 		COPC Amem_pointer tmp sp;
-		GETD Amem tmp Acell;
+		GETDI Aarray tmp GVmem_lace GVnb_laces Acell;
 	] sp;
 	IFEQ Aoperator GVleft_tape_op [ // '<'
 		// set the last cell back
 		COPC Amem_pointer tmp sp;
-		ADDD Amem tmp Acell;
+		ADDDI Aarray tmp GVmem_lace GVnb_laces Acell;
 
 		// get the next cell
         COPC Arecurrence tmp sp;
 		SUBP Amem_pointer tmp; // TODO: may underflow tape pointer
 		COPC Amem_pointer tmp sp;
-		GETD Amem tmp Acell;
+		GETDI Aarray tmp GVmem_lace GVnb_laces Acell;
 	] sp;
 
 	// -- brackets code upcoming --
@@ -646,8 +548,8 @@ WHNE Aflag Vexit [
 	] sp;
 
 	// setting the operator back
-    unload_operator   Aprog Aprog_pointer Aoperator   sp;
-    unload_recurrence Aprog Aprog_pointer Arecurrence sp;
+    unload_operator   Aarray Aprog_pointer Aoperator   sp;
+    unload_recurrence Aarray Aprog_pointer Arecurrence sp;
 
 	IFEQ Aflag Vbracket [
 		ZERO Aprog_pointer;
