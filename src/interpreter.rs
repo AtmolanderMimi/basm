@@ -20,7 +20,6 @@ pub struct Interpreter<T> {
 
     #[cfg(test)]
     captured_output: String,
-    
 }
 
 // Generic, non-cell related methods.
@@ -160,6 +159,36 @@ where <T as TryFrom<i8>>::Error: Debug {
             T::from(ch as u32)
         }
     }
+
+    /// Adds items to `Interpreter::input_buffer`.
+    /// Does nothing if there the interpreter is configurated to not use bulked input.
+    /// Returns `true` if the addition to the buffer was successful.
+    fn add_to_input_buffer(&mut self, string: &str) -> bool {
+        if !self.config.bulk_input {
+            return false;
+        }
+
+        let mut values = {
+            let elements = if self.config.input_as_number {
+                string.trim().split(' ').map(|e| e.to_string()).collect::<Vec<_>>()
+            } else {
+                // it would be nice if there was a method returning slices to these chars
+                string.chars().map(|c| c.to_string()).collect()
+            };
+
+            let maybe_values = elements.iter().map(|e| self.string_to_value(&e));
+            if maybe_values.clone().find(|e| e.is_none()).is_some() {
+                return false;
+            }
+            let values = maybe_values.filter_map(|e| e).collect::<VecDeque<_>>();
+
+            values
+        };
+
+        self.input_buffer.append(&mut values);
+
+        true
+    }
 }
 
 #[allow(private_bounds)] // these are not meant to be used outside here
@@ -239,40 +268,39 @@ where <T as TryFrom<i8>>::Error: Debug {
             return Ok(())
         }
 
-
         // ask until we get a valid response
-        let mut values = loop {
+        let value = loop {
             let Some(string) = ask_bf_input() else {
                 continue
             };
-            
-            let elements = if self.config.input_as_number {
-                string.trim().split(' ').map(|e| e.to_string()).collect::<Vec<_>>()
+
+            let (value, rest) = if !self.config.input_as_number {
+                let (first, rest) = string.split_at(1);
+                let value = self.string_to_value(first);
+                if let Some(value) = value {
+                    (value, rest)
+                } else {
+                    continue
+                }
             } else {
-                // it would be nice if there was a method returning slices to these chars
-                string.chars().map(|c| c.to_string()).collect()
+                let (first, rest) = string.split_once(' ').unwrap_or((&string, ""));
+                let value = self.string_to_value(first);
+                if let Some(value) = value {
+                    (value, rest)
+                } else {
+                    continue
+                }
             };
-        
-            if elements.is_empty() {
+
+            if !self.add_to_input_buffer(rest) && self.config.bulk_input {
                 continue
             }
-
-            let maybe_values = elements.iter().map(|e| self.string_to_value(&e));
-            if maybe_values.clone().find(|e| e.is_none()).is_some() {
-                continue;
-            }
-            let values = maybe_values.map(|e| e.unwrap()).collect::<VecDeque<_>>();
-
-            break values;
+            
+            break value;
         };
 
-        let value = values.pop_front().expect("we are guarentied that values is > 0");
         let cell = self.get_mut_cell_or_insert_default()?;
         *cell = value;
-
-        if self.config.bulk_input {
-            self.input_buffer.append(&mut values);
-        }
 
         Ok(())
     }
@@ -352,6 +380,11 @@ pub trait InterpreterTrait {
     /// Reflects `Interpreter::print_dump`.
     fn print_dump(&self);
 
+    /// Adds items to `Interpreter::input_buffer`.
+    /// Does nothing if there the interpreter is configurated to not use bulked input.
+    /// Returns `true` if the addition to the buffer was successful.
+    fn add_to_input_buffer(&mut self, string: &str) -> bool;
+
     #[cfg(test)]
     /// Reflects `Interpreter::captured_output`.
     fn captured_output(&self) -> &str;
@@ -387,6 +420,10 @@ where T: NumOpsPlus + TryFrom<i8>,
 
     fn print_dump(&self) {
         self.print_dump();
+    }
+
+    fn add_to_input_buffer(&mut self, string: &str) -> bool {
+        self.add_to_input_buffer(string)
     }
 
     #[cfg(test)]
@@ -964,5 +1001,33 @@ mod tests {
             .finish();
         inter.complete().unwrap();
         assert_eq!(inter.captured_output(), "1 2 3 5 8 13 21 34 55 89 144 ");
+    }
+
+    #[test]
+    fn adding_to_buffer() {
+        let source = "+[,.]".to_string();
+
+        // numbers
+        let mut inter = InterpreterBuilder::new(&source)
+            .with_input_as_number()
+            .with_output_as_number()
+            .with_bulk_input()
+            .finish();
+
+        assert!(!inter.add_to_input_buffer("732"));
+        assert!(!inter.add_to_input_buffer("openup"));
+        assert!(inter.add_to_input_buffer("3 1 2 0"));
+        inter.complete().unwrap();
+        assert_eq!(inter.captured_output(), "3 1 2 0 ");
+
+        // characters
+        let mut inter = InterpreterBuilder::new(&source)
+            .with_bulk_input()
+            .finish();
+
+        assert!(inter.add_to_input_buffer("732"));
+        assert!(inter.add_to_input_buffer("openup\0"));
+        inter.complete().unwrap();
+        assert_eq!(inter.captured_output().trim(), "732openup\0");
     }
 }

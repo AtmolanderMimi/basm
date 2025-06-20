@@ -65,6 +65,8 @@ pub fn transpile<'a>(sf: &'static SourceFile) -> Result<String, Vec<Box<dyn Comp
 mod tests {
         use std::{hint::black_box, path::PathBuf, time::Instant};
         
+        use crate::interpreter::InterpreterBuilder;
+
         use super::*;
 
     #[test]
@@ -91,5 +93,38 @@ mod tests {
                 panic!("transpiling took {}", duration.as_secs_f32());
             }
         }
+    }
+
+    #[test]
+    #[ignore = "compute intensive"]
+    fn basm_bf_interpreter() {
+        let sf = SourceFile::from_raw_parts(
+            PathBuf::default(),
+            include_str!("./../test-resources/better-bf-interpreter.basm").to_string()
+        ).leak();
+
+        let bf_prog = transpile(sf).unwrap();
+
+        // hello world program
+        let hello_bf = "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.!";
+
+        let mut inter = InterpreterBuilder::new(&bf_prog)
+            .with_bulk_input()
+            .finish();
+        assert!(inter.add_to_input_buffer(hello_bf));
+        inter.complete().unwrap();
+        assert_eq!(inter.captured_output(), "Hello World!\n");
+
+        // fibonacci program
+        let mut fib_bf = include_str!("./../test-resources/fib.bf").to_string();
+        fib_bf.push('!');
+
+        let mut inter = InterpreterBuilder::new(&bf_prog)
+            .with_output_as_number()
+            .with_bulk_input()
+            .finish();
+        assert!(inter.add_to_input_buffer(&fib_bf));
+        inter.complete().unwrap();
+        assert_eq!(inter.captured_output(), "1 2 3 5 8 13 21 34 55 89 144 ");
     }
 }
