@@ -7,7 +7,7 @@ title = "A Quick Introduction and Reference to Brain Aneurysm"
 
 [output.html]
 git-repository-url = "https://github.com/AtmolanderMimi/basm"
-edit-url-template = "https://github.com/AtmolanderMimi/basm/{path}"
+edit-url-template = "https://github.com/AtmolanderMimi/basm/book/{path}"
 
 [preprocessor.list-flags]
 command = "python3 list-flags.py"
