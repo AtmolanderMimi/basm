@@ -74,7 +74,7 @@ And that source code would give us this brainfuck code:
 >+<-----------[+>[->>+>+<<<]>[-<+>]>>[-<<<+>>>]<[-<+>]<<<]+++++++++++>.
 ```
 
-(if you want a more complex example you can inspect [the working bf interpreter in basm that i wrote](./test-resources/bf-interpreter.basm).)
+(if you want a more complex example you can inspect [the working bf interpreter in basm that i wrote](./test-resources/better-bf-interpreter.basm).)
 
 ## License
 The contents of this repository are licensed under the [`MIT` license](https://opensource.org/license/mit) and the [`Apache License (Version 2.0)` license](https://opensource.org/license/apache-2-0).
