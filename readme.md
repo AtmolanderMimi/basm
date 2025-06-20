@@ -2,6 +2,8 @@
 
 ![basm-logo](./resources/logo.png)
 
+**[For a book describing how to use this language, press here!](https://AtmolanderMimi.github.io/basm-book)**
+
 Brain Aneurysm (or just `basm` for short) is a very simple assembly-like esoteric programming language transpiling to brainfuck.
 
 The purpose of this language is to abstract of the parts of BrainFuck that makes it *fucky* like:
