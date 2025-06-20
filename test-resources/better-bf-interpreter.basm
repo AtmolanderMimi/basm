@@ -1,12 +1,32 @@
 // a better brainfuck interpreter
-// follows all advice given in the at the end of the
+// follows (kinda) all advice given in the at the end of the
 // syntesis chapter about making a bf interpreter
 // that being:
 //  [x] bulking operators,
 //  [x] (and precalculating matching brackets),
-//  [x] indexing elements of width 2 (did it with interlacing, which results to about the same),
-//  [x] and flipping the program array (fixed the underlying problem by interlacing the program and memory arrays)
-//  [ ] new! index sub-laces (e.g: if pointer is odd take the odd sub-lace, if it is even take the even sub-lace)
+//  [x] indexing elements of width 2*,
+//  [x] and flipping the program array**
+
+// This version comes in at 9028 bf operators against the 11276 of the original (when the program array is 250 cells).
+// Not only that, but it is also twice as fast in all circumstances and is not limited in program size.
+
+// *: I did not actually index by elements of width 2, but created vesrions of GETD and ADDD (GETDI and ADDDI)
+// which work on a system of interweaved laces. So the program array is defined as [op][rec][op][rec][op][rec]...
+// The indexing process only affects the lace specified, meaning that indexing on the reccurence lace will only shift `[rec]` cells,
+// ignoring the `[op]` cells inbetween. This makes indexing ~2 as fast, since we don't need to go through the [op] cells
+// which represent half of the array.
+// The way this work is by multiplying the movements and positions of the flyer by the number of laces (in this case 2).
+// However, this does mean that our array will be [number of laces] times bigger to accomodate the flyer having it's position farther appart.
+
+// **: Once again, I didn't really follow my own advice, instead of actually flipping the program array,
+// I simply merged the memory and program into a same array with the lacing system.
+// So, the current array layout looks like this: [op][rec][mem][op][rec][mem][op][rec][mem][op][rec][mem]...
+// As explained above doing so does not make the program any slower, but it does make it much smaller as this solution
+// solves the underlying problem that the praking of the memory array was too far away.
+// Now the parking is the same for the memory array and the program array.
+// This resulted in about 3x smaller transpiled bf.
+// It also inadvertendly solved another problem.
+// The program array's size is no longer limited in size as it cannot overlap the memory array anymore.
 
 [setup] [
 ALIS GVplus_op 1;          // `+` -> 1
@@ -29,23 +49,17 @@ ALIS GVmem_lace 2;
 ALIS GVparking 4*GVnb_laces;
 ]
 
-// sets a value to a specific value by zeroing it before writing
+// Sets a value to a specific value by zeroing it before writing
 [@SET Aaddr Vval] [
 ZERO Aaddr;
 INCR Aaddr Vval;
 ]
 
-// doubles the cell into the other cell
-[@DOUB Asrc Adst] [
-// evil aliasing (but actually cool??)
-COPY Asrc Adst Adst;
-]
-
 // Copies the content of a cell whilst keeping the source (conservatively)
 [@COPC Asrc Adst sp] [
-	ALIS Atmp sp;
-	COPY Asrc Adst Atmp;
-	ADDP Asrc Atmp;
+ALIS Atmp sp;
+COPY Asrc Adst Atmp;
+ADDP Asrc Atmp;
 ]
 
 // if not equal conditional
@@ -79,13 +93,13 @@ IFNE tmp 1 [scp] sp;
 ZERO tmp;
 ]
 
-// Forward assumed pointer
+// Moves the assumed pointer forward
 [@FASU Vval] [
 BBOX Vval;
 ASUM 0;
 ]
 
-// Backward assumed pointer
+// Moves backward the assumed pointer
 [@BASU Vval] [
 BBOX 0;
 ASUM Vval;
@@ -103,7 +117,7 @@ ASUM Vval;
 // At the start we use them like so: `[swap][return][index][value] ...` (with cells interlaced).
 // And we should return like this: `[swap][return][empty][empty] ...` (with cells interlaced).
 [@GETDI Aarray Aindex Vlace Vnb_laces Aout] [
-// the logic behind accomodating values do work with laces is:
+// the logic behind accomodating values to work with laces is:
 // take the relative address values and multiply it by the number of laces
 // then index into the specific lace with Vlace (by adding Vlace)
 // (same thing applies with ADDDI)
@@ -226,18 +240,33 @@ ALIS Vtmp 4*Vnb_laces;
 ASUM Aarray-Vtmp+Vlace;
 ]
 
+// This meta instruction is specific to the program inputting logic.
+// The name is pretty self-explanatory:
+// If the last operator was the same as the one that was just inputted, add to the reccurence of the last one
+// else shift over and add a new operator bulk.
+// It also creates a new operator bulk if the recurrence limit is reached if there where no limit,
+// the recurrence could just wrap around.
 [@add_if_same_or_shift Vchar Vconvert sp] [
-ALIS Vmax_recurrence 254; // 1 less than max, because max is -1 flag
+// 1 less than max, because max is -1 flag
+// We prefer decreasing to compare the max recurrence (underflow), because that is dynamic for different cell types
+// and results in a much smaller bf file. Having to compare to 254 directly is quite expensive.
+ALIS Vnegative_max_recurrence_from_0 2;
 ALIS Aid 0;
 ALIS Arecurrence 1;
 ALIS Ainput 2;
 
 IFEQ Ainput Vchar [ // if it is the right char
     IFEQ Aid Vconvert [ // if it can extend recurrence
-        IFEQ Arecurrence Vmax_recurrence [
+		INCR Arecurrence Vnegative_max_recurrence_from_0; // n + (-n) = 0
+        IFEQ Arecurrence 0 [
+			DECR Arecurrence Vnegative_max_recurrence_from_0;
+
 			ZERO Ainput;
             FASU GVnb_laces;
+
+			INCR Arecurrence Vnegative_max_recurrence_from_0;
         ] sp;
+		DECR Arecurrence Vnegative_max_recurrence_from_0;
 
         // reset the Aid, or sets it if we moved
         SET Aid Vconvert;
@@ -256,21 +285,13 @@ IFEQ Ainput Vchar [ // if it is the right char
 // Gets the program from the user and puts
 // it in an array from `sp`.
 // Does not store non bf tokens.
-// Transforms tokens into id like so:
-// * `+` -> 1
-// * `-` -> 2
-// * `>` -> 3
-// * `<` -> 4
-// * `[` -> 5
-// * `]` -> 6
-// * `,` -> 7
-// * `.` -> 8
-// * end -> 0
+// Transforms tokens into id like specified in [setup].
 // Alongside with the id, elements cells will be next to their recurrence.
 // Creating items 2 cells wide like so: [id][recurrence]
 // To avoid overflowing the recurrence index, it is capped by a constant.
 // Reaching the max, will cause another block to be created.
-// Brackets do not store their recurrence (will always be 0).
+// Brackets have no reccurence after this meta-instruction, but the reccurence will be used by calculate_bracket.
+// Input/Output do not store their recurrence (will always be 0).
 // User input ends when they enter "!".
 // This is an indexable array, this means that the array requires has a set amount of parking determied by GVparking.
 // The created array's parking starts at sp and it's contents are at sp+GVparking.
@@ -279,7 +300,8 @@ ALIS Aprog_parking sp;
 ALIS Aprog Aprog_parking+GVparking;
 ALIS sp Aprog+1;
 
-DECR Aprog-GVnb_laces 1; // used to set a -1 flag at the first from last parking space
+// used to set a -1 flag at the first from last parking space
+DECR Aprog-GVnb_laces 1;
 BBOX Aprog;
 ASUM 0;
 
@@ -301,7 +323,7 @@ WHNE Aflag Vexit [
 	add_if_same_or_shift '>' GVright_tape_op sp;
 	add_if_same_or_shift '<' GVleft_tape_op  sp;
 
-    // these below will always shift, as they can't really recur
+    // these below will always shift, as we don't set a recurrence to them
 	IFEQ Ainput '[' [
         ZERO Ainput;
         FASU GVnb_laces;
@@ -332,7 +354,7 @@ WHNE Aflag Vexit [
 		INCR Aflag Vexit;
 	] sp;
 ];
-ZERO Aflag;
+INCR Aflag Vexit;
 
 BBOX 0;
 // going back until we reach the -1 flag
@@ -342,7 +364,7 @@ ASUM Aprog-GVnb_laces;
 INCR Aprog-GVnb_laces 1; // remove the -1 flag
 ]
 
-// calculates the address of matching brackets and puts them in the recurrence
+// Calculates the address of matching brackets and puts them in the recurrence
 [@calculate_bracket Aprog sp] [
 ALIS Aoperator sp;
 ALIS Abracket_address sp+1;
@@ -361,7 +383,8 @@ WHNE Aflag Vexit [
 	] sp;
 
 	// if '['
-	// we only check for '[', not ']', but they will be matched togheter
+	// we only check for '[', not ']',
+	// because in the process of finding the match for '[' we find ']' and its matching bracket
 	IFEQ Aoperator GVleft_bracket_op [
 		COPC Abracket_address Ainvestigating_address sp;
 		ALIS Abracket_count sp;
@@ -388,13 +411,13 @@ WHNE Aflag Vexit [
             unload_operator Aprog Ainvestigating_address Ainvestigating_operator sp;
 		];
 
-		// we are done, Ainvestigating_address is at the matching
+		// we are done, Ainvestigating_address is at the matching ']' bracket
 
-		// set recurrence for [
+		// set recurrence for '['
 		COPC Ainvestigating_address Atmp sp;
 		unload_recurrence Aprog Abracket_address Atmp sp;
 
-		// set recurrence for ]
+		// set recurrence for ']'
 		COPC Abracket_address Atmp sp;
 		unload_recurrence Aprog Ainvestigating_address Atmp sp;
 		ZERO Ainvestigating_address;
@@ -403,53 +426,49 @@ WHNE Aflag Vexit [
 	unload_operator Aprog Abracket_address Aoperator sp;
 	INCR Abracket_address 1;
 ];
-ZERO Aflag;
 
+DECR Aflag Vexit;
 ZERO Abracket_address;
 ]
 
-// loads the operator from the Aprog array at Aprog_pointer.
-// does not consume Aprog_pointer
-[@load_operator Aprog Aprog_pointer Aoperator sp] [
-ALIS tmp sp;
+// Loads the operator from the Aarray array at Aindex into Aout.
+// Does not consume Aindex.
+[@load_operator Aarray Aindex Aout sp] [
+ALIS Atmp sp;
 ALIS sp sp+1;
 
-// get the operator (at Aprog_pointer*2)
-ZERO Aoperator;
-COPC Aprog_pointer tmp sp;
-GETDI Aprog tmp GVprog_op_lace GVnb_laces Aoperator;
+COPC Aindex Atmp sp;
+GETDI Aarray Atmp GVprog_op_lace GVnb_laces Aout;
 ]
 
-// loads the operator from the Aprog array at Aprog_pointer.
-// does not consume Aprog_pointer
-[@load_recurrence Aprog Aprog_pointer Arecurrence sp] [
-ALIS tmp sp;
+// Loads the recurrence from the Aarray array at Aindex into Aout.
+// Does not consume Aindex.
+[@load_recurrence Aarray Aindex Aout sp] [
+ALIS Atmp sp;
 ALIS sp sp+1;
 
-// and recurrence (at (Aprog_pointer*2+1)
-ZERO Arecurrence;
-COPC Aprog_pointer tmp sp;
-GETDI Aprog tmp GVprog_rec_lace GVnb_laces Arecurrence;  
+COPC Aindex Atmp sp;
+GETDI Aarray Atmp GVprog_rec_lace GVnb_laces Aout;  
 ]
 
-// unloads the operator (returns it)
-[@unload_operator Aprog Aprog_pointer Aoperator sp] [
-ALIS tmp sp;
+// Unloads the operator into the Aarray at Aindex.
+// Does not consumed Aindex.
+[@unload_operator Aarray Aindex Ain sp] [
+ALIS Atmp sp;
 ALIS sp sp+1;
 
-// reset the operator
-COPC Aprog_pointer tmp sp;
-ADDDI Aprog tmp GVprog_op_lace GVnb_laces Aoperator;
+COPC Aindex Atmp sp;
+ADDDI Aarray Atmp GVprog_op_lace GVnb_laces Ain;
 ]
 
-// unloads the recurrence (returns it)
-[@unload_recurrence Aprog Aprog_pointer Arecurrence sp] [
-ALIS tmp sp;
+// Unloads the operator into the Aarray at Aindex.
+// Does not consumed Aindex.
+[@unload_recurrence Aarray Aindex Ain sp] [
+ALIS Atmp sp;
 ALIS sp sp+1;
 
-// reset the recurrence
-COPC Aprog_pointer tmp sp;
-ADDDI Aprog tmp GVprog_rec_lace GVnb_laces Arecurrence;
+COPC Aindex Atmp sp;
+ADDDI Aarray Atmp GVprog_rec_lace GVnb_laces Ain;
 ]
 
 [main] [
@@ -468,7 +487,7 @@ ALIS sp 7;
 // in this "better" version, the program array and memory array are interweaved
 // this solves the problem of having arrays which must not overlap, limiting the size of one
 // and it also solves the problem of one of the parking of one being at the end of the other, since they now share the same array.
-// cells are layed out like so: [prog_id][prog_rec][mem][prog_id][prog_rec][mem] ...
+// cells are layed out like so: [prog_op][prog_rec][mem][prog_op][prog_rec][mem] ...
 ALIS Aarray_parking Vgeneral_memory;
 ALIS Aarray Aarray_parking+GVparking;
 
@@ -554,7 +573,7 @@ WHNE Aflag Vexit [
 	IFEQ Aflag Vbracket [
 		ZERO Aprog_pointer;
 		ADDP Aprog_pointer Abracket_jump;
-		ZERO Aflag;
+		DECR Aflag Vbracket;
 	] sp;
 
 	INCR Aprog_pointer 1;
