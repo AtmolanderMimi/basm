@@ -204,12 +204,12 @@ will inadvertently be zeroed due to the operation we made on it.
 Cells which hold the result of operations are of course not zeroed.
 
 Apart from that, instructions also assume that address arguments don't have the same value (aka "alias", but that word has another meaning in basm).
-An instruction statement passed in with two of the same addresses have unspecified behaviour.
+An instruction statement passed in with two of the same addresses has unspecified behaviour.
 Most often, this ends up locking the program in an endless loop,
 although it can also cause other undesirable behaviour.
 
-Lastly, notably, instructions assume that the values of the cells at output addresses are 0.
-If that condition is not met, an instruction which *"sets a cell to a value"* would rather *"increment a cell by that value"*.
+Lastly, instructions assume that the values of the cells at output addresses are 0.
+If that condition is not met, an instruction which *"sets a cell to a value"* will rather *"increment a cell by that value"*.
 
 ## Notable Instructions
 
@@ -264,10 +264,10 @@ WHNE 0 100 [
 | addr2 | number | address of a cell receiving a copy of the cell`addr1`                                       |
 | addr3 | number | address of a cell receiving a copy of the cell`addr1`                                       |
 
-`COPY` is a *weird* one which is needed because of the *weird* nature of the *weird* language which is bf *(weirdly)*.
+`COPY` is a *weird* instruction which is needed because of the *weird* nature of the *weird* language which is bf *(weirdly)*.
 There is no way to add two numbers together without one disappearing into the void, never to be seen again.
 This is why we require `COPY`.
-If we want operate on a value and still have a copy of it afterwards we will need to have the value twice.
+If we want operate on a value and still have a copy of it afterwards, we will need to have the value twice.
 Once to use for the operation and the other to keep it alive.
 `COPY` was made for this, it takes in one cell and sets the value of two other cells
 to the value of the source `addr1` cell, consuming it in the process.
