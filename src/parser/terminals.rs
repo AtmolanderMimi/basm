@@ -130,17 +130,87 @@ single_token_pattern!(
 );
 
 single_token_pattern!(
-    Star,
-    StarPattern,
+    Multiply,
+    MultiplyPattern,
     TokenType::Star,
     TokenType::Star
 );
 
 single_token_pattern!(
-    Slash,
-    SlashPattern,
+    Divide,
+    DividePattern,
     TokenType::Slash,
     TokenType::Slash
+);
+
+single_token_pattern!(
+    Modulo,
+    ModuloPattern,
+    TokenType::Modulo,
+    TokenType::Modulo
+);
+
+single_token_pattern!(
+    LogicalNot,
+    LogicalNotPattern,
+    TokenType::ExclamationMark,
+    TokenType::ExclamationMark
+);
+
+single_token_pattern!(
+    LogicalAnd,
+    LogicalAndPattern,
+    TokenType::LogicalAnd,
+    TokenType::LogicalAnd
+);
+
+single_token_pattern!(
+    LogicalOr,
+    LogicalOrPattern,
+    TokenType::LogicalOr,
+    TokenType::LogicalOr
+);
+
+single_token_pattern!(
+    LogicalEqual,
+    LogicalEqualPattern,
+    TokenType::LogicalEqual,
+    TokenType::LogicalEqual
+);
+
+single_token_pattern!(
+    LogicalInequal,
+    LogicalInequalPattern,
+    TokenType::LogicalInequal,
+    TokenType::LogicalInequal
+);
+
+single_token_pattern!(
+    GreaterThan,
+    GreaterThanPattern,
+    TokenType::GreaterThan,
+    TokenType::GreaterThan
+);
+
+single_token_pattern!(
+    GreaterThanEqual,
+    GreaterThanEqualPattern,
+    TokenType::GreaterThanEqual,
+    TokenType::GreaterThanEqual
+);
+
+single_token_pattern!(
+    LessThan,
+    LessThanPattern,
+    TokenType::LessThan,
+    TokenType::LessThan
+);
+
+single_token_pattern!(
+    LessThanEqual,
+    LessThanEqualPattern,
+    TokenType::LessThanEqual,
+    TokenType::LessThanEqual
 );
 
 single_token_pattern!(
@@ -162,6 +232,20 @@ single_token_pattern!(
     RightSquarePattern,
     TokenType::RSquare,
     TokenType::RSquare
+);
+
+single_token_pattern!(
+    LeftCurly,
+    LeftCurlyPattern,
+    TokenType::LCurly,
+    TokenType::LCurly
+);
+
+single_token_pattern!(
+    RightCurly,
+    RightCurlyPattern,
+    TokenType::RCurly,
+    TokenType::RCurly
 );
 
 single_token_pattern!(

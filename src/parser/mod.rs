@@ -6,6 +6,7 @@
 
 mod components;
 mod terminals;
+mod operators;
 
 use std::fmt::Display;
 
@@ -94,14 +95,15 @@ impl LanguageItem for Token {
 /// Creates an implementation which creates a slice from the start of `start` to the end of `end`. 
 macro_rules! impl_language_item {
     ($type:ty, $start:ident, $end:ident) => {
-        impl LanguageItem for $type {
-            fn slice(&self) -> SfSlice {
+        impl crate::parser::LanguageItem for $type {
+            fn slice(&self) -> crate::source::SfSlice {
                 let start_slice = self.$start.slice();
                 let start = start_slice.start();
                 let end = self.$end.slice().end();
                 
-                start_slice.source().slice(start..end)
-                .unwrap()
+                let source = start_slice.source();
+                crate::utils::Sliceable::slice(&source, start..end)
+                    .unwrap()
             }
         }
     };
@@ -121,6 +123,6 @@ pub mod patterns {
     use crate::parser::terminals;
     use crate::parser::components;
 
-    pub use terminals::{AtPattern, EofPattern, StarPattern, IdentPattern, MinusPattern, NumLitPattern, StrLitPattern, CharLitPattern, SemicolonPattern, LeftSquarePattern, RightSquarePattern};
+    pub use terminals::{AtPattern, EofPattern, MultiplyPattern, IdentPattern, MinusPattern, NumLitPattern, StrLitPattern, CharLitPattern, SemicolonPattern, LeftSquarePattern, RightSquarePattern};
     pub use components::{Or, Then, Many};
 }

@@ -47,10 +47,34 @@ pub enum TokenType {
     Star,
     /// "/" used to integer divide values.
     Slash,
+    /// "%" used to get the remainder of divisions.
+    Modulo,
+    /// "!" used for logical not
+    ExclamationMark,
+    /// "&&" used for logical and
+    LogicalAnd,
+    /// "||" used for logical or
+    LogicalOr,
+    /// "==" used for logical equation
+    LogicalEqual,
+    /// "!=" used for logical inequation
+    LogicalInequal,
+    /// ">" used for logical strictly greater
+    GreaterThan,
+    /// ">=" used for logical greater or equal
+    GreaterThanEqual,
+    /// "<" used for logical strictly less than
+    LessThan,
+    /// "<=" used for logical less than or equal
+    LessThanEqual,
     /// "[", an opening square bracket, many uses.
     LSquare,
     /// "]", an closing square bracket, many uses.
     RSquare,
+    /// "{", an opening curly bracket, many uses.
+    LCurly,
+    /// "}", an closing curly bracket, many uses.
+    RCurly,
     /// "@", used to declare the signature of a meta-instruction.
     At,
     /// ";", delimits instructions.
@@ -71,12 +95,24 @@ impl TokenType {
     // (for some reason, i don't know why and can't be bothered to care until this gets a rewrite)
     const MAPPING: &'static [(&'static str, TokenType)] = &[
         ("//", Self::LineComment),
+        ("==", Self::LogicalEqual),
+        ("!=", Self::LogicalInequal),
+        (">=", Self::GreaterThanEqual),
+        ("<=", Self::LessThanEqual),
+        ("&&", Self::LogicalAnd),
+        ("||", Self::LogicalOr),
         ("+", Self::Plus),
         ("-", Self::Minus),
         ("/", Self::Slash),
         ("*", Self::Star),
+        ("%", Self::Modulo),
+        ("!", Self::ExclamationMark),
+        (">", Self::GreaterThan),
+        ("<", Self::LessThan),
         ("[", Self::LSquare),
         ("]", Self::RSquare),
+        ("{", Self::LCurly),
+        ("}", Self::RCurly),
         ("@", Self::At),
         (";", Self::Semicolon),
         // lits go here also idents in spirit, cus they can't be mapped like this
@@ -88,19 +124,31 @@ impl TokenType {
     fn _exhaustive(&self) {
         #[allow(clippy::pedantic)]
         match self {
-            Self::At => (),
-            Self::CharLit(_) => (),
-            Self::LineComment => (),
-            Self::Ident(_) => (),
-            Self::LSquare => (),
-            Self::Minus => (),
             Self::NumLit(_) => (),
-            Self::Plus => (),
-            Self::RSquare => (),
             Self::StrLit(_) => (),
-            Self::Semicolon => (),
+            Self::CharLit(_) => (),
+            Self::Plus => (),
+            Self::Minus => (),
             Self::Star => (),
             Self::Slash => (),
+            Self::Modulo => (),
+            Self::ExclamationMark => (),
+            Self::LogicalAnd => (),
+            Self::LogicalOr => (),
+            Self::LogicalEqual => (),
+            Self::LogicalInequal => (),
+            Self::GreaterThan => (),
+            Self::GreaterThanEqual => (),
+            Self::LessThan => (),
+            Self::LessThanEqual => (),
+            Self::LSquare => (),
+            Self::RSquare => (),
+            Self::LCurly => (),
+            Self::RCurly => (),
+            Self::At => (),
+            Self::Semicolon => (),
+            Self::LineComment => (),
+            Self::Ident(_) => (),
             Self::Eof => (),
         }
     }
@@ -116,8 +164,20 @@ impl Display for TokenType {
             Self::Minus => "-",
             Self::Star => "*",
             Self::Slash => "/",
+            Self::Modulo => "%",
+            Self::ExclamationMark => "!",
+            Self::LogicalAnd => "&&",
+            Self::LogicalOr => "||",
+            Self::LogicalEqual => "==",
+            Self::LogicalInequal => "!=",
+            Self::GreaterThan => ">",
+            Self::GreaterThanEqual => ">=",
+            Self::LessThan => "<",
+            Self::LessThanEqual => "<=",
             Self::LSquare => "[",
             Self::RSquare => "]",
+            Self::LCurly => "{",
+            Self::RCurly => "}",
             Self::At => "@",
             Self::Semicolon => ";",
             Self::LineComment => "//",
