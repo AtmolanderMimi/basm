@@ -1,6 +1,6 @@
 //! Defines what a syntactic [`Token`] is and how to parse substrings for it.
 
-use std::{num::IntErrorKind, ops::Range};
+use std::{fmt::Display, num::IntErrorKind, ops::Range};
 
 use crate::{source::SfSlice, utils::{Sliceable, IsAlphanumeric}};
 
@@ -54,7 +54,7 @@ pub enum TokenType {
     /// "@", used to declare the signature of a meta-instruction.
     At,
     /// ";", delimits instructions.
-    InstructionDelimitor,
+    Semicolon,
     /// "//", starts a comment on the rest of the line.
     /// Is only used by the lexer to avoid comments.
     /// This will not be found in the AST.
@@ -78,7 +78,7 @@ impl TokenType {
         ("[", Self::LSquare),
         ("]", Self::RSquare),
         ("@", Self::At),
-        (";", Self::InstructionDelimitor),
+        (";", Self::Semicolon),
         // lits go here also idents in spirit, cus they can't be mapped like this
     ];
 
@@ -98,11 +98,34 @@ impl TokenType {
             Self::Plus => (),
             Self::RSquare => (),
             Self::StrLit(_) => (),
-            Self::InstructionDelimitor => (),
+            Self::Semicolon => (),
             Self::Star => (),
             Self::Slash => (),
             Self::Eof => (),
         }
+    }
+}
+
+impl Display for TokenType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = match self {
+            Self::NumLit(_) => "numlit",
+            Self::StrLit(_) => "strlit",
+            Self::CharLit(_) => "charlit",
+            Self::Plus => "+",
+            Self::Minus => "-",
+            Self::Star => "*",
+            Self::Slash => "/",
+            Self::LSquare => "[",
+            Self::RSquare => "]",
+            Self::At => "@",
+            Self::Semicolon => ";",
+            Self::LineComment => "//",
+            Self::Ident(_) => "ident",
+            Self::Eof => "eof",
+        };
+
+        f.write_str(name)
     }
 }
 

@@ -1,19 +1,19 @@
 //! Implementation of terminal patterns, these patterns only represent one token
 
 use crate::lexer::token::{Token, TokenType};
-use crate::parser::{AdvancementState, Advancement, Pattern, LanguageItem, SfSlice};
-use crate::parser::PatternMatchingError;
+use crate::parser::{Pattern, LanguageItem, UnexpectedTokenError, PatternResult};
+use crate::source::SfSlice;
 
 macro_rules! single_token_pattern {
-    ($r:ident, $b:ident, $p:pat, $e:expr) => {
+    ($result_name:ident, $pattern_name:ident, $match_pattern:pat, $default:expr) => {
         /// Newtype wrapper over a token of the type specified by it's name.
         /// The inner token it **guarentied** to be the same as the name implies.
         #[derive(Debug, Clone, PartialEq)]
-        pub struct $r(
-            pub Token
+        pub struct $result_name(
+            pub Token,
         );
 
-        impl LanguageItem for $r {
+        impl LanguageItem for $result_name {
             fn slice(&self) -> SfSlice {
                 self.0.slice.clone()
             }
@@ -23,21 +23,20 @@ macro_rules! single_token_pattern {
         /// That struture is what the name implies. (Before the "Pattern")
         #[allow(unused)]
         #[derive(Debug, Clone, PartialEq, Default)]
-        pub struct $b;
+        pub struct $pattern_name;
 
-        impl Pattern for $b {
-            type ParseResult = $r;
-            fn advance(&mut self, token: &Token) -> Advancement<Self::ParseResult> {
-                if let $p = token.t_type {
-                    let result = $r(token.clone());
-                    return Advancement::new_no_overeach(AdvancementState::Done(result));
+        impl Pattern for $pattern_name {
+            type ParseResult = $result_name;
+            fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult> {
+                let Some(token) = tokens.get(0) else {
+                    return Err(UnexpectedTokenError::new_got_nothing(vec![$default]))
+                };
+
+                if let $match_pattern = token.t_type {
+                    let result = $result_name(token.clone());
+                    Ok((1, result))
                 } else {
-                    Advancement::new(AdvancementState::Error(PatternMatchingError::UnexpectedToken {
-                            expected: $e,
-                            got: token.clone(),
-                        }),
-                        1,
-                    )
+                    Err(UnexpectedTokenError::new(vec![$default], token.clone()))
                 }
             }
         }
@@ -147,8 +146,8 @@ single_token_pattern!(
 single_token_pattern!(
     Semicolon,
     SemicolonPattern,
-    TokenType::InstructionDelimitor,
-    TokenType::InstructionDelimitor
+    TokenType::Semicolon,
+    TokenType::Semicolon
 );
 
 single_token_pattern!(
@@ -179,165 +178,4 @@ single_token_pattern!(
     TokenType::Eof
 );
 
-/// Pattern for that matches an ident of name `main` only.
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct MainIdentPattern;
-
-/// An ident token of value `main`.
-#[derive(Debug, Clone, PartialEq)]
-pub struct MainIdent(pub Token);
-
-impl Pattern for MainIdentPattern {
-    type ParseResult = MainIdent;
-
-    fn advance(&mut self, token: &Token) -> Advancement<Self::ParseResult> {
-        if let TokenType::Ident(s) = &token.t_type {
-            if s == "main" {
-                let out = MainIdent(token.clone());
-                return Advancement::new_no_overeach(AdvancementState::Done(out))
-            }
-        }
-
-        let error = PatternMatchingError::UnexpectedToken {
-            expected: TokenType::Ident("main".to_string()),
-            got: token.clone(),
-        };
-        Advancement::new(AdvancementState::Error(error), 1)
-    }
-}
-
-impl LanguageItem for MainIdent {
-    fn slice(&self) -> SfSlice {
-        self.0.slice.clone()
-    }
-}
-
-/// Pattern for that matches an ident of name `setup` only.
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct SetupIdentPattern;
-
-/// An ident token of value `setup`.
-#[derive(Debug, Clone, PartialEq)]
-pub struct SetupIdent(pub Token);
-
-impl Pattern for SetupIdentPattern {
-    type ParseResult = SetupIdent;
-
-    fn advance(&mut self, token: &Token) -> Advancement<Self::ParseResult> {
-        if let TokenType::Ident(s) = &token.t_type {
-            if s == "setup" {
-                let out = SetupIdent(token.clone());
-                return Advancement::new_no_overeach(AdvancementState::Done(out))
-            }
-        }
-
-        let error = PatternMatchingError::UnexpectedToken {
-            expected: TokenType::Ident("setup".to_string()),
-            got: token.clone(),
-        };
-        Advancement::new(AdvancementState::Error(error), 1)
-    }
-}
-
-impl LanguageItem for SetupIdent {
-    fn slice(&self) -> SfSlice {
-        self.0.slice.clone()
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use crate::source::SfSlice;
-
-    use super::*;
-
-    fn bogus_token(t_type: TokenType) -> Token {
-        Token::new(t_type, SfSlice::new_bogus("fishg"))
-    }
-
-    #[test]
-    fn single_token_pattern() {
-        let token = bogus_token(TokenType::Ident("bublbles".to_string()));
-        let adv = IdentPattern::default().advance(
-            &token
-        );
-        if let AdvancementState::Done(_) = adv.state {
-            // yay
-        } else {
-            panic!("expected done")
-        }
-
-        let token = bogus_token(TokenType::Plus);
-        let adv = IdentPattern::default().advance(
-            &token
-        );
-        if let AdvancementState::Error { .. } = adv.state {
-            // yay
-        } else {
-            panic!("expected the unexpected")
-        }
-
-        let token = bogus_token(TokenType::Plus);
-        let adv = PlusPattern::default().advance(
-            &token
-        );
-        if let AdvancementState::Done(_) = adv.state {
-            // yay
-        } else {
-            panic!("expected done")
-        }
-
-        let token = bogus_token(TokenType::CharLit('2'));
-        let adv = CharLitPattern::default().advance(
-            &token
-        );
-        if let AdvancementState::Done(_) = adv.state {
-            // yay
-        } else {
-            panic!("expected done")
-        }
-    }
-
-    #[test]
-    fn main_and_setup_ident() {
-        let token = bogus_token(TokenType::Ident("fartas".to_string()));
-        let adv = MainIdentPattern::default().advance(
-            &token
-        );
-        if let AdvancementState::Error(_) = adv.state {
-            // yay
-        } else {
-            panic!("expected failure")
-        }
-
-        let token = bogus_token(TokenType::Ident("main".to_string()));
-        let adv = MainIdentPattern::default().advance(
-            &token
-        );
-        if let AdvancementState::Done(_) = adv.state {
-            // yay
-        } else {
-            panic!("expected good")
-        }
-
-        let token = bogus_token(TokenType::Ident("main".to_string()));
-        let adv = SetupIdentPattern::default().advance(
-            &token
-        );
-        if let AdvancementState::Error(_) = adv.state {
-            // yay
-        } else {
-            panic!("expected failure")
-        }
-
-        let token = bogus_token(TokenType::Ident("setup".to_string()));
-        let adv = SetupIdentPattern::default().advance(
-            &token
-        );
-        if let AdvancementState::Done(_) = adv.state {
-            // yay
-        } else {
-            panic!("expected good")
-        }
-    }
-}
+// TODO: tests
