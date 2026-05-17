@@ -78,9 +78,31 @@ impl<T: Pattern> Pattern for Many<T> {
     }
 }
 
+/// The pattern may or may not be present
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Maybe<T>
+where T: Pattern {
+    _phantom: PhantomData<T>
+}
+
+impl<T> Pattern for Maybe<T>
+where T: Pattern {
+    type ParseResult = Option<T::ParseResult>;
+
+    fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult> {
+        if let Ok(ok) = T::solve(tokens) {
+            Ok((ok.0, Some(ok.1)))
+        } else {
+            Ok((0, None))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{lexer::token::TokenType, parser::terminals::*, source::SfSlice};
+
+    use std::assert_matches;
 
     use super::*;
 
@@ -92,7 +114,7 @@ mod tests {
     fn or_token_pattern() {
         let token = bogus_token(TokenType::Ident("joe".to_string()));
         let tokens = vec![token];
-        let res = <Or<IdentPattern, Or<NumLitPattern, CharLitPattern>>>::solve(&tokens);
+        let res = <Or<Ident, Or<NumLit, CharLit>>>::solve(&tokens);
         if let Ok(_) = res {
             // yay
         } else {
@@ -101,7 +123,7 @@ mod tests {
 
         let token = bogus_token(TokenType::CharLit('c'));
         let tokens = vec![token];
-        let res = <Or<IdentPattern, Or<NumLitPattern, CharLitPattern>>>::solve(&tokens);
+        let res = <Or<Ident, Or<NumLit, CharLit>>>::solve(&tokens);
         if let Ok(_) = res {
             // yay
         } else {
@@ -110,7 +132,7 @@ mod tests {
 
         let token = bogus_token(TokenType::Plus);
         let tokens = vec![token];
-        let res = <Or<IdentPattern, Or<NumLitPattern, CharLitPattern>>>::solve(&tokens);
+        let res = <Or<Ident, Or<NumLit, CharLit>>>::solve(&tokens);
         if let Err(_) = res {
             // yay
         } else {
@@ -126,7 +148,7 @@ mod tests {
             bogus_token(TokenType::Ident("a".to_string())),
         ];
 
-        let res = <Then<CharLitPattern, Then<MinusPattern, IdentPattern>>>::solve(&tokens);
+        let res = <Then<CharLit, Then<Minus, Ident>>>::solve(&tokens);
         if res.is_err() {
             panic!("did not complete")
         }
@@ -136,7 +158,7 @@ mod tests {
             bogus_token(TokenType::Ident("a".to_string())),
             bogus_token(TokenType::Minus),
         ];
-        let res = <Then<CharLitPattern, Then<MinusPattern, IdentPattern>>>::solve(&tokens);
+        let res = <Then<CharLit, Then<Minus, Ident>>>::solve(&tokens);
         if res.is_ok() {
             panic!("did complete")
         }
@@ -151,7 +173,7 @@ mod tests {
             bogus_token(TokenType::Ident("the_secrets_of_732".to_string())),
             bogus_token(TokenType::Eof),
         ];
-        let res = <Many<IdentPattern>>::solve(&tokens);
+        let res = <Many<Ident>>::solve(&tokens);
         assert_eq!(res.unwrap().1.len(), 2);
 
         let tokens = vec![
@@ -161,7 +183,7 @@ mod tests {
             bogus_token(TokenType::Ident("the_secrets_of_732".to_string())),
             bogus_token(TokenType::Eof),
         ];
-        let res = <Then<Then<Many<IdentPattern>, MinusPattern>, Many<IdentPattern>>>::solve(&tokens);
+        let res = <Then<Then<Many<Ident>, Minus>, Many<Ident>>>::solve(&tokens);
         let res = res.unwrap();
         assert_eq!(res.1.0.0.len(), 2);
         assert_eq!(res.1.1.len(), 1);
@@ -171,7 +193,38 @@ mod tests {
             bogus_token(TokenType::Ident("a".to_string())),
             bogus_token(TokenType::Eof),
         ];
-        let res = <Then<Many<IdentPattern>, IdentPattern>>::solve(&tokens);
+        let res = <Then<Many<Ident>, Ident>>::solve(&tokens);
         assert!(res.is_err());
+    }
+
+    #[test]
+    fn maybe_no_match() {
+        let tokens = [ bogus_token(TokenType::Comma) ];
+
+        // with one token
+        let res = Maybe::<Ident>::solve(&tokens);
+        assert_matches!(
+            res,
+            Ok((0, None))
+        );
+
+        // with no token
+        let res = Maybe::<Ident>::solve(&[]);
+        assert_matches!(
+            res,
+            Ok((0, None))
+        )
+    }
+
+    #[test]
+    fn maybe_with_match() {
+        let tokens = [ bogus_token(TokenType::Comma) ];
+
+        // with one token
+        let res = Maybe::<Comma>::solve(&tokens);
+        assert_matches!(
+            res,
+            Ok((_, Some(_)))
+        );
     }
 }

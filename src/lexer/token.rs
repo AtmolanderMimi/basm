@@ -75,6 +75,12 @@ pub enum TokenType {
     LCurly,
     /// "}", an closing curly bracket, many uses.
     RCurly,
+    /// "(", an opening parenthesis bracket, many uses.
+    LParen,
+    /// ")", an closing parenthesis bracket, many uses.
+    RParen,
+    /// ',', delimits items in a list
+    Comma,
     /// "@", used to declare the signature of a meta-instruction.
     At,
     /// ";", delimits instructions.
@@ -113,6 +119,9 @@ impl TokenType {
         ("]", Self::RSquare),
         ("{", Self::LCurly),
         ("}", Self::RCurly),
+        ("(", Self::LParen),
+        (")", Self::RParen),
+        (",", Self::Comma),
         ("@", Self::At),
         (";", Self::Semicolon),
         // lits go here also idents in spirit, cus they can't be mapped like this
@@ -145,6 +154,9 @@ impl TokenType {
             Self::RSquare => (),
             Self::LCurly => (),
             Self::RCurly => (),
+            Self::LParen => (),
+            Self::RParen => (),
+            Self::Comma => (),
             Self::At => (),
             Self::Semicolon => (),
             Self::LineComment => (),
@@ -178,6 +190,9 @@ impl Display for TokenType {
             Self::RSquare => "]",
             Self::LCurly => "{",
             Self::RCurly => "}",
+            Self::LParen => "(",
+            Self::RParen => ")",
+            Self::Comma => ",",
             Self::At => "@",
             Self::Semicolon => ";",
             Self::LineComment => "//",
@@ -373,7 +388,7 @@ impl<'a> Token {
 
 #[cfg(test)]
 mod tests {
-    use std::assert_matches::assert_matches;
+    use std::assert_matches;
 
     use super::*;
 

@@ -345,7 +345,7 @@ fn operation_validity_range<'a, 'b>(ops: &'a [Operation<'b>], idx: usize) -> Ran
 
 #[cfg(test)]
 mod tests {
-    use std::assert_matches::assert_matches;
+    use std::assert_matches;
 
     use crate::interpreter::InterpreterBuilder;
 

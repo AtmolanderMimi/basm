@@ -2,7 +2,7 @@
 //! 
 //! started as of 2024-10-12
 
-#![feature(assert_matches)]
+#![feature(associated_type_defaults)]
 
 #![warn(missing_docs)]
 #![warn(clippy::pedantic)]

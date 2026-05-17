@@ -124,6 +124,16 @@ pub fn lex_file(source_file: &'static SourceFile) -> Result<Vec<Token>, (Vec<Tok
     }
 }
 
+/// Creates a new bogus file from the `source` string and lexes from that.
+/// USED FOR TESTING
+#[cfg(test)]
+pub fn lex_string(source: &str) -> Result<Vec<Token>, (Vec<Token>, Vec<LexerError>)> {
+    use std::path::PathBuf;
+
+    let file = SourceFile::from_raw_parts(PathBuf::new(), source.to_string());
+    lex_file(file.leak())
+}
+
 enum Advancement {
     Advancing,
     Finished,

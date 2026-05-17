@@ -7,6 +7,8 @@
 mod components;
 mod terminals;
 mod operators;
+mod list;
+mod expression;
 
 use std::fmt::Display;
 
@@ -14,13 +16,13 @@ use thiserror::Error;
 
 use crate::{CompilerError, Lint, lexer::token::{Token, TokenType}, source::SfSlice};
 
-// Return type of trying to solve for a pattern.
-// The `Ok` variant contains the number of tokens taken to solve the pattern (the `usize`)
+/// Return type of trying to solve for a pattern.
+/// The `Ok` variant contains the number of tokens taken to solve the pattern (the `usize`)
 pub type PatternResult<T: Clone> = Result<(usize, T), UnexpectedTokenError>;
 
 /// Defines a language pattern.
-pub trait Pattern {
-    type ParseResult: Clone;
+pub trait Pattern where Self: Sized {
+    type ParseResult: Sized = Self;
 
     /// Solves a pattern. See [PatternResult] for how to interpret result.
     fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult>;
@@ -36,6 +38,7 @@ pub struct UnexpectedTokenError {
 }
 
 impl UnexpectedTokenError {
+    /// Creates a new [UnexpectedTokenError].
     pub fn new(expected: Vec<TokenType>, got: Token) -> Self {
         UnexpectedTokenError {
             expected_tokens: expected,
@@ -43,6 +46,7 @@ impl UnexpectedTokenError {
         }
     }
 
+    /// Creates a new [UnexpectedTokenError].
     pub fn new_got_nothing(expected: Vec<TokenType>) -> Self {
         UnexpectedTokenError {
             expected_tokens: expected,
@@ -117,12 +121,10 @@ macro_rules! impl_language_item {
 
 /// The collection of patterns used to parse for structures.
 /// (At least all the patterns for the structures which are public)
-pub mod patterns {
+pub mod pattern {
     pub use super::{Pattern};
 
-    use crate::parser::terminals;
     use crate::parser::components;
 
-    pub use terminals::{AtPattern, EofPattern, MultiplyPattern, IdentPattern, MinusPattern, NumLitPattern, StrLitPattern, CharLitPattern, SemicolonPattern, LeftSquarePattern, RightSquarePattern};
-    pub use components::{Or, Then, Many};
+    pub use components::{Or, Then, Many, Maybe};
 }
