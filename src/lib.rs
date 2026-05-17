@@ -28,7 +28,6 @@ pub mod source;
 use source::SourceFile;
 pub mod utils;
 pub mod parser;
-pub mod compiler;
 pub mod interpreter;
 pub mod clap_cli;
 pub use clap_cli::CliCommand;
@@ -47,17 +46,20 @@ pub fn transpile<'a>(sf: &'static SourceFile) -> Result<String, Vec<Box<dyn Comp
         }
     };
 
-    let program = match parser::parse_tokens(&tokens) {
-        Ok(p) => p,
-        Err(e) => return Err(vec![Box::new(e)]),
-    };
+    // TODO
+    //let program = match parser::parse_tokens(&tokens) {
+    //    Ok(p) => p,
+    //    Err(e) => return Err(vec![Box::new(e)]),
+    //};
+    //
+    //let program = match compiler::compile(&program) {
+    //    Ok(p) => p,
+    //    Err(e) => return Err(vec![Box::new(e)])
+    //};
+    //
+    //Ok(program)
 
-    let program = match compiler::compile(&program) {
-        Ok(p) => p,
-        Err(e) => return Err(vec![Box::new(e)])
-    };
-    
-    Ok(program)
+    todo!()
 }
 
 #[cfg(test)]
