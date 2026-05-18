@@ -8,10 +8,12 @@
 
 use crate::{lexer::token::Token, parser::{LanguageItem, Pattern, PatternResult, UnexpectedTokenError, terminals::{At, Divide, GreaterThan, GreaterThanEqual, LessThan, LessThanEqual, LogicalEqual, LogicalInequal, Minus, Modulo, Multiply, Plus}}};
 
-pub trait Operator {
-    const NB_PRECEDENCE_LEVELS: u32 = 5;
-    const RIGHT_ASSOCIATIVE_LEVELS: &[u32] = &[4];
+/// The number of precedence levels for all operators
+pub const NB_PRECEDENCE_LEVELS: u32 = 5;
+/// The precedence levels which are right associative
+pub const RIGHT_ASSOCIATIVE_LEVELS: &[u32] = &[4];
 
+pub trait Operator {
     /// The order the operations should be merged in (higher = earlier)
     fn precedence(&self) -> u32;
 }
@@ -109,8 +111,8 @@ impl Pattern for BinaryOperator {
         } else if let Ok((nb_tokens, parsed)) = At::solve(tokens) {
             (nb_tokens, BinaryOperator::Index(parsed))
         } else {
-            // TODO:
-            return Err(UnexpectedTokenError::new_got_nothing(todo!("add all types")))
+            // TODO: redo error type
+            return Err(UnexpectedTokenError::new_got_nothing(Vec::new()))
         };
 
         Ok((nb_tokens, operator))

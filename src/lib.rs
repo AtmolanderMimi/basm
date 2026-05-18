@@ -3,6 +3,7 @@
 //! started as of 2024-10-12
 
 #![feature(associated_type_defaults)]
+#![feature(vec_try_remove)]
 
 #![warn(missing_docs)]
 #![warn(clippy::pedantic)]

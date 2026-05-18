@@ -202,6 +202,7 @@ impl CompilerError for LiteralError {
 mod tests {
     use super::*;
     use std::path::{absolute, PathBuf};
+    use std::assert_matches;
 
     fn test_file() -> SourceFile {
         let path = PathBuf::from("./test-resources/fib.basm");
@@ -217,5 +218,21 @@ mod tests {
     #[test]
     fn lexing_does_not_error() {
         assert!(lex_file(test_file().leak()).is_ok());
+    }
+
+    #[test]
+    fn lexing_just_num() {
+        assert_matches!(
+            lex_string("3").unwrap()[0].t_type,
+            TokenType::NumLit(_)
+        );
+    }
+
+    #[test]
+    fn lexing_just_ident() {
+        assert_matches!(
+            lex_string("hello").unwrap()[0].t_type,
+            TokenType::Ident(_)
+        );
     }
 }
