@@ -1,6 +1,6 @@
 //! Defines what is an expression is.
 
-use crate::{lexer::token::Token, parser::{LanguageItem, Pattern, PatternResult, list::List, operators::BinaryOperator, terminals::{CharLit, Ident, LeftParen, NumLit, RightParen, StrLit}}};
+use crate::{lexer::token::Token, parser::{LanguageItem, Pattern, PatternResult, list::List, r#macro::Macro, operators::BinaryOperator, terminals::{CharLit, Ident, LeftParen, NumLit, RightParen, StrLit}}};
 
 //// An expression. An expression is formed from one or more [ExpressionItem] being merged.
 #[derive(Debug, Clone, PartialEq)]
@@ -26,7 +26,7 @@ enum ExpressionItem {
     NumLit(NumLit),
     CharLit(CharLit),
     StrLit(StrLit),
-    //Macro(), // TODO: add macro parsed type
+    Macro(Macro),
     List(List),
     BinaryOperator(BinaryOperator),
     // ... unary operators will go here if added
@@ -42,7 +42,7 @@ impl LanguageItem for ExpressionItem {
             Self::CharLit(t) => t.slice(),
             Self::StrLit(t) => t.slice(),
             Self::List(t) => t.slice(),
-        //    Self::Macro(t) => t.slice(),
+            Self::Macro(t) => t.slice(),
             Self::BinaryOperator(t) => t.slice(),
         }
     }

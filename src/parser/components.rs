@@ -98,9 +98,48 @@ where T: Pattern {
     }
 }
 
+/// A list of many items `T` ([Many]) seperated by `U`.
+/// The seperator cannot be at the end of the list.
+/// The first item of the returned list (if not empty) is guarentied to not have a seperator
+/// (i.e the first element of the enum is `None`).
+pub struct SeperatedMany<T, U>
+where T: Pattern, U: Pattern {
+    _phantom: PhantomData<(T, U)>
+}
+
+impl<T, U> Pattern for SeperatedMany<T, U>
+where T: Pattern, U: Pattern {
+    type ParseResult = Vec<(Option<U::ParseResult>, T::ParseResult)>;
+
+    fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult> {
+        let res =
+        Maybe::<
+            Then<
+                T,
+                Many<Then<U, T>>
+            >
+        >::solve(&tokens)?;
+
+        // combines the first item with the other items
+        let maybe_items = res.1;
+        let items = if let Some((first_item, other_items)) = maybe_items {
+            let mut other_items = other_items.into_iter().map(|(c, e)| (Some(c), e))
+                .collect::<Vec<_>>();
+
+            other_items.insert(0, (None, first_item));
+
+            other_items
+        } else {
+            Vec::new()
+        };
+
+        Ok((res.0, items))
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::{lexer::token::TokenType, parser::terminals::*, source::SfSlice};
+    use crate::{lexer::{lex_string, token::TokenType}, parser::terminals::*, source::SfSlice};
 
     use std::assert_matches;
 
@@ -198,6 +237,7 @@ mod tests {
     }
 
     #[test]
+
     fn maybe_no_match() {
         let tokens = [ bogus_token(TokenType::Comma) ];
 
@@ -226,5 +266,42 @@ mod tests {
             res,
             Ok((_, Some(_)))
         );
+    }
+
+    #[test]
+    fn seperated_many_no_match() {
+        let tokens = [ bogus_token(TokenType::Comma) ];
+
+        let res = SeperatedMany::<Ident, Comma>::solve(&tokens);
+        let items = res.unwrap().1;
+        assert!(items.is_empty());
+    }
+
+    #[test]
+    fn seperated_many_single_match() {
+        let tokens = lex_string("hello").unwrap();
+
+        let res = SeperatedMany::<Ident, Comma>::solve(&tokens);
+        let items = res.unwrap().1;
+        assert_eq!(items.len(), 1);
+    }
+
+    #[test]
+    fn seperated_many_multiple_match() {
+        let tokens = lex_string("hello, world,and,people").unwrap();
+
+        let res = SeperatedMany::<Ident, Comma>::solve(&tokens);
+        let items = res.unwrap().1;
+        assert_eq!(items.len(), 4);
+    }
+
+    #[test]
+    fn seperated_many_ending_in_seperator_does_not_include_it() {
+        let tokens = lex_string("hello, world,and,people,").unwrap();
+
+        let res = SeperatedMany::<Ident, Comma>::solve(&tokens);
+        let (tokens_taken, items) = res.unwrap();
+        assert_eq!(items.len(), 4);
+        assert_eq!(tokens_taken, 7);
     }
 }

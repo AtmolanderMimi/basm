@@ -1,28 +1,24 @@
 //! Defines a list.
 
-use crate::{impl_language_item, lexer::token::Token, parser::{Pattern, PatternResult, expression::Expression, pattern::{Many, Maybe, Then}, terminals::{Comma, LeftSquare, RightSquare}}};
+use crate::{impl_language_item, lexer::token::Token, parser::{Pattern, PatternResult, expression::Expression, pattern::{SeperatedMany, Then}, terminals::{Comma, LeftSquare, RightSquare}}};
 
 /// A list literal. It is expressions seperated by commas in square brackets.
 #[derive(Debug, Clone, PartialEq)]
 pub struct List {
     pub opening_bracket: LeftSquare,
-    pub items: Vec<(Expression, Option<Comma>)>,
+    pub items: Vec<(Option<Comma>, Expression)>,
     pub closing_bracket: RightSquare,
 }
 
 impl_language_item!(List, opening_bracket, closing_bracket);
 
 impl Pattern for List {
-    type ParseResult = List;
-
     fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult> {
         let res = 
         Then::<
             LeftSquare,
             Then<
-                Many<
-                    Then<Expression, Maybe<Comma>>
-                >,
+                SeperatedMany<Expression, Comma>,
                 RightSquare
             >
         >::solve(&tokens)?;
@@ -76,11 +72,9 @@ mod tests {
     }
 
     #[test]
-    fn list_parses_trailing_comma() {
+    fn list_does_not_parse_trailing_comma() {
         let tokens = lex_string("[3, ['c'], \"732\",]").unwrap();
-        let (_, list) = List::solve(&tokens).unwrap();
-
-        assert_eq!(list.items.len(), 3);
+        List::solve(&tokens).unwrap_err();
     }
 
     #[test]

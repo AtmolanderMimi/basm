@@ -8,6 +8,7 @@ mod components;
 mod terminals;
 mod operators;
 mod list;
+mod r#macro;
 mod expression;
 
 use std::fmt::Display;
@@ -22,6 +23,7 @@ pub type PatternResult<T: Clone> = Result<(usize, T), UnexpectedTokenError>;
 
 /// Defines a language pattern.
 pub trait Pattern where Self: Sized {
+    /// The type resulting from the parse of the pattern.
     type ParseResult: Sized = Self;
 
     /// Solves a pattern. See [PatternResult] for how to interpret result.
@@ -126,5 +128,5 @@ pub mod pattern {
 
     use crate::parser::components;
 
-    pub use components::{Or, Then, Many, Maybe};
+    pub use components::*;
 }

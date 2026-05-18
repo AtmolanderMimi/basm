@@ -81,8 +81,10 @@ pub enum TokenType {
     RParen,
     /// ',', delimits items in a list
     Comma,
-    /// "@", used to declare the signature of a meta-instruction.
+    /// "@", used to index into a list.
     At,
+    /// "=>", used in macro definitions.
+    ThickArrow,
     /// ";", delimits instructions.
     Semicolon,
     /// "//", starts a comment on the rest of the line.
@@ -106,6 +108,7 @@ impl TokenType {
         (">=", Self::GreaterThanEqual),
         ("<=", Self::LessThanEqual),
         ("&&", Self::LogicalAnd),
+        ("=>", Self::ThickArrow),
         ("||", Self::LogicalOr),
         ("+", Self::Plus),
         ("-", Self::Minus),
@@ -159,6 +162,7 @@ impl TokenType {
             Self::Comma => (),
             Self::At => (),
             Self::Semicolon => (),
+            Self::ThickArrow => (),
             Self::LineComment => (),
             Self::Ident(_) => (),
             Self::Eof => (),
@@ -195,6 +199,7 @@ impl Display for TokenType {
             Self::Comma => ",",
             Self::At => "@",
             Self::Semicolon => ";",
+            Self::ThickArrow => "=>",
             Self::LineComment => "//",
             Self::Ident(_) => "ident",
             Self::Eof => "eof",

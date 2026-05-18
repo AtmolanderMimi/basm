@@ -151,6 +151,12 @@ single_token_pattern!(
 );
 
 single_token_pattern!(
+    ThickArrow,
+    TokenType::ThickArrow,
+    TokenType::ThickArrow
+);
+
+single_token_pattern!(
     LeftSquare,
     TokenType::LSquare,
     TokenType::LSquare

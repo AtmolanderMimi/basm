@@ -6,7 +6,7 @@
 //! "!"                              => 3 // TODO: implement "!"
 //! "@" (right-associative)          => 4
 
-use crate::{lexer::token::Token, parser::{LanguageItem, Pattern, PatternResult, UnexpectedTokenError, pattern::{Or, Then}, terminals::{At, Divide, GreaterThan, GreaterThanEqual, LessThan, LessThanEqual, LogicalEqual, LogicalInequal, LogicalNot, Minus, Modulo, Multiply, NumLit, Plus, RightSquare}}};
+use crate::{lexer::token::Token, parser::{LanguageItem, Pattern, PatternResult, UnexpectedTokenError, terminals::{At, Divide, GreaterThan, GreaterThanEqual, LessThan, LessThanEqual, LogicalEqual, LogicalInequal, Minus, Modulo, Multiply, Plus}}};
 
 pub trait Operator {
     const NB_PRECEDENCE_LEVELS: u32 = 5;
@@ -71,12 +71,7 @@ impl Operator for BinaryOperator {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct BinaryOperatorPattern;
-
-impl Pattern for BinaryOperatorPattern {
-    type ParseResult = BinaryOperator;
-
+impl Pattern for BinaryOperator {
     // TODO: this implementation is better than by using a long chain of Or<>'s,
     // but is still very unelegant
     fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult> {
