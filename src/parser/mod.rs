@@ -8,6 +8,7 @@ mod components;
 mod terminals;
 mod operators;
 mod list;
+mod directive;
 mod r#macro;
 mod expression;
 

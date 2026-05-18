@@ -151,6 +151,12 @@ single_token_pattern!(
 );
 
 single_token_pattern!(
+    Colon,
+    TokenType::Colon,
+    TokenType::Colon
+);
+
+single_token_pattern!(
     ThickArrow,
     TokenType::ThickArrow,
     TokenType::ThickArrow
@@ -202,6 +208,12 @@ single_token_pattern!(
     At,
     TokenType::At,
     TokenType::At
+);
+
+single_token_pattern!(
+    Pound,
+    TokenType::Pound,
+    TokenType::Pound
 );
 
 single_token_pattern!(

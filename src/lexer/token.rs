@@ -83,9 +83,13 @@ pub enum TokenType {
     Comma,
     /// "@", used to index into a list.
     At,
+    /// "#", used to prefix directives.
+    Pound,
     /// "=>", used in macro definitions.
     ThickArrow,
-    /// ";", delimits instructions.
+    /// ":", delimits the macro expression from it's arguments.
+    Colon,
+    /// ";", delimits directives.
     Semicolon,
     /// "//", starts a comment on the rest of the line.
     /// Is only used by the lexer to avoid comments.
@@ -126,7 +130,9 @@ impl TokenType {
         (")", Self::RParen),
         (",", Self::Comma),
         ("@", Self::At),
+        ("#", Self::Pound),
         (";", Self::Semicolon),
+        (":", Self::Colon),
         // lits go here also idents in spirit, cus they can't be mapped like this
     ];
 
@@ -161,7 +167,9 @@ impl TokenType {
             Self::RParen => (),
             Self::Comma => (),
             Self::At => (),
+            Self::Pound => (),
             Self::Semicolon => (),
+            Self::Colon => (),
             Self::ThickArrow => (),
             Self::LineComment => (),
             Self::Ident(_) => (),
@@ -198,7 +206,9 @@ impl Display for TokenType {
             Self::RParen => ")",
             Self::Comma => ",",
             Self::At => "@",
+            Self::Pound => "#",
             Self::Semicolon => ";",
+            Self::Colon => ":",
             Self::ThickArrow => "=>",
             Self::LineComment => "//",
             Self::Ident(_) => "ident",
