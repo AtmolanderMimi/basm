@@ -1,17 +1,20 @@
 //! Defines operations, both binary and unary
 //! Here is a table of precedence:
-//! "==", "!=", ">", ">=", "<", "<=" => 0
-//! "+", "-"                         => 1
-//! "*", "/", "%"                    => 2
-//! "!"                              => 3 // TODO: implement "!"
-//! "@" (right-associative)          => 4
+//! "||"                             => 0
+//! "&&"                             => 1
+//! ">", ">=", "<", "<="             => 2
+//! "==", "!=",                      => 3
+//! "+", "-"                         => 4
+//! "*", "/", "%"                    => 5
+//! "!"                              => 6 // TODO: implement "!"
+//! "@" (right-associative)          => 7
 
-use crate::{lexer::token::Token, parser::{LanguageItem, Pattern, PatternResult, UnexpectedTokenError, terminals::{At, Divide, GreaterThan, GreaterThanEqual, LessThan, LessThanEqual, LogicalEqual, LogicalInequal, Minus, Modulo, Multiply, Plus}}};
+use crate::{lexer::token::Token, parser::{LanguageItem, Pattern, PatternResult, UnexpectedTokenError, terminals::{At, Divide, GreaterThan, GreaterThanEqual, LessThan, LessThanEqual, LogicalAnd, LogicalEqual, LogicalInequal, LogicalOr, Minus, Modulo, Multiply, Plus}}};
 
 /// The number of precedence levels for all operators
-pub const NB_PRECEDENCE_LEVELS: u32 = 5;
+pub const NB_PRECEDENCE_LEVELS: u32 = 8;
 /// The precedence levels which are right associative
-pub const RIGHT_ASSOCIATIVE_LEVELS: &[u32] = &[4];
+pub const RIGHT_ASSOCIATIVE_LEVELS: &[u32] = &[7];
 
 pub trait Operator {
     /// The order the operations should be merged in (higher = earlier)
@@ -32,6 +35,8 @@ pub enum BinaryOperator {
     GreaterThanEqual(GreaterThanEqual),
     LessThan(LessThan),
     LessThanEqual(LessThanEqual),
+    LogicalOr(LogicalOr),
+    LogicalAnd(LogicalAnd),
     Index(At),
 }
 
@@ -49,6 +54,8 @@ impl LanguageItem for BinaryOperator {
             Self::GreaterThanEqual(t) => t.slice(),
             Self::LessThan(t) => t.slice(),
             Self::LessThanEqual(t) => t.slice(),
+            Self::LogicalOr(t) => t.slice(),
+            Self::LogicalAnd(t) => t.slice(),
             Self::Index(t) => t.slice(),
         }
     }
@@ -57,18 +64,20 @@ impl LanguageItem for BinaryOperator {
 impl Operator for BinaryOperator {
     fn precedence(&self) -> u32 {
         match self {
-            Self::LogicalEqual(_)
-            | Self::LogicalInequal(_)
-            | Self::GreaterThan(_)
+            Self::LogicalOr(_) => 0,
+            Self::LogicalAnd(_) => 1,
+            Self::GreaterThan(_)
             | Self::GreaterThanEqual(_)
             | Self::LessThan(_)
-            | Self::LessThanEqual(_) => 0,
+            | Self::LessThanEqual(_) => 2,
+            Self::LogicalEqual(_)
+            | Self::LogicalInequal(_) => 3,
             Self::Plus(_)
-            | Self::Minus(_) => 1,
+            | Self::Minus(_) => 4,
             Self::Multiply(_)
             | Self::Divide(_)
-            | Self::Modulo(_) => 2,
-            Self::Index(_) => 4,
+            | Self::Modulo(_) => 5,
+            Self::Index(_) => 7,
         }
     }
 }
@@ -108,6 +117,10 @@ impl Pattern for BinaryOperator {
         }
         else if let Ok((nb_tokens, parsed)) = LessThanEqual::solve(tokens) {
             (nb_tokens, BinaryOperator::LessThanEqual(parsed))
+        } else if let Ok((nb_tokens, parsed)) = LogicalOr::solve(tokens) {
+            (nb_tokens, BinaryOperator::LogicalOr(parsed))
+        } else if let Ok((nb_tokens, parsed)) = LogicalAnd::solve(tokens) {
+            (nb_tokens, BinaryOperator::LogicalAnd(parsed))
         } else if let Ok((nb_tokens, parsed)) = At::solve(tokens) {
             (nb_tokens, BinaryOperator::Index(parsed))
         } else {

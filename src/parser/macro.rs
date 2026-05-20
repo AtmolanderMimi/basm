@@ -1,6 +1,6 @@
 //! Defines a macro.
 
-use crate::{impl_language_item, lexer::token::Token, parser::{LanguageItem, Pattern, PatternResult, directive::Directive, pattern::{Many, Maybe, SeperatedMany, Then}, terminals::{Comma, Ident, LeftCurly, LeftSquare, RightCurly, RightSquare, Semicolon, ThickArrow}}, source::SfSlice};
+use crate::{impl_language_item, lexer::token::Token, parser::{LanguageItem, Pattern, PatternResult, directive::Directive, pattern::{Many, Maybe, SeperatedMany, Then}, terminals::{Comma, Ident, LeftCurly, LeftSquare, RightCurly, RightSquare, ThickArrow}}, source::SfSlice};
 
 /// A macro literal. It is a list followed by `:` and then a macro body
 #[derive(Debug, Clone, PartialEq)]

@@ -21,7 +21,7 @@ use crate::{CompilerError, Lint, lexer::token::{Token, TokenType}, parser::file:
 
 /// Return type of trying to solve for a pattern.
 /// The `Ok` variant contains the number of tokens taken to solve the pattern (the `usize`)
-pub type PatternResult<T: Clone> = Result<(usize, T), UnexpectedTokenError>;
+pub type PatternResult<T> = Result<(usize, T), UnexpectedTokenError>;
 
 /// Defines a language pattern.
 pub trait Pattern where Self: Sized {
