@@ -47,12 +47,11 @@ pub fn transpile<'a>(sf: &'static SourceFile) -> Result<String, Vec<Box<dyn Comp
         }
     };
 
-    // TODO
-    //let program = match parser::parse_tokens(&tokens) {
-    //    Ok(p) => p,
-    //    Err(e) => return Err(vec![Box::new(e)]),
-    //};
-    //
+    let file = match parser::parse_tokens(&tokens) {
+        Ok(p) => p,
+        Err(e) => return Err(vec![Box::new(e)]),
+    };
+
     //let program = match compiler::compile(&program) {
     //    Ok(p) => p,
     //    Err(e) => return Err(vec![Box::new(e)])

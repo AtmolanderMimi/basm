@@ -1,24 +1,20 @@
-[@MOVE from to] [
-ZERO to;
-ADDP to from;
-]
+#include "std.basm";
 
-[main] [
-ALIS i 0;
-ALIS a 1;
-ALIS b 2;
-ALIS limit 11;
+#decl Vnth_number, 5;
+#decl Aindex, sp;
+#decl Aa, sp+1;
+#decl Ab, sp+2;
+#decl sp, sp+3;
 
-INCR a 1;
-INCR b 0;
-WHNE i limit [
-    INCR i 1;
+Incr: Ab, 1;
+WhNe: Aindex, Vnth_number, {
+    #decl Atmp, sp;
+    #decl sp sp+1;
 
-    COPY a 3 4;
-    MOVE 4 a;
-    ADDP a b;
-    
-    MOVE 3 b;
-    OUT  a;
-];
-]
+    Incr: Aindex, 1;
+    Copy: Aa, Ab, Atmp;
+    AddP: Ab, Aa;
+    AddP: Atmp, Ab;
+};
+
+Out: Aa;

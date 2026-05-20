@@ -11,12 +11,13 @@ mod list;
 mod directive;
 mod r#macro;
 mod expression;
+mod file;
 
 use std::fmt::Display;
 
 use thiserror::Error;
 
-use crate::{CompilerError, Lint, lexer::token::{Token, TokenType}, source::SfSlice};
+use crate::{CompilerError, Lint, lexer::token::{Token, TokenType}, parser::file::ParsedFile, source::SfSlice};
 
 /// Return type of trying to solve for a pattern.
 /// The `Ok` variant contains the number of tokens taken to solve the pattern (the `usize`)
@@ -116,11 +117,11 @@ macro_rules! impl_language_item {
     };
 }
 
-// TODO:
-/// Parses the tokens into a structured form ([`ParsedProgram`]).
-//pub fn parse_tokens(tokens: &[Token]) -> Result<ParsedFile, PatternMatchingError> {
-//    solve_pattern::<FilePattern>(tokens)
-//}
+/// Parses the tokens into a structured form ([`ParsedFile`]).
+pub fn parse_tokens(tokens: &[Token]) -> Result<ParsedFile, UnexpectedTokenError> {
+    ParsedFile::solve(&tokens)
+        .map(|(_, file)| file)
+}
 
 /// The collection of patterns used to parse for structures.
 /// (At least all the patterns for the structures which are public)

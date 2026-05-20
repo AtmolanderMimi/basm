@@ -1,6 +1,6 @@
 //! The cli parser defined via the clap crate and its tooling.
 
-use clap::{command, Args, Parser};
+use clap::{Args, Parser};
 use thiserror::Error;
 
 use crate::interpreter::{InterpreterBuilder, InterpreterTrait};
