@@ -60,10 +60,11 @@ impl Expression {
                 match items[operator_index].node {
                     ExpressionItem::BinaryOperator(_) => {
                         // TODO: better error handling
-                        let Some(item_after) = items.try_remove(operator_index+1) else {
+                        // TODO: usize::MAX hack
+                        let Some(item_after) = items.try_remove(operator_index.checked_add(1).unwrap_or(usize::MAX)) else {
                             return Err(UnexpectedTokenError::new_got_nothing(Vec::new()));
                         };
-                        let Some(item_before) = items.try_remove(operator_index-1) else {
+                        let Some(item_before) = items.try_remove(operator_index.checked_sub(1).unwrap_or(usize::MAX)) else {
                             return Err(UnexpectedTokenError::new_got_nothing(Vec::new()));
                         };
 
