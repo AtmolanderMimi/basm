@@ -86,6 +86,6 @@ mod tests {
     #[test]
     fn list_does_not_parse_invalid_values() {
         let tokens = lex_string("[@]").unwrap();
-        List::solve(&tokens).unwrap_err();
+        dbg!(List::solve(&tokens)).unwrap_err();
     }
 }

@@ -1,8 +1,6 @@
 //! Defines what is an expression is.
 
-use std::collections::hash_set::Iter;
-
-use crate::{lexer::token::Token, parser::{LanguageItem, Pattern, PatternResult, UnexpectedTokenError, list::List, r#macro::Macro, operators::{self, BinaryOperator, Operator}, pattern::{Many, Then}, terminals::{CharLit, Ident, LeftParen, NumLit, RightParen, StrLit}}, source::SfSlice};
+use crate::{lexer::token::Token, parser::{LanguageItem, Pattern, PatternResult, UnexpectedTokenError, list::List, r#macro::Macro, operators::{self, BinaryOperator, NB_PRECEDENCE_LEVELS, Operator}, pattern::{Many, Then}, terminals::{CharLit, Ident, LeftParen, NumLit, RightParen, StrLit}}, source::SfSlice};
 
 //// An expression. An expression is formed from one or more [ExpressionItem] being merged.
 #[derive(Debug, Clone, PartialEq)]
@@ -30,14 +28,18 @@ impl Expression {
             .map(|i| Expression::new_from_node(i.clone()))
             .collect::<Vec<_>>();
 
-        for precedence_level in operators::NB_PRECEDENCE_LEVELS..0 {
-            let is_right_associative = operators::RIGHT_ASSOCIATIVE_LEVELS.contains(&precedence_level);
+        for current_precedence in (0..NB_PRECEDENCE_LEVELS).rev() {
+            let is_right_associative = operators::RIGHT_ASSOCIATIVE_LEVELS.contains(&current_precedence);
 
             // Links items in a tree fashion for all the operators in the precedence level
             loop {
                 // -- finds an operator to link
                 let predicate = |(_, item): &(_, &Expression)| {
-                    let has_correct_precedence = item.node.precedence().unwrap_or(0) == precedence_level;
+                    let Some(precedence) = item.node.precedence() else {
+                        return false;
+                    };
+                    let has_correct_precedence = precedence == current_precedence;
+
                     let has_not_been_linked = item.is_leaf();
 
                     has_correct_precedence && has_not_been_linked
@@ -73,7 +75,7 @@ impl Expression {
             }
         }
 
-        if items.len() > 1 {
+        if items.len() != 1 {
             // TODO: better error handling
             return Err(UnexpectedTokenError::new_got_nothing(Vec::new()));
         }
@@ -209,7 +211,10 @@ impl Pattern for ExpressionItem {
 
 #[cfg(test)]
 mod tests {
-    use crate::{lexer::lex_string, parser::{Pattern, expression::Expression}};
+    use super::*;
+    use crate::{lexer::{lex_string, token::TokenType}, parser::Pattern};
+
+    use std::assert_matches;
 
     #[test]
     fn expression_does_not_parse_nothing() {
@@ -218,10 +223,158 @@ mod tests {
 
     #[test]
     fn expression_parses_single_item() {
-        let tokens = lex_string("1 ").unwrap();
+        let tokens = lex_string("1").unwrap();
 
         let (tokens_consumed, expression) = Expression::solve(&tokens).unwrap();
-        assert_eq!(tokens_consumed, 1);
+        assert_eq!(tokens_consumed, tokens.len()-1);
         assert!(expression.is_leaf());
+    }
+
+    #[test]
+    fn expression_forms_operation() {
+        let tokens = lex_string("1 + 3").unwrap();
+        let (tokens_consumed, expression) = Expression::solve(&tokens).unwrap();
+        assert_eq!(tokens_consumed, tokens.len()-1);
+        assert_matches!(
+            expression.node,
+            ExpressionItem::BinaryOperator(BinaryOperator::Plus(_))
+        );
+        assert_eq!(expression.children.len(), 2);
+    }
+
+    #[test]
+    fn expression_cannot_parse_when_too_few_items() {
+        let tokens = lex_string("1 + 3 + *").unwrap();
+        dbg!(Expression::solve(&tokens)).unwrap_err();
+    }
+
+    #[test]
+    fn expression_have_proper_expression_order() {
+        let tokens = lex_string("1 + 2 * 3").unwrap();
+        let (tokens_consumed, expression) = Expression::solve(&tokens).unwrap();
+        assert_eq!(tokens_consumed, tokens.len()-1);
+
+        // the addition (at the top)
+        assert_matches!(
+            expression.node,
+            ExpressionItem::BinaryOperator(BinaryOperator::Plus(_))
+        );
+
+        // the left argument of the multiplication
+        assert_matches!(
+            expression.children[0].node,
+            ExpressionItem::NumLit(NumLit(Token { t_type: TokenType::NumLit(1), .. })),
+        );
+
+        // the multiplication
+        assert_matches!(
+            expression.children[1].node,
+            ExpressionItem::BinaryOperator(BinaryOperator::Multiply(_))
+        );
+
+        // .. and it's arguments
+        assert_matches!(
+            expression.children[1].children[0].node,
+            ExpressionItem::NumLit(NumLit(Token { t_type: TokenType::NumLit(2), .. })),
+        );
+
+        assert_matches!(
+            expression.children[1].children[1].node,
+            ExpressionItem::NumLit(NumLit(Token { t_type: TokenType::NumLit(3), .. })),
+        );
+    }
+
+    #[test]
+    fn expression_are_left_to_right_when_needed() {
+        let tokens = lex_string("1 * 2 / 3").unwrap();
+        let (tokens_consumed, expression) = Expression::solve(&tokens).unwrap();
+        assert_eq!(tokens_consumed, tokens.len()-1);
+
+        // the division (at the top)
+        assert_matches!(
+            expression.node,
+            ExpressionItem::BinaryOperator(BinaryOperator::Divide(_))
+        );
+
+        // the right argument of the division
+        assert_matches!(
+            expression.children[1].node,
+            ExpressionItem::NumLit(NumLit(Token { t_type: TokenType::NumLit(3), .. })),
+        );
+
+        // the multiplication
+        assert_matches!(
+            expression.children[0].node,
+            ExpressionItem::BinaryOperator(BinaryOperator::Multiply(_))
+        );
+
+        // .. and it's arguments
+        assert_matches!(
+            expression.children[0].children[0].node,
+            ExpressionItem::NumLit(NumLit(Token { t_type: TokenType::NumLit(1), .. })),
+        );
+
+        assert_matches!(
+            expression.children[0].children[1].node,
+            ExpressionItem::NumLit(NumLit(Token { t_type: TokenType::NumLit(2), .. })),
+        );
+    }
+
+    #[test]
+    fn expression_are_right_to_left_when_needed() {
+        let tokens = lex_string("list_var @ [1,2,3] @ 2").unwrap();
+        let (tokens_consumed, expression) = Expression::solve(&tokens).unwrap();
+        assert_eq!(tokens_consumed, tokens.len()-1);
+
+        assert_matches!(
+            expression.node,
+            ExpressionItem::BinaryOperator(BinaryOperator::Index(_))
+        );
+
+        assert_matches!(
+            expression.children[0].node,
+            ExpressionItem::Ident(_),
+        );
+
+        assert_matches!(
+            expression.children[1].node,
+            ExpressionItem::BinaryOperator(BinaryOperator::Index(_))
+        );
+
+        assert_matches!(
+            expression.children[1].children[0].node,
+            ExpressionItem::List(_),
+        );
+
+        assert_matches!(
+            expression.children[1].children[1].node,
+            ExpressionItem::NumLit(_),
+        );
+    }
+
+    #[test]
+    fn expression_parentheses_group_parses() {
+        let tokens = lex_string("(([] + var) * 1)").unwrap();
+        let (tokens_consumed, expression) = Expression::solve(&tokens).unwrap();
+        assert_eq!(tokens_consumed, tokens.len()-1);
+
+        let ExpressionItem::ParenGroup(_, inner_expression,_ ) = expression.node else {
+            panic!()
+        };
+
+        assert_matches!(
+            inner_expression.node,
+            ExpressionItem::BinaryOperator(BinaryOperator::Multiply(_))
+        );
+
+        assert_matches!(
+            inner_expression.children[0].node,
+            ExpressionItem::ParenGroup(..)
+        );
+        
+        assert_matches!(
+            inner_expression.children[1].node,
+            ExpressionItem::NumLit(_),
+        );
     }
 }

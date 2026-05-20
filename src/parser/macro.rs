@@ -113,7 +113,7 @@ use super::*;
         let tokens = lex_string("{}").unwrap();
 
         let (tokens_consumed, macr) = Macro::solve(&tokens).unwrap();
-        assert_eq!(tokens_consumed, 2);
+        assert_eq!(tokens_consumed, tokens.len()-1);
         assert!(macr.arguments.is_none());
         assert_eq!(macr.body.directives.len(), 0);
     }
@@ -125,7 +125,7 @@ use super::*;
         let (tokens_consumed, macr) = Macro::solve(&tokens).unwrap();
         let arguments = macr.arguments.unwrap().0.arguments;
 
-        assert_eq!(tokens_consumed, 2);
+        assert_eq!(tokens_consumed, tokens.len()-1);
         assert_eq!(arguments.len(), 0);
         assert_eq!(macr.body.directives.len(), 0);
     }
@@ -134,15 +134,17 @@ use super::*;
     fn macro_parse_normal_usecase() {
         let tokens = lex_string("
         [arg1, arg2, arg3] => {
-            DirectiveName arg1, [34, arg2, \"hello\"];
-            If '*' == 42, { InAnotherMacro; };
+            #directive_name arg1, [34, arg2, \"hello\"];
+            #if '*' == 42, { InAnotherMacro; };
+            Macro: arg2;
         }
         ").unwrap();
 
         let (tokens_consumed, macr) = Macro::solve(&tokens).unwrap();
         let arguments = macr.arguments.unwrap().0.arguments;
+        assert_eq!(tokens_consumed, tokens.len()-1);
         assert_eq!(arguments.len(), 3);
-        assert_eq!(macr.body.directives.len(), 2);
+        assert_eq!(macr.body.directives.len(), 3);
     }
 
     #[test]

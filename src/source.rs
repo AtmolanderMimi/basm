@@ -201,6 +201,7 @@ impl Debug for SfSlice {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SfSlice")
             .field("source", &self.source.absolute_path)
+            .field("contents", &self.as_ref())
             .finish()
     }
 }

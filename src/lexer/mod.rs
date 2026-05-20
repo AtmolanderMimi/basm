@@ -1,6 +1,9 @@
 //! Defines tooling used to parse a string into a chain of language tokens.
 //! As a user, you should probably be looking for [`lex_file`], all of this module's
 //! code is put to use in there.
+//! 
+//! DO NOT EVER LOOK AT THIS PIECE OF CODE LEST YOU'D BECOME TAINTED, PLEASE REFACTOR I BEG YOU
+//! This whole thing is to refactor, it is an absolute pain to debug.
 
 pub mod token;
 use std::{ops::Range, vec::IntoIter};
@@ -40,7 +43,17 @@ impl Lexer {
     }
 
     pub fn advance(&mut self) -> Result<Advancement, LexerError> {
+        // if there are no more characters
         let Some(new_end) = self.character_indexes_iter.next() else {
+            // check one last time
+            let sf_slice = self.source.slice(self.range.clone())
+                .unwrap();
+            if let Ok(Some(lit)) = Token::parse_token_lit(&sf_slice) {
+                self.tokens.push(lit);
+            } else if let Some(non_lit) = Token::parse_token_non_lit(&sf_slice) {
+                self.tokens.push(non_lit);
+            }
+
             return Ok(Advancement::Finished)
         };
 
@@ -76,6 +89,8 @@ impl Lexer {
             } else {
                 self.tokens.push(non_lit);
             }
+
+            return Ok(Advancement::Advancing);
         }
 
         // kind-of a cheat, instead of waiting for a non-lit, if there is a space: check
@@ -83,7 +98,10 @@ impl Lexer {
         let in_string = string.chars().filter(|c| *c == '\"').count() % 2 == 1;
         let in_char = string.chars().filter(|c| *c == '\'').count() % 2 == 1;
         if (string.ends_with(' ') || string.ends_with('\n')) && !(in_string || in_char) {
-            if let Some(lit) = Token::parse_token_lit(&sf_slice)? {
+            if let Some(non_lit) = Token::parse_token_non_lit(&sf_slice) {
+                self.tokens.push(non_lit);
+                self.range.start = self.range.end;
+            } else if let Some(lit) = Token::parse_token_lit(&sf_slice)? {
                 self.tokens.push(lit);
                 self.range.start = self.range.end;
             }
@@ -229,10 +247,24 @@ mod tests {
     }
 
     #[test]
+    fn lexing_just_not_equal() {
+        assert_matches!(
+            lex_string("!=").unwrap()[0].t_type,
+            TokenType::LogicalInequal
+        );
+    }
+
+    #[test]
     fn lexing_just_ident() {
         assert_matches!(
             lex_string("hello").unwrap()[0].t_type,
             TokenType::Ident(_)
         );
+    }
+
+    #[test]
+    fn lexing_expression() {
+        let tokens = lex_string("1 * 2 / 3").unwrap();
+        assert_eq!(tokens.len(), 6);
     }
 }

@@ -91,7 +91,7 @@ mod tests {
         let tokens = lex_string("#name;").unwrap();
 
         let (tokens_consumed, directive) = Directive::solve(&tokens).unwrap();
-        assert_eq!(tokens_consumed, 3);
+        assert_eq!(tokens_consumed, tokens.len()-1);
         assert_matches!(
             directive,
             Directive::Generic { .. }
@@ -103,7 +103,7 @@ mod tests {
         let tokens = lex_string("#decl twenty_one, 9 + 10;").unwrap();
 
         let (tokens_consumed, directive) = Directive::solve(&tokens).unwrap();
-        assert_eq!(tokens_consumed, 8);
+        assert_eq!(tokens_consumed, tokens.len()-1);
         assert_matches!(
             directive,
             Directive::Generic { .. }
@@ -115,7 +115,7 @@ mod tests {
         let tokens = lex_string("#decl IncrementA, { #set a, a + 1; };").unwrap();
 
         let (tokens_consumed, directive) = Directive::solve(&tokens).unwrap();
-        assert_eq!(tokens_consumed, 13);
+        assert_eq!(tokens_consumed, tokens.len()-1);
         assert_matches!(
             directive,
             Directive::Generic { .. }
@@ -124,7 +124,7 @@ mod tests {
 
     #[test]
     fn generic_directive_does_not_match_without_pound() {
-        let tokens = lex_string("#decl twenty_one, 9 + 10;").unwrap();
+        let tokens = lex_string("decl twenty_one, 9 + 10;").unwrap();
 
         Directive::solve(&tokens).unwrap_err();
     }
@@ -134,7 +134,7 @@ mod tests {
         let tokens = lex_string("Macro;").unwrap();
 
         let (tokens_consumed, directive) = Directive::solve(&tokens).unwrap();
-        assert_eq!(tokens_consumed, 2);
+        assert_eq!(tokens_consumed, tokens.len()-1);
         assert_matches!(
             directive,
             Directive::InlineMacro { .. }
@@ -146,7 +146,7 @@ mod tests {
         let tokens = lex_string("[] => {};").unwrap();
 
         let (tokens_consumed, directive) = Directive::solve(&tokens).unwrap();
-        assert_eq!(tokens_consumed, 7);
+        assert_eq!(tokens_consumed, tokens.len()-1);
         assert_matches!(
             directive,
             Directive::InlineMacro { .. }
@@ -158,7 +158,7 @@ mod tests {
         let tokens = lex_string("Macro: arg1, [\"arg2\"], [] => {};").unwrap();
 
         let (tokens_consumed, directive) = Directive::solve(&tokens).unwrap();
-        assert_eq!(tokens_consumed, 14);
+        assert_eq!(tokens_consumed, tokens.len()-1);
         assert_matches!(
             directive,
             Directive::InlineMacro { .. }
