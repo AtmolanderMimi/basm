@@ -21,7 +21,7 @@ impl Expression {
     /// Creates a new expression from [ExpressionItem]'s.
     pub fn new_from_items(items: &[ExpressionItem]) -> Result<Self, UnexpectedTokenError> {
         if items.len() < 1 {
-            return Err(UnexpectedTokenError::new_got_nothing(Vec::new())) // TODO: once again, redo error type
+            return Err(UnexpectedTokenError::new_got_nothing(ExpressionItem::name())) // TODO: once again, redo error type
         }
 
         let mut items = items.iter()
@@ -59,13 +59,12 @@ impl Expression {
                 // -- link the operator
                 match items[operator_index].node {
                     ExpressionItem::BinaryOperator(_) => {
-                        // TODO: better error handling
                         // TODO: usize::MAX hack
                         let Some(item_after) = items.try_remove(operator_index.checked_add(1).unwrap_or(usize::MAX)) else {
-                            return Err(UnexpectedTokenError::new_got_nothing(Vec::new()));
+                            return Err(UnexpectedTokenError::new_got_nothing("value"));
                         };
                         let Some(item_before) = items.try_remove(operator_index.checked_sub(1).unwrap_or(usize::MAX)) else {
-                            return Err(UnexpectedTokenError::new_got_nothing(Vec::new()));
+                            return Err(UnexpectedTokenError::new_got_nothing("value"));
                         };
 
                         let operator = &mut items[operator_index-1];
@@ -77,8 +76,7 @@ impl Expression {
         }
 
         if items.len() != 1 {
-            // TODO: better error handling
-            return Err(UnexpectedTokenError::new_got_nothing(Vec::new()));
+            return Err(UnexpectedTokenError::new_got_nothing("value"));
         }
         Ok(items.pop().expect("there should be one and only one item left"))
     }
@@ -118,6 +116,8 @@ impl Pattern for Expression {
 
         Ok((consumed_tokens, Expression::new_from_items(&items)?))
     }
+
+    fn name() -> String { "expr".to_string() }
 }
 
 //// An item in an expression.
@@ -201,13 +201,16 @@ impl Pattern for ExpressionItem {
         }
         else if let Ok((nb_tokens, parsed)) = BinaryOperator::solve(tokens) {
             (nb_tokens, ExpressionItem::BinaryOperator(parsed))
+        } else if let Some(token) = tokens.first() {
+            return Err(UnexpectedTokenError::new(Self::name(), token.clone()))
         } else {
-            // TODO: redo error type
-            return Err(UnexpectedTokenError::new_got_nothing(Vec::new()))
+            return Err(UnexpectedTokenError::new_got_nothing(Self::name()))
         };
 
         Ok((nb_tokens, item))
     }
+
+    fn name() -> String { "expression item".to_string() }
 }
 
 #[cfg(test)]

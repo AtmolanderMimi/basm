@@ -1,22 +1,26 @@
 //! Define a whole file of basm.
 
-use crate::{lexer::token::Token, parser::{Pattern, PatternResult, directive::Directive, pattern::Many}};
+use crate::{lexer::token::Token, parser::{Pattern, PatternResult, directive::Directive, pattern::TerminatedMany, terminals::Eof}};
 
 /// A file of basm code.
 pub struct ParsedFile {
     pub directives: Vec<Directive>,
+    pub eof: Eof
 }
 
 impl Pattern for ParsedFile {
     fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult> {
-        let res = Many::<Directive>::solve(&tokens)?;
+        let res = TerminatedMany::<Directive, Eof>::solve(&tokens)?;
 
         let file = ParsedFile {
-            directives: res.1,
+            directives: res.1.0,
+            eof: res.1.1,
         };
 
         Ok((res.0, file))
     }
+
+    fn name() -> String { "file".to_string() }
 }
 
 #[cfg(test)]

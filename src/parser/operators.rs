@@ -123,11 +123,14 @@ impl Pattern for BinaryOperator {
             (nb_tokens, BinaryOperator::LogicalAnd(parsed))
         } else if let Ok((nb_tokens, parsed)) = At::solve(tokens) {
             (nb_tokens, BinaryOperator::Index(parsed))
+        } else if let Some(token) = tokens.first() {
+            return Err(UnexpectedTokenError::new(Self::name(), token.clone()))
         } else {
-            // TODO: redo error type
-            return Err(UnexpectedTokenError::new_got_nothing(Vec::new()))
+            return Err(UnexpectedTokenError::new_got_nothing(Self::name()))
         };
-
+        
         Ok((nb_tokens, operator))
     }
+
+    fn name() -> String { "binaryop".to_string() }
 }

@@ -22,14 +22,18 @@ where T: Pattern, U: Pattern {
     type ParseResult = Either<T::ParseResult, U::ParseResult>;
 
     fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult> {
-        if let Ok(ok) = T::solve(tokens) {
-            Ok((ok.0, Either::Left(ok.1)))
+        if let Ok(ok) = U::solve(tokens) {
+            Ok((ok.0, Either::Right(ok.1)))
         } else {
-            // TODO: this code chooses the only returns the error of U
+            // TODO: this code chooses the only returns the error of T
             // they should be combined into one error
-            U::solve(tokens)
-                .map(|ok| (ok.0, Either::Right(ok.1)))
+            T::solve(tokens)
+                .map(|ok| (ok.0, Either::Left(ok.1)))
         }
+    }
+
+    fn name() -> String {
+        format!("{} or {}", T::name(), U::name())
     }
 }
 
@@ -54,6 +58,10 @@ where T: Pattern, U: Pattern {
         let tokens_consumed = t_tokens_consumed + u_tokens_consumed;
         Ok((tokens_consumed, (t_parse_result, u_parse_result)))
     }
+
+    fn name() -> String {
+        format!("{} then {}", T::name(), U::name())
+    }
 }
 
 /// Greedly matches the provided pattern zero or more times.
@@ -76,6 +84,10 @@ impl<T: Pattern> Pattern for Many<T> {
 
         Ok((total_tokens_consumed, parse_results))
     }
+
+    fn name() -> String {
+        format!("0 or more {}", T::name())
+    }
 }
 
 /// The pattern may or may not be present
@@ -96,23 +108,46 @@ where T: Pattern {
             Ok((0, None))
         }
     }
+
+    fn name() -> String {
+        format!("1 or 0 {}", T::name())
+    }
 }
 
-/// A list of many items `T` ([Many]) seperated by `U`.
-/// The seperator cannot be at the end of the list.
-/// The first item of the returned list (if not empty) is guarentied to not have a seperator
-/// (i.e the first element of the enum is `None`).
-pub struct SeperatedMany<T, U>
-where T: Pattern, U: Pattern {
-    _phantom: PhantomData<(T, U)>
+/// This pattern just serves as a wildcard in other component patterns, such as [TerminatedSeperatedMany].
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Nothing;
+
+impl Pattern for Nothing {
+    type ParseResult = ();
+
+    fn solve(_tokens: &[Token]) -> PatternResult<Self::ParseResult> {
+        Ok((0, ()))
+    }
+
+    fn name() -> String {
+        format!("nothing")
+    }
 }
 
-impl<T, U> Pattern for SeperatedMany<T, U>
-where T: Pattern, U: Pattern {
-    type ParseResult = Vec<(Option<U::ParseResult>, T::ParseResult)>;
+/// A list of many items `T` ([Many]) seperated by `U` and terminated by `V`.
+/// You may use only the seperation or termination elements using [SeperatedMany] and [TerminatedMany].
+/// This component is functionnaly equivalent to Then::<Many<T>, U>.
+/// However, it gives better errors, since the default [Many] cannot error.
+/// With the component, if the `T` pattern fails before there is a `U`,
+/// the error will be reported as a lack of `T` instead of a lack of `U`.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct TerminatedSeperatedMany<T, U, V>
+where T: Pattern, U: Pattern, V: Pattern {
+    _phantom: PhantomData<(T, U, V)>
+}
+
+impl<T, U, V> Pattern for TerminatedSeperatedMany<T, U, V>
+where T: Pattern, U: Pattern, V: Pattern {
+    type ParseResult = (Vec<(Option<U::ParseResult>, T::ParseResult)>, V::ParseResult);
 
     fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult> {
-        let res =
+        let seperated_res =
         Maybe::<
             Then<
                 T,
@@ -121,7 +156,7 @@ where T: Pattern, U: Pattern {
         >::solve(&tokens)?;
 
         // combines the first item with the other items
-        let maybe_items = res.1;
+        let (seperated_tokens_consumed, maybe_items) = seperated_res;
         let items = if let Some((first_item, other_items)) = maybe_items {
             let mut other_items = other_items.into_iter().map(|(c, e)| (Some(c), e))
                 .collect::<Vec<_>>();
@@ -133,13 +168,82 @@ where T: Pattern, U: Pattern {
             Vec::new()
         };
 
-        Ok((res.0, items))
+        let rest_tokens = &tokens[seperated_tokens_consumed..];
+        let Ok((v_tokens_consumed, terminator)) = V::solve(rest_tokens) else {
+            // if there is no terminator, this means that the many did not parse all the tokens until the terminator
+            // we rerun just a single T parse to know the error
+            T::solve(rest_tokens)?;
+
+            panic!("T should always error");
+        };
+
+        Ok((seperated_tokens_consumed + v_tokens_consumed, (items, terminator)))
+    }
+
+    fn name() -> String {
+        format!("0 or more {} sperated by {} and terminated by {}", T::name(), U::name(), V::name())
+    }
+}
+
+/// A list of many items `T` ([Many]) seperated by `U`.
+/// The seperator cannot be at the end of the list.
+/// The first item of the returned list (if not empty) is guarentied to not have a seperator
+/// (i.e the first element of the enum is `None`).
+/// 
+/// Equivalent to `TerminatedSeperatedMany<T, U, Nothing>`
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct SeperatedMany<T, U>
+where T: Pattern, U: Pattern {
+    _phantom: PhantomData<(T, U)>
+}
+
+impl<T, U> Pattern for SeperatedMany<T, U>
+where T: Pattern, U: Pattern {
+    type ParseResult = Vec<(Option<U::ParseResult>, T::ParseResult)>;
+
+    fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult> {
+        let res = TerminatedSeperatedMany::<T, U, Nothing>::solve(tokens)?;
+
+        Ok((res.0, res.1.0))
+    }
+
+    fn name() -> String {
+        format!("{} seperated list of {}", T::name(), U::name())
+    }
+}
+
+/// A list of many items `T` ([Many]) terminated by `U`.
+/// This is practically equivalent to Then::<Many<T>, U>, except the error messages are better.
+/// The error messages will blame the lack of `T` instead of the lack of `U` when an error occurs.
+/// 
+/// Equivalent to `TerminatedSeperatedMany<T, Nothing, U>`
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct TerminatedMany<T, U>
+where T: Pattern, U: Pattern {
+    _phantom: PhantomData<(T, U)>
+}
+
+impl<T, U> Pattern for TerminatedMany<T, U>
+where T: Pattern, U: Pattern {
+    type ParseResult = (Vec<T::ParseResult>, U::ParseResult);
+
+    fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult> {
+        let res = TerminatedSeperatedMany::<T, Nothing, U>::solve(tokens)?;
+
+        let items = res.1.0.into_iter()
+            .map(|(_, i)| i).collect();
+
+        Ok((res.0, (items, res.1.1)))
+    }
+
+    fn name() -> String {
+        format!("0 or more {} terminated by {}", T::name(), U::name())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{lexer::{lex_string, token::TokenType}, parser::terminals::*, source::SfSlice};
+    use crate::{lexer::{lex_string, token::TokenType}, parser::{expression::Expression, terminals::*}, source::SfSlice};
 
     use std::assert_matches;
 
@@ -303,5 +407,87 @@ mod tests {
         let (tokens_taken, items) = res.unwrap();
         assert_eq!(items.len(), 4);
         assert_eq!(tokens_taken, 7);
+    }
+
+    #[test]
+    fn seperated_many_minimal() {
+        let tokens = lex_string("").unwrap();
+
+        let res = SeperatedMany::<Ident, Comma>::solve(&tokens);
+        let (tokens_taken, items) = res.unwrap();
+        assert_eq!(items.len(), 0);
+        assert_eq!(tokens_taken, tokens.len()-1);
+    }
+
+    #[test]
+    fn terminated_many_parses_valid() {
+        let tokens = lex_string("hello hi welcome;").unwrap();
+
+        let res = TerminatedMany::<Ident, Semicolon>::solve(&tokens);
+        let (tokens_taken, (items, _)) = res.unwrap();
+        assert_eq!(items.len(), 3);
+        assert_eq!(tokens_taken, tokens.len()-1);
+    }
+
+    #[test]
+    fn terminated_many_does_not_parse_invalid_many() {
+        let tokens = lex_string("hello hi welcome 34;").unwrap();
+
+        let res = TerminatedMany::<Ident, Semicolon>::solve(&tokens);
+        res.unwrap_err();
+    }
+
+    #[test]
+    fn terminated_many_does_not_parse_missing_terminator() {
+        let tokens = lex_string("hello hi welcome").unwrap();
+
+        let res = TerminatedMany::<Ident, Semicolon>::solve(&tokens);
+        res.unwrap_err();
+    }
+
+    #[test]
+    fn terminated_many_minimal() {
+        let tokens = lex_string(";").unwrap();
+
+        let res = TerminatedMany::<Ident, Semicolon>::solve(&tokens);
+        let (tokens_taken, (items, _)) = res.unwrap();
+        assert_eq!(items.len(), 0);
+        assert_eq!(tokens_taken, tokens.len()-1);
+    }
+
+    #[test]
+    fn terminated_seperated_many_parses_valid() {
+        let tokens = lex_string("3 + 4, hi@[3,5], 'c';").unwrap();
+
+        let res = TerminatedSeperatedMany::<Expression, Comma, Semicolon>::solve(&tokens);
+        let (tokens_taken, (items, _)) = res.unwrap();
+        assert_eq!(items.len(), 3);
+        assert_eq!(tokens_taken, tokens.len()-1);
+    }
+
+    #[test]
+    fn terminated_seperated_many_does_not_parse_missing_seperator() {
+        let tokens = lex_string("3 + 4, hi@[3,5] 'c';").unwrap();
+
+        let res = TerminatedSeperatedMany::<Expression, Comma, Semicolon>::solve(&tokens);
+        res.unwrap_err();
+    }
+
+    #[test]
+    fn terminated_seperated_many_does_not_parse_missing_terminator() {
+        let tokens = lex_string("3 + 4, hi@[3,5], 'c'").unwrap();
+
+        let res = TerminatedSeperatedMany::<Expression, Comma, Semicolon>::solve(&tokens);
+        res.unwrap_err();
+    }
+
+    #[test]
+    fn terminated_seperated_many_minimal() {
+        let tokens = lex_string(";").unwrap();
+
+        let res = TerminatedSeperatedMany::<Expression, Comma, Semicolon>::solve(&tokens);
+        let (tokens_taken, (items, _)) = res.unwrap();
+        assert_eq!(items.len(), 0);
+        assert_eq!(tokens_taken, tokens.len()-1);
     }
 }

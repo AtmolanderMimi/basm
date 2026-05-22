@@ -31,6 +31,8 @@ impl Pattern for List {
 
         return Ok((res.0, list));
     }
+
+    fn name() -> String { "listlit".to_string() }
 }
 
 #[cfg(test)]

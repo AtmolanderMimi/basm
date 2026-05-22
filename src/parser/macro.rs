@@ -39,6 +39,8 @@ impl Pattern for Macro {
 
         return Ok((res.0, macr));
     }
+
+    fn name() -> String { "macrolit".to_string() }
 }
 
 /// The arguments of a macro literal.
@@ -69,6 +71,8 @@ impl Pattern for MacroArguments {
 
         return Ok((res.0, arguments));
     }
+
+    fn name() -> String { "macro arguments".to_string() }
 }
 
 /// A the body of a macro literal.
@@ -100,6 +104,8 @@ impl Pattern for MacroBody {
 
         return Ok((res.0, body));
     }
+
+    fn name() -> String { "macro body".to_string() }
 }
 
 #[cfg(test)]

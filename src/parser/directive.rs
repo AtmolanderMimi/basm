@@ -6,7 +6,7 @@
 
 use either::Either;
 
-use crate::{lexer::token::Token, parser::{LanguageItem, Pattern, PatternResult, expression::Expression, pattern::{Maybe, Or, SeperatedMany, Then}, terminals::{Colon, Comma, Ident, Pound, Semicolon}}, source::SfSlice};
+use crate::{lexer::token::Token, parser::{LanguageItem, Pattern, PatternResult, expression::Expression, pattern::{Or, TerminatedSeperatedMany, Then}, terminals::{Colon, Comma, Ident, Pound, Semicolon}}, source::SfSlice};
 
 /// A parsed directive.
 #[derive(Debug, Clone, PartialEq)]
@@ -49,34 +49,41 @@ impl LanguageItem for Directive {
 
 impl Pattern for Directive {
     fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult> {
-        type GenericPattern = Then<Pound, Then<Ident, Then<SeperatedMany<Expression, Comma>, Semicolon>>>;
-        type InlineMacro = Then<Expression, Then<Maybe<Then<Colon, SeperatedMany<Expression, Comma>>>, Semicolon>>;
+        type GenericPattern = Then<Ident, TerminatedSeperatedMany<Expression, Comma, Semicolon>>;
+        type InlineMacro = Then<Expression, Or<Then<Colon, TerminatedSeperatedMany<Expression, Comma, Semicolon>>, Semicolon>>;
 
-        let res = Or::<
-            GenericPattern,
-            InlineMacro
-        >::solve(&tokens)?;
+        let (tokens_consumed, directive) = if let Ok((pound_token_consumed, pound)) = Pound::solve(tokens) {
+            let res = GenericPattern::solve(&tokens[pound_token_consumed..])?;
+            let dir = Directive::Generic {
+                pound: pound,
+                name: res.1.0,
+                arguments: res.1.1.0,
+                semicolon: res.1.1.1,
+            };
 
-        let directive = match res.1 {
-            Either::Left(gen) => {
-                Directive::Generic {
-                    pound: gen.0,
-                    name: gen.1.0,
-                    arguments: gen.1.1.0,
-                    semicolon: gen.1.1.1,
+            (res.0 + pound_token_consumed, dir)
+        } else {
+            let res = InlineMacro::solve(&tokens)?;
+            let dir = match res.1.1 {
+                Either::Left((colon, (arguments, semicolon))) => Directive::InlineMacro {
+                    macro_expression: res.1.0,
+                    arguments: Some((colon, arguments)),
+                    semicolon,
+                },
+                Either::Right(semicolon) => Directive::InlineMacro {
+                    macro_expression: res.1.0,
+                    arguments: None,
+                    semicolon,
                 }
-            },
-            Either::Right(inl) => {
-                Directive::InlineMacro {
-                    macro_expression: inl.0,
-                    arguments: inl.1.0,
-                    semicolon: inl.1.1,
-                }
-            },
+            };
+
+            (res.0, dir)
         };
 
-        Ok((res.0, directive))
+        Ok((tokens_consumed, directive))
     }
+
+    fn name() -> String { "directive".to_string() }
 }
 
 #[cfg(test)]

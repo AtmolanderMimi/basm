@@ -17,7 +17,7 @@ use std::fmt::Display;
 
 use thiserror::Error;
 
-use crate::{CompilerError, Lint, lexer::token::{Token, TokenType}, parser::file::ParsedFile, source::SfSlice};
+use crate::{CompilerError, Lint, lexer::token::{Token}, parser::file::ParsedFile, source::SfSlice};
 
 /// Return type of trying to solve for a pattern.
 /// The `Ok` variant contains the number of tokens taken to solve the pattern (the `usize`)
@@ -30,6 +30,9 @@ pub trait Pattern where Self: Sized {
 
     /// Solves a pattern. See [PatternResult] for how to interpret result.
     fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult>;
+
+    /// The name of the pattern, used for errors
+    fn name() -> String;
 }
 
 /// Error happening during the parsing process when an unexpected token is encontered.
@@ -37,23 +40,24 @@ pub trait Pattern where Self: Sized {
 /// when encountering a pattern in the tokens that doesn't match their expectation.
 #[derive(Debug, Clone, PartialEq, Error)]
 pub struct UnexpectedTokenError {
-    expected_tokens: Vec<TokenType>,
+    expected: String,
     got: Option<Token>,
 }
 
 impl UnexpectedTokenError {
     /// Creates a new [UnexpectedTokenError].
-    pub fn new(expected: Vec<TokenType>, got: Token) -> Self {
+    pub fn new(expected: impl Into<String>, got: Token) -> Self {
         UnexpectedTokenError {
-            expected_tokens: expected,
+            expected: expected.into(),
             got: Some(got),
         }
     }
 
-    /// Creates a new [UnexpectedTokenError].
-    pub fn new_got_nothing(expected: Vec<TokenType>) -> Self {
+    // TODO: replace this error, as the error is quite cryptic when there is no "unexpected token"
+    /// Creates a new [UnexpectedTokenError] without a gotten token.
+    pub fn new_got_nothing(expected: impl Into<String>) -> Self {
         UnexpectedTokenError {
-            expected_tokens: expected,
+            expected: expected.into(),
             got: None,
         }
     }
@@ -61,22 +65,11 @@ impl UnexpectedTokenError {
 
 impl Display for UnexpectedTokenError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // gets the first element or "..."
-        let mut expected_list = self.expected_tokens.get(0)
-            .map(|t| t.to_string())
-            .unwrap_or("...".to_string());
-
-        // creates the format list in coma seperated format
-        for token_type in &self.expected_tokens[1..] {
-            expected_list.push_str(", ");
-            expected_list.push_str(&token_type.to_string());
-        }
-
         let got_string = self.got.as_ref()
             .map(|t| t.t_type.to_string())
             .unwrap_or("nothing".to_string());
 
-        f.write_str(&format!("expected {expected_list}, got {got_string}"))
+        f.write_str(&format!("expected {}, got {got_string}", self.expected))
     }
 }
 
