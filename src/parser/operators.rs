@@ -9,7 +9,7 @@
 //! "!"                              => 6 // TODO: implement "!"
 //! "@" (right-associative)          => 7
 
-use crate::{lexer::token::Token, parser::{LanguageItem, Pattern, PatternResult, ParseError, terminals::{At, Divide, GreaterThan, GreaterThanEqual, LessThan, LessThanEqual, LogicalAnd, LogicalEqual, LogicalInequal, LogicalOr, Minus, Modulo, Multiply, Plus}}};
+use crate::{lexer::token::Token, parser::{LanguageItem, ParseError, Pattern, PatternResult, terminals::{At, Divide, GreaterThan, GreaterThanEqual, LessThan, LessThanEqual, LogicalAnd, LogicalEqual, LogicalInequal, LogicalOr, Minus, Modulo, Multiply, Plus}}};
 
 /// The number of precedence levels for all operators
 pub const NB_PRECEDENCE_LEVELS: u32 = 8;
@@ -90,32 +90,23 @@ impl Pattern for BinaryOperator {
             (nb_tokens, BinaryOperator::Plus(parsed))
         } else if let Ok((nb_tokens, parsed)) = Minus::solve(&tokens) {
             (nb_tokens, BinaryOperator::Minus(parsed))
-        }
-        else if let Ok((nb_tokens, parsed)) = Multiply::solve(tokens) {
+        } else if let Ok((nb_tokens, parsed)) = Multiply::solve(tokens) {
             (nb_tokens, BinaryOperator::Multiply(parsed))
-        }
-        else if let Ok((nb_tokens, parsed)) = Divide::solve(tokens) {
+        } else if let Ok((nb_tokens, parsed)) = Divide::solve(tokens) {
             (nb_tokens, BinaryOperator::Divide(parsed))
-        }
-        else if let Ok((nb_tokens, parsed)) = Modulo::solve(tokens) {
+        } else if let Ok((nb_tokens, parsed)) = Modulo::solve(tokens) {
             (nb_tokens, BinaryOperator::Modulo(parsed))
-        }
-        else if let Ok((nb_tokens, parsed)) = LogicalEqual::solve(tokens) {
+        } else if let Ok((nb_tokens, parsed)) = LogicalEqual::solve(tokens) {
             (nb_tokens, BinaryOperator::LogicalEqual(parsed))
-        }
-        else if let Ok((nb_tokens, parsed)) = LogicalInequal::solve(tokens) {
+        } else if let Ok((nb_tokens, parsed)) = LogicalInequal::solve(tokens) {
             (nb_tokens, BinaryOperator::LogicalInequal(parsed))
-        }
-        else if let Ok((nb_tokens, parsed)) = GreaterThan::solve(tokens) {
+        } else if let Ok((nb_tokens, parsed)) = GreaterThan::solve(tokens) {
             (nb_tokens, BinaryOperator::GreaterThan(parsed))
-        }
-        else if let Ok((nb_tokens, parsed)) = GreaterThanEqual::solve(tokens) {
+        } else if let Ok((nb_tokens, parsed)) = GreaterThanEqual::solve(tokens) {
             (nb_tokens, BinaryOperator::GreaterThanEqual(parsed))
-        }
-        else if let Ok((nb_tokens, parsed)) = LessThan::solve(tokens) {
+        } else if let Ok((nb_tokens, parsed)) = LessThan::solve(tokens) {
             (nb_tokens, BinaryOperator::LessThan(parsed))
-        }
-        else if let Ok((nb_tokens, parsed)) = LessThanEqual::solve(tokens) {
+        } else if let Ok((nb_tokens, parsed)) = LessThanEqual::solve(tokens) {
             (nb_tokens, BinaryOperator::LessThanEqual(parsed))
         } else if let Ok((nb_tokens, parsed)) = LogicalOr::solve(tokens) {
             (nb_tokens, BinaryOperator::LogicalOr(parsed))
@@ -124,9 +115,11 @@ impl Pattern for BinaryOperator {
         } else if let Ok((nb_tokens, parsed)) = At::solve(tokens) {
             (nb_tokens, BinaryOperator::Index(parsed))
         } else if let Some(token) = tokens.first() {
-            return Err(ParseError::new_unexpected_token(Self::name(), token.clone()))
+            // NOTE: this assumes that all binary operators only take one token
+            return Err(ParseError::new_unexpected_token(1, Self::name(), token.clone()))
         } else {
-            return Err(ParseError::new_no_more_tokens(Self::name()))
+            // NOTE: this too
+            return Err(ParseError::new_no_more_tokens(1, Self::name()))
         };
         
         Ok((nb_tokens, operator))

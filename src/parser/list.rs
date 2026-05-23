@@ -1,6 +1,6 @@
 //! Defines a list.
 
-use crate::{impl_language_item, lexer::token::Token, parser::{Pattern, PatternResult, expression::Expression, pattern::{SeperatedMany, Then}, terminals::{Comma, LeftSquare, RightSquare}}};
+use crate::{impl_language_item, lexer::token::Token, parser::{Pattern, PatternResult, expression::Expression, pattern::{TerminatedSeperatedMany, Then}, terminals::{Comma, LeftSquare, RightSquare}}};
 
 /// A list literal. It is expressions seperated by commas in square brackets.
 #[derive(Debug, Clone, PartialEq)]
@@ -17,8 +17,9 @@ impl Pattern for List {
         let res = 
         Then::<
             LeftSquare,
-            Then<
-                SeperatedMany<Expression, Comma>,
+            TerminatedSeperatedMany<
+                Expression,
+                Comma,
                 RightSquare
             >
         >::solve(&tokens)?;

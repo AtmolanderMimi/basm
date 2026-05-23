@@ -1,6 +1,6 @@
 //! Defines what is an expression is.
 
-use crate::{lexer::token::Token, parser::{LanguageItem, ParseError, Pattern, PatternResult, list::List, r#macro::Macro, operators::{self, BinaryOperator, NB_PRECEDENCE_LEVELS, Operator}, pattern::{OneOrMore, Then}, terminals::{CharLit, Ident, LeftParen, NumLit, RightParen, StrLit}}, source::SfSlice};
+use crate::{lexer::token::Token, parser::{LanguageItem, ParseError, ParseErrorVariant, Pattern, PatternResult, list::List, r#macro::Macro, operators::{self, BinaryOperator, NB_PRECEDENCE_LEVELS, Operator}, pattern::{OneOrMore, Or, Then}, terminals::{CharLit, Ident, LeftParen, NumLit, RightParen, StrLit}}, source::SfSlice};
 
 //// An expression. An expression is formed from one or more [ExpressionItem] being merged.
 #[derive(Debug, Clone, PartialEq)]
@@ -22,7 +22,7 @@ impl Expression {
     /// 
     /// # Panic
     /// Should always have at least 1 item in `items`.
-    pub fn new_from_items(items: &[ExpressionItem]) -> Result<Self, ParseError> {
+    pub fn new_from_items(tokens_consumed: usize, items: &[ExpressionItem]) -> Result<Self, ParseError> {
         if items.is_empty() {
             panic!("should never be called empty")
         }
@@ -64,10 +64,10 @@ impl Expression {
                     ExpressionItem::BinaryOperator(_) => {
                         // TODO: usize::MAX hack
                         let Some(item_after) = sub_exprs.try_remove(operator_index.checked_add(1).unwrap_or(usize::MAX)) else {
-                            return Err(ParseError::new_unparsed_expression(items.to_vec()));
+                            return Err(ParseError::new_unparsed_expression(tokens_consumed, items.to_vec()));
                         };
                         let Some(item_before) = sub_exprs.try_remove(operator_index.checked_sub(1).unwrap_or(usize::MAX)) else {
-                            return Err(ParseError::new_unparsed_expression(items.to_vec()));
+                            return Err(ParseError::new_unparsed_expression(tokens_consumed, items.to_vec()));
                         };
 
                         let operator = &mut sub_exprs[operator_index-1];
@@ -79,7 +79,7 @@ impl Expression {
         }
 
         if sub_exprs.len() > 1 {
-            return Err(ParseError::new_unparsed_expression(items.to_vec()));
+            return Err(ParseError::new_unparsed_expression(tokens_consumed, items.to_vec()));
         }
         Ok(sub_exprs.pop().expect("there should be one and only one item left"))
     }
@@ -117,7 +117,7 @@ impl Pattern for Expression {
     fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult> {
         let (consumed_tokens, items) = OneOrMore::<ExpressionItem>::solve(&tokens)?;
 
-        Ok((consumed_tokens, Expression::new_from_items(&items)?))
+        Ok((consumed_tokens, Expression::new_from_items(consumed_tokens, &items)?))
     }
 
     fn name() -> String { "expr".to_string() }
@@ -171,6 +171,13 @@ impl LanguageItem for ExpressionItem {
     }
 }
 
+macro_rules! try_expression_item_next {
+    ($parsed:ident, $tokens_consumed:expr, $variant:ident) => {
+        if $parsed.is_left() { return Ok(($tokens_consumed, ExpressionItem::$variant($parsed.unwrap_left()))); }
+        let $parsed = $parsed.unwrap_right();
+    };
+}
+
 impl Pattern for ExpressionItem {
     // TODO: same thing as the solver for binary expressions,
     // to replace
@@ -178,39 +185,36 @@ impl Pattern for ExpressionItem {
     // The order of these if statements has an impact on which item has priority
     fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult> {
         type ParenGroupPattern = Then<LeftParen, Then<Expression, RightParen>>;
+        type ExpressionItemPattern = 
+        Or<
+        ParenGroupPattern, Or<
+        Ident, Or<
+        NumLit, Or<
+        CharLit, Or<
+        StrLit, Or<
+        Macro, Or<
+        List,
+        BinaryOperator>>>>>>>;
 
-        let (nb_tokens, item) = if let Ok((nb_tokens, parsed)) = ParenGroupPattern::solve(&tokens) {
-            let paren_group = ExpressionItem::ParenGroup(parsed.0, Box::new(parsed.1.0), parsed.1.1);
-
-            (nb_tokens, paren_group)
-        }
-        else if let Ok((nb_tokens, parsed)) = Ident::solve(tokens) {
-            (nb_tokens, ExpressionItem::Ident(parsed))
-        }
-        else if let Ok((nb_tokens, parsed)) = NumLit::solve(tokens) {
-            (nb_tokens, ExpressionItem::NumLit(parsed))
-        }
-        else if let Ok((nb_tokens, parsed)) = CharLit::solve(tokens) {
-            (nb_tokens, ExpressionItem::CharLit(parsed))
-        }
-        else if let Ok((nb_tokens, parsed)) = StrLit::solve(tokens) {
-            (nb_tokens, ExpressionItem::StrLit(parsed))
-        }
-        else if let Ok((nb_tokens, parsed)) = Macro::solve(tokens) {
-            (nb_tokens, ExpressionItem::Macro(parsed))
-        }
-        else if let Ok((nb_tokens, parsed)) = List::solve(tokens) {
-            (nb_tokens, ExpressionItem::List(parsed))
-        }
-        else if let Ok((nb_tokens, parsed)) = BinaryOperator::solve(tokens) {
-            (nb_tokens, ExpressionItem::BinaryOperator(parsed))
-        } else if let Some(token) = tokens.first() {
-            return Err(ParseError::new_unexpected_token(Self::name(), token.clone()))
+        let res = ExpressionItemPattern::solve(tokens);
+        let res = if let Err(ParseError { tokens_before_error, variant: ParseErrorVariant::UnexpectedTokenError{ got, ..} }) = res {
+            return Err(ParseError::new_unexpected_token(tokens_before_error, Self::name(), got));
         } else {
-            return Err(ParseError::new_no_more_tokens(Self::name()))
+            res?
         };
 
-        Ok((nb_tokens, item))
+        let parsed = res.1;
+
+        if parsed.is_left() { let p = parsed.unwrap_left(); return Ok((res.0, ExpressionItem::ParenGroup(p.0, Box::new(p.1.0), p.1.1))); }
+        let parsed = parsed.unwrap_right();
+
+        try_expression_item_next!(parsed, res.0, Ident);
+        try_expression_item_next!(parsed, res.0, NumLit);
+        try_expression_item_next!(parsed, res.0, CharLit);
+        try_expression_item_next!(parsed, res.0, StrLit);
+        try_expression_item_next!(parsed, res.0, Macro);
+        try_expression_item_next!(parsed, res.0, List);
+        return Ok((res.0, ExpressionItem::BinaryOperator(parsed)));
     }
 
     fn name() -> String { "expression item".to_string() }

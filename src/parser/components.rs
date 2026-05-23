@@ -22,13 +22,24 @@ where T: Pattern, U: Pattern {
     type ParseResult = Either<T::ParseResult, U::ParseResult>;
 
     fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult> {
-        if let Ok(ok) = U::solve(tokens) {
-            Ok((ok.0, Either::Right(ok.1)))
+        let t_res = T::solve(tokens);
+        if t_res.is_ok() {
+            return t_res.map(|(tokens, parsed)| (tokens, Either::Left(parsed)));
+        }
+        
+        let u_res = U::solve(tokens);
+        if u_res.is_ok() {
+            return u_res.map(|(tokens, parsed)| (tokens, Either::Right(parsed)));
+        }
+
+        // we already eliminated the ok variant
+        let Err(t_err) = t_res else { panic!() };
+        let Err(u_err) = u_res else { panic!() };
+
+        if t_err.tokens_before_error() >= u_err.tokens_before_error() {
+            Err(t_err)
         } else {
-            // TODO: this code chooses the only returns the error of T
-            // they should be combined into one error
-            T::solve(tokens)
-                .map(|ok| (ok.0, Either::Left(ok.1)))
+            Err(u_err)
         }
     }
 
@@ -53,8 +64,14 @@ where T: Pattern, U: Pattern {
 
         // skips the tokens already grabbed by U
         let next_tokens = &tokens[t_tokens_consumed..];
-        let (u_tokens_consumed, u_parse_result) = U::solve(next_tokens)?;
+        let u_res = U::solve(next_tokens);
+        if let Err(mut u_err) = u_res {
+            u_err.add_tokns_before_error(t_tokens_consumed);
 
+            return Err(u_err);
+        };
+
+        let Ok((u_tokens_consumed, u_parse_result)) = u_res else { panic!() };
         let tokens_consumed = t_tokens_consumed + u_tokens_consumed;
         Ok((tokens_consumed, (t_parse_result, u_parse_result)))
     }

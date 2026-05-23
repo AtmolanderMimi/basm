@@ -22,14 +22,14 @@ macro_rules! single_token_pattern {
         impl Pattern for $type_name {
             fn solve(tokens: &[Token]) -> PatternResult<Self> {
                 let Some(token) = tokens.get(0) else {
-                    return Err(ParseError::new_no_more_tokens($name.to_string()))
+                    return Err(ParseError::new_no_more_tokens(1, $name.to_string()))
                 };
                 
                 if let $match_pattern = token.t_type {
                     let result = $type_name(token.clone());
                     Ok((1, result))
                 } else {
-                    Err(ParseError::new_unexpected_token($name, token.clone()))
+                    Err(ParseError::new_unexpected_token(1, $name, token.clone()))
                 }
             }
             

@@ -37,7 +37,15 @@ pub trait Pattern where Self: Sized {
 /// Language item parsers will throw this error
 /// when encountering a pattern in the tokens that doesn't match their expectation.
 #[derive(Debug, Clone, PartialEq, Error)]
-pub enum ParseError {
+#[error("{variant}")]
+pub struct ParseError {
+    tokens_before_error: usize,
+    variant: ParseErrorVariant
+}
+
+/// A variant of [ParseError].
+#[derive(Debug, Clone, PartialEq, Error)]
+enum ParseErrorVariant {
     /// When a pattern encounters a token which was not expected.
     #[error("expected {expected}, got {}", got.t_type.to_string())]
     UnexpectedTokenError {
@@ -59,35 +67,54 @@ pub enum ParseError {
 
 impl ParseError {
     /// Creates a new [Self::UnexpectedTokenError].
-    pub fn new_unexpected_token(expected: impl Into<String>, got: Token) -> Self {
-        Self::UnexpectedTokenError {
-            expected: expected.into(),
-            got,
-        }
+    pub fn new_unexpected_token(tokens_before_error: usize, expected: impl Into<String>, got: Token) -> Self {
+        ParseError {
+            tokens_before_error,
+            variant: ParseErrorVariant::UnexpectedTokenError {
+                expected: expected.into(),
+                got,
+            },
+        }   
     }
 
     /// Creates a new [Self::UnparsedExpression].
-    pub fn new_unparsed_expression(items: Vec<ExpressionItem>) -> Self {
-        Self::UnparsedExpression { items }
+    pub fn new_unparsed_expression(tokens_before_error: usize, items: Vec<ExpressionItem>) -> Self {
+        ParseError {
+            tokens_before_error,
+            variant: ParseErrorVariant::UnparsedExpression { items },
+        }
     }
 
     /// Creates a new [Self::NoMoreTokens].
-    pub fn new_no_more_tokens(pattern_name: String) -> Self {
-        Self::NoMoreTokens(pattern_name)
+    pub fn new_no_more_tokens(tokens_before_error: usize, pattern_name: String) -> Self {
+        ParseError {
+            tokens_before_error,
+            variant: ParseErrorVariant::NoMoreTokens(pattern_name),
+        }
+    }
+
+    /// The number of tokens which had to be consumed (or tried to be consumed), before the parse was concluded as an error.
+    pub fn tokens_before_error(&self) -> usize {
+        self.tokens_before_error
+    }
+
+    /// Adds `nb_tokens` to the total of tokens consumed before the error occured.
+    pub fn add_tokns_before_error(&mut self, nb_tokens: usize) {
+        self.tokens_before_error += nb_tokens;
     }
 }
 
 impl CompilerError for ParseError {
     fn lint(&self) -> Option<crate::Lint> {
-        let lint = match self {
-            Self::UnexpectedTokenError { got, .. } => Lint::from_slice_error(got.slice()),
-            Self::UnparsedExpression { items } => {
+        let lint = match &self.variant {
+            ParseErrorVariant::UnexpectedTokenError { got, .. } => Lint::from_slice_error(got.slice()),
+            ParseErrorVariant::UnparsedExpression { items } => {
                 let start = items.first()?.slice().start();
                 let end = items.last()?.slice().end();
 
                 Lint::new_error_range(items.first()?.slice().source(), start..end)?
             },
-            Self::NoMoreTokens(_) => return None,
+            ParseErrorVariant::NoMoreTokens(_) => return None,
         };
 
         Some(lint)

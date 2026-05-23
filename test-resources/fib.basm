@@ -7,7 +7,7 @@
 #decl sp, sp+3;
 
 Incr: Ab, 1;
-WhNe: Aindex, Vnth_number, {
+WhNe: Aindex, Vnth_number, [] => {
     #decl Atmp, sp;
     #decl sp sp+1;
 
