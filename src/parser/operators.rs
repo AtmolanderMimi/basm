@@ -9,7 +9,7 @@
 //! "!"                              => 6 // TODO: implement "!"
 //! "@" (right-associative)          => 7
 
-use crate::{lexer::token::Token, parser::{LanguageItem, Pattern, PatternResult, UnexpectedTokenError, terminals::{At, Divide, GreaterThan, GreaterThanEqual, LessThan, LessThanEqual, LogicalAnd, LogicalEqual, LogicalInequal, LogicalOr, Minus, Modulo, Multiply, Plus}}};
+use crate::{lexer::token::Token, parser::{LanguageItem, Pattern, PatternResult, ParseError, terminals::{At, Divide, GreaterThan, GreaterThanEqual, LessThan, LessThanEqual, LogicalAnd, LogicalEqual, LogicalInequal, LogicalOr, Minus, Modulo, Multiply, Plus}}};
 
 /// The number of precedence levels for all operators
 pub const NB_PRECEDENCE_LEVELS: u32 = 8;
@@ -124,9 +124,9 @@ impl Pattern for BinaryOperator {
         } else if let Ok((nb_tokens, parsed)) = At::solve(tokens) {
             (nb_tokens, BinaryOperator::Index(parsed))
         } else if let Some(token) = tokens.first() {
-            return Err(UnexpectedTokenError::new(Self::name(), token.clone()))
+            return Err(ParseError::new_unexpected_token(Self::name(), token.clone()))
         } else {
-            return Err(UnexpectedTokenError::new_got_nothing(Self::name()))
+            return Err(ParseError::new_no_more_tokens(Self::name()))
         };
         
         Ok((nb_tokens, operator))

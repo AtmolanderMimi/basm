@@ -1,7 +1,7 @@
 //! Implementation of terminal patterns, these patterns only represent one token
 
 use crate::lexer::token::{Token, TokenType};
-use crate::parser::{Pattern, LanguageItem, UnexpectedTokenError, PatternResult};
+use crate::parser::{Pattern, LanguageItem, ParseError, PatternResult};
 use crate::source::SfSlice;
 
 macro_rules! single_token_pattern {
@@ -22,14 +22,14 @@ macro_rules! single_token_pattern {
         impl Pattern for $type_name {
             fn solve(tokens: &[Token]) -> PatternResult<Self> {
                 let Some(token) = tokens.get(0) else {
-                    return Err(UnexpectedTokenError::new_got_nothing($name))
+                    return Err(ParseError::new_no_more_tokens($name.to_string()))
                 };
                 
                 if let $match_pattern = token.t_type {
                     let result = $type_name(token.clone());
                     Ok((1, result))
                 } else {
-                    Err(UnexpectedTokenError::new($name, token.clone()))
+                    Err(ParseError::new_unexpected_token($name, token.clone()))
                 }
             }
             

@@ -64,6 +64,33 @@ where T: Pattern, U: Pattern {
     }
 }
 
+/// Greedly matches the provided pattern one or more times.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct OneOrMore<T: Pattern> {
+    _phantom: PhantomData<T>,
+}
+
+impl<T: Pattern> Pattern for OneOrMore<T> {
+    type ParseResult = Vec<T::ParseResult>;
+
+    fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult> {
+        let (first_tokens_consumed, first_parse) = T::solve(tokens)?;
+        
+        let mut parse_results = vec![first_parse];
+        let mut total_tokens_consumed = first_tokens_consumed;
+        while let Ok((tokens_consumed, parse_result)) = T::solve(&tokens[total_tokens_consumed..]) {
+            total_tokens_consumed += tokens_consumed;
+            parse_results.push(parse_result);
+        }
+
+        Ok((total_tokens_consumed, parse_results))
+    }
+
+    fn name() -> String {
+        format!("1 or more {}", T::name())
+    }
+}
+
 /// Greedly matches the provided pattern zero or more times.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Many<T: Pattern> {
@@ -74,15 +101,11 @@ impl<T: Pattern> Pattern for Many<T> {
     type ParseResult = Vec<T::ParseResult>;
 
     fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult> {
-        let mut parse_results = Vec::new();
-
-        let mut total_tokens_consumed = 0;
-        while let Ok((tokens_consumed, parse_result)) = T::solve(&tokens[total_tokens_consumed..]) {
-            total_tokens_consumed += tokens_consumed;
-            parse_results.push(parse_result);
+        if let Ok((tokens_consumed, parsed_items)) = OneOrMore::<T>::solve(&tokens) {
+            return Ok((tokens_consumed, parsed_items))            
+        } else {
+            return Ok((0, Vec::new()))
         }
-
-        Ok((total_tokens_consumed, parse_results))
     }
 
     fn name() -> String {
@@ -338,6 +361,34 @@ mod tests {
         ];
         let res = <Then<Many<Ident>, Ident>>::solve(&tokens);
         assert!(res.is_err());
+    }
+
+    #[test]
+    fn one_or_more_none_does_not_parse() {
+        let tokens = lex_string("").unwrap();
+
+        let res = OneOrMore::<Ident>::solve(&tokens);
+        res.unwrap_err();
+    }
+
+    #[test]
+    fn one_or_more_one_item_does_parse() {
+        let tokens = lex_string("hello ").unwrap();
+
+        let res = OneOrMore::<Ident>::solve(&tokens);
+        let (tokens_taken, items) = res.unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(tokens_taken, tokens.len()-1);
+    }
+
+    #[test]
+    fn one_or_more_multiple_items_does_parse() {
+        let tokens = lex_string("hello welcome even").unwrap();
+
+        let res = OneOrMore::<Ident>::solve(&tokens);
+        let (tokens_taken, items) = res.unwrap();
+        assert_eq!(items.len(), 3);
+        assert_eq!(tokens_taken, tokens.len()-1);
     }
 
     #[test]

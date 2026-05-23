@@ -13,15 +13,13 @@ mod r#macro;
 mod expression;
 mod file;
 
-use std::fmt::Display;
-
 use thiserror::Error;
 
-use crate::{CompilerError, Lint, lexer::token::{Token}, parser::file::ParsedFile, source::SfSlice};
+use crate::{CompilerError, Lint, lexer::token::Token, parser::{expression::ExpressionItem, file::ParsedFile}, source::SfSlice};
 
 /// Return type of trying to solve for a pattern.
 /// The `Ok` variant contains the number of tokens taken to solve the pattern (the `usize`)
-pub type PatternResult<T> = Result<(usize, T), UnexpectedTokenError>;
+pub type PatternResult<T> = Result<(usize, T), ParseError>;
 
 /// Defines a language pattern.
 pub trait Pattern where Self: Sized {
@@ -39,43 +37,60 @@ pub trait Pattern where Self: Sized {
 /// Language item parsers will throw this error
 /// when encountering a pattern in the tokens that doesn't match their expectation.
 #[derive(Debug, Clone, PartialEq, Error)]
-pub struct UnexpectedTokenError {
-    expected: String,
-    got: Option<Token>,
+pub enum ParseError {
+    /// When a pattern encounters a token which was not expected.
+    #[error("expected {expected}, got {}", got.t_type.to_string())]
+    UnexpectedTokenError {
+        /// The expected pattern
+        expected: String,
+        /// The token that was had
+        got: Token,
+    },
+    /// When an expression cannot be constructed.
+    #[error("expression could not be properly parsed (probably because operators can't be linked to operands)")]
+    UnparsedExpression {
+        /// The items in the expression that could not be parsed
+        items: Vec<ExpressionItem>
+    },
+    /// When the pattern has no more tokens to read, this should never happen.
+    #[error("{0} could not be parsed before running out of tokens")]
+    NoMoreTokens(String),
 }
 
-impl UnexpectedTokenError {
-    /// Creates a new [UnexpectedTokenError].
-    pub fn new(expected: impl Into<String>, got: Token) -> Self {
-        UnexpectedTokenError {
+impl ParseError {
+    /// Creates a new [Self::UnexpectedTokenError].
+    pub fn new_unexpected_token(expected: impl Into<String>, got: Token) -> Self {
+        Self::UnexpectedTokenError {
             expected: expected.into(),
-            got: Some(got),
+            got,
         }
     }
 
-    // TODO: replace this error, as the error is quite cryptic when there is no "unexpected token"
-    /// Creates a new [UnexpectedTokenError] without a gotten token.
-    pub fn new_got_nothing(expected: impl Into<String>) -> Self {
-        UnexpectedTokenError {
-            expected: expected.into(),
-            got: None,
-        }
+    /// Creates a new [Self::UnparsedExpression].
+    pub fn new_unparsed_expression(items: Vec<ExpressionItem>) -> Self {
+        Self::UnparsedExpression { items }
+    }
+
+    /// Creates a new [Self::NoMoreTokens].
+    pub fn new_no_more_tokens(pattern_name: String) -> Self {
+        Self::NoMoreTokens(pattern_name)
     }
 }
 
-impl Display for UnexpectedTokenError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let got_string = self.got.as_ref()
-            .map(|t| t.t_type.to_string())
-            .unwrap_or("nothing".to_string());
-
-        f.write_str(&format!("expected {}, got {got_string}", self.expected))
-    }
-}
-
-impl CompilerError for UnexpectedTokenError {
+impl CompilerError for ParseError {
     fn lint(&self) -> Option<crate::Lint> {
-        self.got.as_ref().map(|t| Lint::from_slice_error(t.slice()))
+        let lint = match self {
+            Self::UnexpectedTokenError { got, .. } => Lint::from_slice_error(got.slice()),
+            Self::UnparsedExpression { items } => {
+                let start = items.first()?.slice().start();
+                let end = items.last()?.slice().end();
+
+                Lint::new_error_range(items.first()?.slice().source(), start..end)?
+            },
+            Self::NoMoreTokens(_) => return None,
+        };
+
+        Some(lint)
     }
 }
 
@@ -111,7 +126,7 @@ macro_rules! impl_language_item {
 }
 
 /// Parses the tokens into a structured form ([`ParsedFile`]).
-pub fn parse_tokens(tokens: &[Token]) -> Result<ParsedFile, UnexpectedTokenError> {
+pub fn parse_tokens(tokens: &[Token]) -> Result<ParsedFile, ParseError> {
     ParsedFile::solve(&tokens)
         .map(|(_, file)| file)
 }

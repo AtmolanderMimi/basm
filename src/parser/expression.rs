@@ -1,6 +1,6 @@
 //! Defines what is an expression is.
 
-use crate::{lexer::token::Token, parser::{LanguageItem, Pattern, PatternResult, UnexpectedTokenError, list::List, r#macro::Macro, operators::{self, BinaryOperator, NB_PRECEDENCE_LEVELS, Operator}, pattern::{Many, Then}, terminals::{CharLit, Ident, LeftParen, NumLit, RightParen, StrLit}}, source::SfSlice};
+use crate::{lexer::token::Token, parser::{LanguageItem, ParseError, Pattern, PatternResult, list::List, r#macro::Macro, operators::{self, BinaryOperator, NB_PRECEDENCE_LEVELS, Operator}, pattern::{OneOrMore, Then}, terminals::{CharLit, Ident, LeftParen, NumLit, RightParen, StrLit}}, source::SfSlice};
 
 //// An expression. An expression is formed from one or more [ExpressionItem] being merged.
 #[derive(Debug, Clone, PartialEq)]
@@ -19,19 +19,22 @@ impl Expression {
     }
 
     /// Creates a new expression from [ExpressionItem]'s.
-    pub fn new_from_items(items: &[ExpressionItem]) -> Result<Self, UnexpectedTokenError> {
-        if items.len() < 1 {
-            return Err(UnexpectedTokenError::new_got_nothing(ExpressionItem::name())) // TODO: once again, redo error type
+    /// 
+    /// # Panic
+    /// Should always have at least 1 item in `items`.
+    pub fn new_from_items(items: &[ExpressionItem]) -> Result<Self, ParseError> {
+        if items.is_empty() {
+            panic!("should never be called empty")
         }
 
-        let mut items = items.iter()
+        let mut sub_exprs = items.iter()
             .map(|i| Expression::new_from_node(i.clone()))
             .collect::<Vec<_>>();
 
         for current_precedence in (0..NB_PRECEDENCE_LEVELS).rev() {
             let is_right_associative = operators::RIGHT_ASSOCIATIVE_LEVELS.contains(&current_precedence);
 
-            // Links items in a tree fashion for all the operators in the precedence level
+            // Links sub_exprs in a tree fashion for all the operators in the precedence level
             loop {
                 // -- finds an operator to link
                 let predicate = |(_, item): &(_, &Expression)| {
@@ -46,9 +49,9 @@ impl Expression {
                 };
 
                 let maybe_operator_index = if is_right_associative {
-                    items.iter().enumerate().rfind(predicate).map(|(i, _)| i)
+                    sub_exprs.iter().enumerate().rfind(predicate).map(|(i, _)| i)
                 } else {
-                    items.iter().enumerate().find(predicate).map(|(i, _)| i)
+                    sub_exprs.iter().enumerate().find(predicate).map(|(i, _)| i)
                 };
 
                 let Some(operator_index) = maybe_operator_index else {
@@ -57,17 +60,17 @@ impl Expression {
                 };
 
                 // -- link the operator
-                match items[operator_index].node {
+                match sub_exprs[operator_index].node {
                     ExpressionItem::BinaryOperator(_) => {
                         // TODO: usize::MAX hack
-                        let Some(item_after) = items.try_remove(operator_index.checked_add(1).unwrap_or(usize::MAX)) else {
-                            return Err(UnexpectedTokenError::new_got_nothing("value"));
+                        let Some(item_after) = sub_exprs.try_remove(operator_index.checked_add(1).unwrap_or(usize::MAX)) else {
+                            return Err(ParseError::new_unparsed_expression(items.to_vec()));
                         };
-                        let Some(item_before) = items.try_remove(operator_index.checked_sub(1).unwrap_or(usize::MAX)) else {
-                            return Err(UnexpectedTokenError::new_got_nothing("value"));
+                        let Some(item_before) = sub_exprs.try_remove(operator_index.checked_sub(1).unwrap_or(usize::MAX)) else {
+                            return Err(ParseError::new_unparsed_expression(items.to_vec()));
                         };
 
-                        let operator = &mut items[operator_index-1];
+                        let operator = &mut sub_exprs[operator_index-1];
                         operator.children = vec![item_before, item_after];
                     },
                     _ => unimplemented!("an item with precedence that is not a binary operator"),
@@ -75,10 +78,10 @@ impl Expression {
             }
         }
 
-        if items.len() != 1 {
-            return Err(UnexpectedTokenError::new_got_nothing("value"));
+        if sub_exprs.len() > 1 {
+            return Err(ParseError::new_unparsed_expression(items.to_vec()));
         }
-        Ok(items.pop().expect("there should be one and only one item left"))
+        Ok(sub_exprs.pop().expect("there should be one and only one item left"))
     }
 
     /// Does not have children
@@ -112,7 +115,7 @@ impl LanguageItem for Expression {
 
 impl Pattern for Expression {
     fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult> {
-        let (consumed_tokens, items) = Many::<ExpressionItem>::solve(&tokens)?;
+        let (consumed_tokens, items) = OneOrMore::<ExpressionItem>::solve(&tokens)?;
 
         Ok((consumed_tokens, Expression::new_from_items(&items)?))
     }
@@ -122,7 +125,7 @@ impl Pattern for Expression {
 
 //// An item in an expression.
 #[derive(Debug, Clone, PartialEq)]
-enum ExpressionItem {
+pub enum ExpressionItem {
     /// A group of items in parenthesises (or however it is spelled)
     ParenGroup(LeftParen, Box<Expression>, RightParen),
     Ident(Ident),
@@ -202,9 +205,9 @@ impl Pattern for ExpressionItem {
         else if let Ok((nb_tokens, parsed)) = BinaryOperator::solve(tokens) {
             (nb_tokens, ExpressionItem::BinaryOperator(parsed))
         } else if let Some(token) = tokens.first() {
-            return Err(UnexpectedTokenError::new(Self::name(), token.clone()))
+            return Err(ParseError::new_unexpected_token(Self::name(), token.clone()))
         } else {
-            return Err(UnexpectedTokenError::new_got_nothing(Self::name()))
+            return Err(ParseError::new_no_more_tokens(Self::name()))
         };
 
         Ok((nb_tokens, item))
@@ -380,5 +383,12 @@ mod tests {
             inner_expression.children[1].node,
             ExpressionItem::NumLit(_),
         );
+    }
+
+    #[test]
+    fn expression_empty_brackets_does_not_crash() {
+        let tokens = lex_string("() + 3").unwrap();
+
+        Expression::solve(&tokens).unwrap_err();
     }
 }
