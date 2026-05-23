@@ -401,4 +401,16 @@ mod tests {
 
         Expression::solve(&tokens).unwrap_err();
     }
+
+    #[test]
+    fn expression_item_no_confusion_between_argumented_macro_and_list() {
+        let tokens = lex_string("[arg1, arg2] => {}").unwrap();
+
+        let (tokens_consumed, item) = ExpressionItem::solve(&tokens).unwrap();
+        assert_eq!(tokens_consumed, tokens.len()-1);
+        assert_matches!(
+            item,
+            ExpressionItem::Macro(_),
+        )
+    }
 }
