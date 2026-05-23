@@ -1,6 +1,8 @@
 //! Defines what is an expression is.
 
-use crate::{lexer::token::Token, parser::{LanguageItem, ParseError, ParseErrorVariant, Pattern, PatternResult, list::List, r#macro::Macro, operators::{self, BinaryOperator, NB_PRECEDENCE_LEVELS, Operator}, pattern::{OneOrMore, Or, Then}, terminals::{CharLit, Ident, LeftParen, NumLit, RightParen, StrLit}}, source::SfSlice};
+use either::Either;
+
+use crate::{lexer::token::Token, parser::{LanguageItem, ParseError, ParseErrorVariant, Pattern, PatternResult, list::List, r#macro::Macro, operators::{self, BinaryOperator, NB_PRECEDENCE_LEVELS, Operator}, pattern::{Not, OneOrMore, Or, Then}, terminals::{CharLit, Ident, LeftParen, NumLit, RightParen, StrLit, ThickArrow}}, source::SfSlice};
 
 //// An expression. An expression is formed from one or more [ExpressionItem] being merged.
 #[derive(Debug, Clone, PartialEq)]
@@ -193,7 +195,7 @@ impl Pattern for ExpressionItem {
         CharLit, Or<
         StrLit, Or<
         Macro, Or<
-        List,
+        Then<List, Not<ThickArrow>>,
         BinaryOperator>>>>>>>;
 
         let res = ExpressionItemPattern::solve(tokens);
@@ -213,7 +215,11 @@ impl Pattern for ExpressionItem {
         try_expression_item_next!(parsed, res.0, CharLit);
         try_expression_item_next!(parsed, res.0, StrLit);
         try_expression_item_next!(parsed, res.0, Macro);
-        try_expression_item_next!(parsed, res.0, List);
+        if let Either::Left((list, _)) = parsed {
+            return Ok((res.0, ExpressionItem::List(list)));
+        }
+        let parsed = parsed.unwrap_right();
+
         return Ok((res.0, ExpressionItem::BinaryOperator(parsed)));
     }
 

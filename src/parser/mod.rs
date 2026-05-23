@@ -63,6 +63,9 @@ enum ParseErrorVariant {
     /// When the pattern has no more tokens to read, this should never happen.
     #[error("{0} could not be parsed before running out of tokens")]
     NoMoreTokens(String),
+    /// When a pattern is matched (through [Not]) when it should not.
+    #[error("{0} was expected to be absent")]
+    UnexpectedPattern(String, SfSlice),
 }
 
 impl ParseError {
@@ -93,6 +96,14 @@ impl ParseError {
         }
     }
 
+    /// Creates a new [Self::UnexpectedPattern].
+    pub fn new_unexpected_pattern(tokens_before_error: usize, pattern_name: String, pattern_slice: SfSlice) -> Self {
+        ParseError {
+            tokens_before_error,
+            variant: ParseErrorVariant::UnexpectedPattern(pattern_name, pattern_slice),
+        }
+    }
+
     /// The number of tokens which had to be consumed (or tried to be consumed), before the parse was concluded as an error.
     pub fn tokens_before_error(&self) -> usize {
         self.tokens_before_error
@@ -115,6 +126,7 @@ impl CompilerError for ParseError {
                 Lint::new_error_range(items.first()?.slice().source(), start..end)?
             },
             ParseErrorVariant::NoMoreTokens(_) => return None,
+            ParseErrorVariant::UnexpectedPattern(_, slice) => Lint::from_slice_error(slice.clone()),
         };
 
         Some(lint)

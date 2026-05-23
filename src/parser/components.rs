@@ -6,7 +6,7 @@ use either::Either;
 
 use crate::lexer::token::Token;
 
-use crate::parser::{Pattern, PatternResult};
+use crate::parser::{LanguageItem, ParseError, Pattern, PatternResult};
 
 #[derive(Debug, Clone, PartialEq, Default)]
 /// Requires one of the patterns to be valid.
@@ -171,6 +171,30 @@ impl Pattern for Nothing {
     }
 }
 
+/// Only passes if the pattern does not match, advances by nothing if the pattern `T` does not match
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Not<T> 
+where T: Pattern, T::ParseResult: LanguageItem {
+    _phatom: PhantomData<T>,
+}
+
+impl<T> Pattern for Not<T>
+where T: Pattern, T::ParseResult: LanguageItem {
+    type ParseResult = ();
+
+    fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult> {
+        if let Ok((tokens_consumed, p)) = T::solve(tokens) {
+            return Err(ParseError::new_unexpected_pattern(tokens_consumed, T::name(), p.slice()));
+        }
+
+        Ok((0, ()))
+    }
+
+    fn name() -> String {
+        format!("not {}", T::name())
+    }
+}
+
 /// A list of many items `T` ([Many]) seperated by `U` and terminated by `V`.
 /// You may use only the seperation or termination elements using [SeperatedMany] and [TerminatedMany].
 /// This component is functionnaly equivalent to Then::<Many<T>, U>.
@@ -214,7 +238,9 @@ where T: Pattern, U: Pattern, V: Pattern {
             // If this is not the first item, then we also need to check if there is a seperator
             let u_consumed_tokens = if !items.is_empty() {
                 let res = U::solve(rest_tokens);
-                if let Err(mut err) = res {
+                if let Err(_) = res {
+                    // if the seperator is missing, then we blame the terminator
+                    let Err(mut err) = V::solve(rest_tokens) else { panic!("we already know terminator doesn't parse") };
                     err.add_tokens_before_error(seperated_tokens_consumed);
                     return Err(err);
                 }
@@ -473,6 +499,35 @@ mod tests {
             res,
             Ok((_, Some(_)))
         );
+    }
+
+    #[test]
+    fn not_with_match() {
+        let tokens = [ bogus_token(TokenType::Semicolon) ];
+
+        // with one token
+        let res = Not::<Comma>::solve(&tokens);
+        assert_matches!(
+            res,
+            Ok((0, _))
+        );
+    }
+
+    #[test]
+    fn not_with_no_match() {
+        let tokens = [ bogus_token(TokenType::Comma) ];
+
+        // with one token
+        let res = Not::<Comma>::solve(&tokens);
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn not_with_then() {
+        let tokens = lex_string("[] =>").unwrap();
+
+        let res = Then::<List, Not<ThickArrow>>::solve(&tokens);
+        assert!(res.is_err());
     }
 
     #[test]
