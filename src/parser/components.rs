@@ -191,13 +191,19 @@ where T: Pattern, U: Pattern, V: Pattern {
             Vec::new()
         };
 
-        let rest_tokens = &tokens[seperated_tokens_consumed..];
+        let mut rest_tokens = &tokens[seperated_tokens_consumed..];
         let Ok((v_tokens_consumed, terminator)) = V::solve(rest_tokens) else {
+            // If this is not the first item, then we also need to check if there is a seperator
+            if !items.is_empty() {
+                let (u_consumed_tokens, _) =  U::solve(rest_tokens)?;
+                rest_tokens = &rest_tokens[u_consumed_tokens..];
+            }
+
             // if there is no terminator, this means that the many did not parse all the tokens until the terminator
             // we rerun just a single T parse to know the error
             T::solve(rest_tokens)?;
 
-            panic!("T should always error");
+            panic!("T or U should always error");
         };
 
         Ok((seperated_tokens_consumed + v_tokens_consumed, (items, terminator)))
