@@ -1,20 +1,21 @@
 //! Defines operations, both binary and unary
 //! Here is a table of precedence:
-//! "||"                             => 0
-//! "&&"                             => 1
-//! ">", ">=", "<", "<="             => 2
-//! "==", "!=",                      => 3
-//! "+", "-"                         => 4
-//! "*", "/", "%"                    => 5
-//! "!"                              => 6 // TODO: implement "!"
-//! "@" (right-associative)          => 7
+//! "||"                   => 0
+//! "&&"                   => 1
+//! ">", ">=", "<", "<="   => 2
+//! "==", "!=",            => 3
+//! "+", "-"               => 4
+//! "*", "/", "%"          => 5
+//! "!"                    => 6 // TODO: implement "!"
+//! "@",                   => 7
+//! "."                    => 8
 
-use crate::{lexer::token::Token, parser::{LanguageItem, ParseError, Pattern, PatternResult, terminals::{At, Divide, GreaterThan, GreaterThanEqual, LessThan, LessThanEqual, LogicalAnd, LogicalEqual, LogicalInequal, LogicalOr, Minus, Modulo, Multiply, Plus}}};
+use crate::{lexer::token::Token, parser::{LanguageItem, ParseError, Pattern, PatternResult, terminals::{At, Divide, GreaterThan, GreaterThanEqual, LessThan, LessThanEqual, LogicalAnd, LogicalEqual, LogicalInequal, LogicalOr, Minus, Modulo, Multiply, Period, Plus}}};
 
 /// The number of precedence levels for all operators
-pub const NB_PRECEDENCE_LEVELS: u32 = 8;
+pub const NB_PRECEDENCE_LEVELS: u32 = 9;
 /// The precedence levels which are right associative
-pub const RIGHT_ASSOCIATIVE_LEVELS: &[u32] = &[7];
+pub const RIGHT_ASSOCIATIVE_LEVELS: &[u32] = &[];
 
 pub trait Operator {
     /// The order the operations should be merged in (higher = earlier)
@@ -38,6 +39,7 @@ pub enum BinaryOperator {
     LogicalOr(LogicalOr),
     LogicalAnd(LogicalAnd),
     Index(At),
+    Property(Period),
 }
 
 impl LanguageItem for BinaryOperator {
@@ -57,6 +59,7 @@ impl LanguageItem for BinaryOperator {
             Self::LogicalOr(t) => t.slice(),
             Self::LogicalAnd(t) => t.slice(),
             Self::Index(t) => t.slice(),
+            Self::Property(t) => t.slice(),
         }
     }
 }
@@ -78,6 +81,7 @@ impl Operator for BinaryOperator {
             | Self::Divide(_)
             | Self::Modulo(_) => 5,
             Self::Index(_) => 7,
+            Self::Property(_) => 8,
         }
     }
 }
@@ -114,6 +118,8 @@ impl Pattern for BinaryOperator {
             (nb_tokens, BinaryOperator::LogicalAnd(parsed))
         } else if let Ok((nb_tokens, parsed)) = At::solve(tokens) {
             (nb_tokens, BinaryOperator::Index(parsed))
+        } else if let Ok((nb_tokens, parsed)) = Period::solve(tokens) {
+            (nb_tokens, BinaryOperator::Property(parsed))
         } else if let Some(token) = tokens.first() {
             // NOTE: this assumes that all binary operators only take one token
             return Err(ParseError::new_unexpected_token(1, Self::name(), token.clone()))

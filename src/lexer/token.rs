@@ -91,6 +91,8 @@ pub enum TokenType {
     Colon,
     /// ";", delimits directives.
     Semicolon,
+    /// ".", access properties.
+    Period,
     /// "//", starts a comment on the rest of the line.
     /// Is only used by the lexer to avoid comments.
     /// This will not be found in the AST.
@@ -133,6 +135,7 @@ impl TokenType {
         ("#", Self::Pound),
         (";", Self::Semicolon),
         (":", Self::Colon),
+        (".", Self::Period),
         // lits go here also idents in spirit, cus they can't be mapped like this
     ];
 
@@ -170,6 +173,7 @@ impl TokenType {
             Self::Pound => (),
             Self::Semicolon => (),
             Self::Colon => (),
+            Self::Period => (),
             Self::ThickArrow => (),
             Self::LineComment => (),
             Self::Ident(_) => (),
@@ -209,6 +213,7 @@ impl Display for TokenType {
             Self::Pound => "#",
             Self::Semicolon => ";",
             Self::Colon => ":",
+            Self::Period => ".",
             Self::ThickArrow => "=>",
             Self::LineComment => "//",
             Self::Ident(_) => "ident",

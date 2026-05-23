@@ -159,6 +159,12 @@ single_token_pattern!(
 );
 
 single_token_pattern!(
+    Period,
+    ".",
+    TokenType::Period
+);
+
+single_token_pattern!(
     ThickArrow,
     "=>",
     TokenType::ThickArrow

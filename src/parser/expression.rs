@@ -338,26 +338,30 @@ mod tests {
     }
 
     #[test]
-    fn expression_are_right_to_left_when_needed() {
-        let tokens = lex_string("list_var @ [1,2,3] @ 2").unwrap();
+    fn expression_list_and_property() {
+        let tokens = lex_string("list @ [1,2,3].len").unwrap();
         let (tokens_consumed, expression) = Expression::solve(&tokens).unwrap();
         assert_eq!(tokens_consumed, tokens.len()-1);
 
+        // the division (at the top)
         assert_matches!(
             expression.node,
             ExpressionItem::BinaryOperator(BinaryOperator::Index(_))
         );
 
+        // the right argument of the division
         assert_matches!(
             expression.children[0].node,
             ExpressionItem::Ident(_),
         );
 
+        // the multiplication
         assert_matches!(
             expression.children[1].node,
-            ExpressionItem::BinaryOperator(BinaryOperator::Index(_))
+            ExpressionItem::BinaryOperator(BinaryOperator::Property(_))
         );
 
+        // .. and it's arguments
         assert_matches!(
             expression.children[1].children[0].node,
             ExpressionItem::List(_),
@@ -365,7 +369,7 @@ mod tests {
 
         assert_matches!(
             expression.children[1].children[1].node,
-            ExpressionItem::NumLit(_),
+            ExpressionItem::Ident(_),
         );
     }
 
