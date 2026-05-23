@@ -66,7 +66,7 @@ where T: Pattern, U: Pattern {
         let next_tokens = &tokens[t_tokens_consumed..];
         let u_res = U::solve(next_tokens);
         if let Err(mut u_err) = u_res {
-            u_err.add_tokns_before_error(t_tokens_consumed);
+            u_err.add_tokens_before_error(t_tokens_consumed);
 
             return Err(u_err);
         };
@@ -95,6 +95,7 @@ impl<T: Pattern> Pattern for OneOrMore<T> {
         
         let mut parse_results = vec![first_parse];
         let mut total_tokens_consumed = first_tokens_consumed;
+        
         while let Ok((tokens_consumed, parse_result)) = T::solve(&tokens[total_tokens_consumed..]) {
             total_tokens_consumed += tokens_consumed;
             parse_results.push(parse_result);
@@ -211,14 +212,26 @@ where T: Pattern, U: Pattern, V: Pattern {
         let mut rest_tokens = &tokens[seperated_tokens_consumed..];
         let Ok((v_tokens_consumed, terminator)) = V::solve(rest_tokens) else {
             // If this is not the first item, then we also need to check if there is a seperator
-            if !items.is_empty() {
-                let (u_consumed_tokens, _) =  U::solve(rest_tokens)?;
-                rest_tokens = &rest_tokens[u_consumed_tokens..];
-            }
+            let u_consumed_tokens = if !items.is_empty() {
+                let res = U::solve(rest_tokens);
+                if let Err(mut err) = res {
+                    err.add_tokens_before_error(seperated_tokens_consumed);
+                    return Err(err);
+                }
+
+                let (u_consumed_tokens, _) = res.expect("already check for error");
+                u_consumed_tokens
+            } else {
+                0
+            };
+            rest_tokens = &rest_tokens[u_consumed_tokens..];
 
             // if there is no terminator, this means that the many did not parse all the tokens until the terminator
             // we rerun just a single T parse to know the error
-            T::solve(rest_tokens)?;
+            if let Err(mut err) = T::solve(rest_tokens) {
+                err.add_tokens_before_error(seperated_tokens_consumed + u_consumed_tokens);
+                return Err(err);
+            };
 
             panic!("T or U should always error");
         };
@@ -289,7 +302,7 @@ where T: Pattern, U: Pattern {
 
 #[cfg(test)]
 mod tests {
-    use crate::{lexer::{lex_string, token::TokenType}, parser::{expression::Expression, terminals::*}, source::SfSlice};
+    use crate::{lexer::{lex_string, token::TokenType}, parser::{expression::Expression, list::List, terminals::*}, source::SfSlice};
 
     use std::assert_matches;
 
@@ -330,6 +343,14 @@ mod tests {
     }
 
     #[test]
+    fn or_token_pattern_error() {
+        let tokens = lex_string("34 34 34 e;").unwrap();
+        let err= Or::<TerminatedMany<NumLit, Semicolon>, TerminatedMany<Ident, Semicolon>>::solve(&tokens).unwrap_err();
+
+        assert_eq!(err.tokens_before_error(), 4);
+    }
+
+    #[test]
     fn then_token_pattern() {
         let tokens = vec![
             bogus_token(TokenType::CharLit('c')),
@@ -351,6 +372,14 @@ mod tests {
         if res.is_ok() {
             panic!("did complete")
         }
+    }
+
+    #[test]
+    fn then_token_pattern_error() {
+        let tokens = lex_string("a [34, 21, []").unwrap();
+
+        let err= Then::<Ident, List>::solve(&tokens).unwrap_err();
+        assert_eq!(err.tokens_before_error(), 9);
     }
 
     #[test]

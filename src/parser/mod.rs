@@ -99,7 +99,7 @@ impl ParseError {
     }
 
     /// Adds `nb_tokens` to the total of tokens consumed before the error occured.
-    pub fn add_tokns_before_error(&mut self, nb_tokens: usize) {
+    pub fn add_tokens_before_error(&mut self, nb_tokens: usize) {
         self.tokens_before_error += nb_tokens;
     }
 }
