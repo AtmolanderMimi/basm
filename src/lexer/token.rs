@@ -85,6 +85,8 @@ pub enum TokenType {
     At,
     /// "#", used to prefix directives.
     Pound,
+    /// "&", used to denote a variable is passed by reference.
+    And,
     /// "=>", used in macro definitions.
     ThickArrow,
     /// ":", delimits the macro expression from it's arguments.
@@ -133,6 +135,7 @@ impl TokenType {
         (",", Self::Comma),
         ("@", Self::At),
         ("#", Self::Pound),
+        ("&", Self::And),
         (";", Self::Semicolon),
         (":", Self::Colon),
         (".", Self::Period),
@@ -171,6 +174,7 @@ impl TokenType {
             Self::Comma => (),
             Self::At => (),
             Self::Pound => (),
+            Self::And => (),
             Self::Semicolon => (),
             Self::Colon => (),
             Self::Period => (),
@@ -211,6 +215,7 @@ impl Display for TokenType {
             Self::Comma => ",",
             Self::At => "@",
             Self::Pound => "#",
+            Self::And => "&",
             Self::Semicolon => ";",
             Self::Colon => ":",
             Self::Period => ".",

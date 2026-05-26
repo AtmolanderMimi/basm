@@ -6,7 +6,7 @@
 
 use either::Either;
 
-use crate::{lexer::token::Token, parser::{LanguageItem, Pattern, PatternResult, expression::Expression, pattern::{Or, TerminatedSeperatedMany, Then}, terminals::{Colon, Comma, Ident, Pound, Semicolon}}, source::SfSlice};
+use crate::{lexer::token::Token, parser::{LanguageItem, Pattern, PatternResult, expression::Expression, pattern::{Maybe, Or, TerminatedSeperatedMany, Then}, terminals::{Colon, Comma, Ident, Pound, Output, Semicolon}}, source::SfSlice};
 
 /// A parsed directive.
 #[derive(Debug, Clone, PartialEq)]
@@ -19,7 +19,7 @@ pub enum Directive {
     },
     InlineMacro {
         macro_expression: Expression,
-        arguments: Option<(Colon, Vec<(Option<Comma>, Expression)>)>,
+        arguments: Option<(Colon, Vec<(Option<Comma>, Option<Output>, Expression)>)>,
         semicolon: Semicolon,
     }
 }
@@ -50,7 +50,7 @@ impl LanguageItem for Directive {
 impl Pattern for Directive {
     fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult> {
         type GenericPattern = Then<Ident, TerminatedSeperatedMany<Expression, Comma, Semicolon>>;
-        type InlineMacro = Then<Expression, Or<Then<Colon, TerminatedSeperatedMany<Expression, Comma, Semicolon>>, Semicolon>>;
+        type InlineMacro = Then<Expression, Or<Then<Colon, TerminatedSeperatedMany<Then<Maybe<Output>, Expression>, Comma, Semicolon>>, Semicolon>>;
 
         let (tokens_consumed, directive) = if let Ok((pound_token_consumed, pound)) = Pound::solve(tokens) {
             let res = GenericPattern::solve(&tokens[pound_token_consumed..])?;
@@ -65,11 +65,18 @@ impl Pattern for Directive {
         } else {
             let res = InlineMacro::solve(&tokens)?;
             let dir = match res.1.1 {
-                Either::Left((colon, (arguments, semicolon))) => Directive::InlineMacro {
-                    macro_expression: res.1.0,
-                    arguments: Some((colon, arguments)),
-                    semicolon,
-                },
+                
+                Either::Left((colon, (arguments, semicolon))) => {
+                    // flattens the tuple, sucks that this must create a new vector
+                    let arguments = arguments.into_iter()
+                        .map(|(comma, (refe, ident))| (comma, refe, ident))
+                        .collect();
+                    Directive::InlineMacro {
+                        macro_expression: res.1.0,
+                        arguments: Some((colon, arguments)),
+                        semicolon,
+                    }
+                }
                 Either::Right(semicolon) => Directive::InlineMacro {
                     macro_expression: res.1.0,
                     arguments: None,
@@ -163,6 +170,18 @@ mod tests {
     #[test]
     fn inline_directive_with_arguments() {
         let tokens = lex_string("Macro: arg1, [\"arg2\"], [] => {};").unwrap();
+
+        let (tokens_consumed, directive) = Directive::solve(&tokens).unwrap();
+        assert_eq!(tokens_consumed, tokens.len()-1);
+        assert_matches!(
+            directive,
+            Directive::InlineMacro { .. }
+        );
+    }
+
+    #[test]
+    fn inline_directive_with_reference() {
+        let tokens = lex_string("Macro: &arg1, &arg2@[1,2,3];").unwrap();
 
         let (tokens_consumed, directive) = Directive::solve(&tokens).unwrap();
         assert_eq!(tokens_consumed, tokens.len()-1);

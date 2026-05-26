@@ -1,6 +1,6 @@
 //! Defines a macro.
 
-use crate::{impl_language_item, lexer::token::Token, parser::{LanguageItem, Pattern, PatternResult, directive::Directive, pattern::{Maybe, TerminatedMany, TerminatedSeperatedMany, Then}, terminals::{Comma, Ident, LeftCurly, LeftSquare, RightCurly, RightSquare, ThickArrow}}, source::SfSlice};
+use crate::{impl_language_item, lexer::token::Token, parser::{LanguageItem, Pattern, PatternResult, directive::Directive, pattern::{Maybe, TerminatedMany, TerminatedSeperatedMany, Then}, terminals::{Comma, Ident, LeftCurly, LeftSquare, Output, RightCurly, RightSquare, ThickArrow}}, source::SfSlice};
 
 /// A macro literal.
 #[derive(Debug, Clone, PartialEq)]
@@ -47,7 +47,7 @@ impl Pattern for Macro {
 #[derive(Debug, Clone, PartialEq)]
 pub struct MacroArguments {
     pub opening_bracket: LeftSquare,
-    pub arguments: Vec<(Option<Comma>, Ident)>,
+    pub arguments: Vec<(Option<Comma>, Option<Output>, Ident)>,
     pub closing_bracket: RightSquare,
 }
 
@@ -59,15 +59,19 @@ impl Pattern for MacroArguments {
         Then::<
             LeftSquare,
             TerminatedSeperatedMany<
-                Ident,
+                Then<Maybe<Output>, Ident>,
                 Comma,
                 RightSquare
             >
         >::solve(tokens)?;
 
+        // flattens the tuple
+        let arguments = res.1.1.0.into_iter()
+            .map(|(comma, (refe, ident))| (comma, refe, ident))
+            .collect();
         let arguments = MacroArguments {
             opening_bracket: res.1.0,
-            arguments: res.1.1.0,
+            arguments,
             closing_bracket: res.1.1.1,
         };
 
@@ -152,6 +156,23 @@ use super::*;
         let arguments = macr.arguments.unwrap().0.arguments;
         assert_eq!(tokens_consumed, tokens.len()-1);
         assert_eq!(arguments.len(), 3);
+        assert_eq!(macr.body.directives.len(), 3);
+    }
+
+    #[test]
+    fn macro_parse_output_argument() {
+        let tokens = lex_string("
+        [&arg1] => {
+            #directive_name arg1, [34, \"hello\"];
+            #if '*' == 42, { InAnotherMacro; };
+            Macro: &arg1;
+        }
+        ").unwrap();
+
+        let (tokens_consumed, macr) = Macro::solve(&tokens).unwrap();
+        let arguments = macr.arguments.unwrap().0.arguments;
+        assert_eq!(tokens_consumed, tokens.len()-1);
+        assert_eq!(arguments.len(), 1);
         assert_eq!(macr.body.directives.len(), 3);
     }
 
