@@ -3,6 +3,7 @@
 
 mod value;
 mod scope;
+mod operators;
 mod expression;
 
 use thiserror::Error;
@@ -25,7 +26,6 @@ pub enum CompilerError {
 }
 
 impl CompilerErrorTrait for CompilerError {
-
 }
 
 /// Compiles the file (and any other files that the given file may import).

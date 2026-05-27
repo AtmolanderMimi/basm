@@ -7,3 +7,16 @@ pub enum Value {
     List(Vec<Value>),
     Macro() // TODO macro goes here
 }
+
+impl Value {
+    pub const TRUE: Value = Value::Number(1);
+    pub const FALSE: Value = Value::Number(0);
+
+    pub fn type_name(&self) -> &'static str {
+        match self {
+            Self::Number(_) => "number",
+            Self::List(_) => "list",
+            Self::Macro(..) => "macro",
+        }
+    }
+}
