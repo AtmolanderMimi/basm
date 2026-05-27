@@ -6,16 +6,23 @@
 
 mod components;
 mod terminals;
+pub use terminals::*;
 mod operators;
+pub use operators::*;
 mod list;
+pub use list::*;
 mod directive;
+pub use directive::*;
 mod r#macro;
+pub use r#macro::*;
 mod expression;
+pub use expression::*;
 mod file;
+pub use file::*;
 
 use thiserror::Error;
 
-use crate::{CompilerError, Lint, lexer::token::Token, parser::{expression::ExpressionItem, file::ParsedFile}, source::SfSlice};
+use crate::{CompilerError, Lint, lexer::token::Token, source::SfSlice};
 
 /// Return type of trying to solve for a pattern.
 /// The `Ok` variant contains the number of tokens taken to solve the pattern (the `usize`)

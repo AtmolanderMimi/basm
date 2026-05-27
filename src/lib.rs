@@ -4,6 +4,7 @@
 
 #![feature(associated_type_defaults)]
 #![feature(vec_try_remove)]
+#![feature(macro_metavar_expr_concat)]
 
 #![warn(missing_docs)]
 #![warn(clippy::pedantic)]
@@ -34,6 +35,7 @@ pub mod clap_cli;
 pub use clap_cli::CliCommand;
 mod optimiser;
 pub use optimiser::optimise;
+pub mod compiler;
 
 /// Transpiles bfu source code into bf.
 pub fn transpile<'a>(sf: &'static SourceFile) -> Result<String, Vec<Box<dyn CompilerError + 'a>>> {
@@ -52,14 +54,12 @@ pub fn transpile<'a>(sf: &'static SourceFile) -> Result<String, Vec<Box<dyn Comp
         Err(e) => return Err(vec![Box::new(e)]),
     };
 
-    //let program = match compiler::compile(&program) {
-    //    Ok(p) => p,
-    //    Err(e) => return Err(vec![Box::new(e)])
-    //};
-    //
-    //Ok(program)
-
-    todo!()
+    let program = match compiler::compile(&file) {
+       Ok(p) => p,
+       Err(e) => return Err(vec![Box::new(e)])
+    };
+    
+    Ok(program)
 }
 
 #[cfg(test)]
