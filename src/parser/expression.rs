@@ -2,7 +2,7 @@
 
 use either::Either;
 
-use crate::{lexer::token::Token, parser::{LanguageItem, ParseError, ParseErrorVariant, Pattern, PatternResult, list::List, r#macro::Macro, operators::{self, BinaryOperator, NB_PRECEDENCE_LEVELS, Operator}, pattern::{Not, OneOrMore, Or, Then}, terminals::{CharLit, Ident, LeftParen, NumLit, RightParen, StrLit, ThickArrow}}, source::SfSlice};
+use crate::{lexer::token::Token, parser::{LanguageItem, ParseError, ParseErrorVariant, Pattern, PatternResult, list::List, r#macro::Macro, operators::{BinaryOperator, NB_PRECEDENCE_LEVELS, Operator, UnaryOperator}, pattern::{Not, OneOrMore, Or, Then}, terminals::{CharLit, Ident, LeftParen, NumLit, RightParen, StrLit, ThickArrow}}, source::SfSlice};
 
 //// An expression. An expression is formed from one or more [ExpressionItem] being merged.
 #[derive(Debug, Clone, PartialEq)]
@@ -34,8 +34,6 @@ impl Expression {
             .collect::<Vec<_>>();
 
         for current_precedence in (0..NB_PRECEDENCE_LEVELS).rev() {
-            let is_right_associative = operators::RIGHT_ASSOCIATIVE_LEVELS.contains(&current_precedence);
-
             // Links sub_exprs in a tree fashion for all the operators in the precedence level
             loop {
                 // -- finds an operator to link
@@ -50,11 +48,9 @@ impl Expression {
                     has_correct_precedence && has_not_been_linked
                 };
 
-                let maybe_operator_index = if is_right_associative {
-                    sub_exprs.iter().enumerate().rfind(predicate).map(|(i, _)| i)
-                } else {
-                    sub_exprs.iter().enumerate().find(predicate).map(|(i, _)| i)
-                };
+                let maybe_operator_index = sub_exprs.iter()
+                    .enumerate()
+                    .find(predicate).map(|(i, _)| i);
 
                 let Some(operator_index) = maybe_operator_index else {
                     // there are no more unmatched operators in the precedence level
@@ -62,10 +58,10 @@ impl Expression {
                 };
 
                 // -- link the operator
-                match sub_exprs[operator_index].node {
+                match &sub_exprs[operator_index].node {
                     ExpressionItem::BinaryOperator(_) => {
                         // TODO: usize::MAX hack
-                        let Some(item_after) = sub_exprs.try_remove(operator_index.checked_add(1).unwrap_or(usize::MAX)) else {
+                        let Some(item_after) = sub_exprs.try_remove(operator_index + 1) else {
                             return Err(ParseError::new_unparsed_expression(tokens_consumed, items.to_vec()));
                         };
                         let Some(item_before) = sub_exprs.try_remove(operator_index.checked_sub(1).unwrap_or(usize::MAX)) else {
@@ -74,6 +70,23 @@ impl Expression {
 
                         let operator = &mut sub_exprs[operator_index-1];
                         operator.children = vec![item_before, item_after];
+                    },
+                    ExpressionItem::UnaryOperator(op) if op.is_right_associative() => {
+                        let Some(item_after) = sub_exprs.try_remove(operator_index + 1) else {
+                            return Err(ParseError::new_unparsed_expression(tokens_consumed, items.to_vec()));
+                        };
+
+                        let operator = &mut sub_exprs[operator_index];
+                        operator.children = vec![item_after];
+                    },
+                    ExpressionItem::UnaryOperator(op) if !op.is_right_associative() => {
+                        // TODO: usize::MAX hack
+                        let Some(item_before) = sub_exprs.try_remove(operator_index.checked_sub(1).unwrap_or(usize::MAX)) else {
+                            return Err(ParseError::new_unparsed_expression(tokens_consumed, items.to_vec()));
+                        };
+
+                        let operator = &mut sub_exprs[operator_index-1];
+                        operator.children = vec![item_before];
                     },
                     _ => unimplemented!("an item with precedence that is not a binary operator"),
                 }
@@ -137,16 +150,16 @@ pub enum ExpressionItem {
     Macro(Macro),
     List(List),
     BinaryOperator(BinaryOperator),
-    // ... unary operators will go here if added
+    UnaryOperator(UnaryOperator),
 }
 
 impl ExpressionItem {
     /// Returns the precedence of the item, if it has any
     pub fn precedence(&self) -> Option<u32> {
-        if let Self::BinaryOperator(op) = self {
-            Some(op.precedence())
-        } else {
-            None
+        match self {
+            Self::BinaryOperator(op) => Some(op.precedence()),
+            Self::UnaryOperator(op) => Some(op.precedence()),
+            _ => None,
         }
     }
 }
@@ -169,6 +182,7 @@ impl LanguageItem for ExpressionItem {
             Self::List(t) => t.slice(),
             Self::Macro(t) => t.slice(),
             Self::BinaryOperator(t) => t.slice(),
+            Self::UnaryOperator(t) => t.slice(),
         }
     }
 }
@@ -181,9 +195,6 @@ macro_rules! try_expression_item_next {
 }
 
 impl Pattern for ExpressionItem {
-    // TODO: same thing as the solver for binary expressions,
-    // to replace
-
     // The order of these if statements has an impact on which item has priority
     fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult> {
         type ParenGroupPattern = Then<LeftParen, Then<Expression, RightParen>>;
@@ -196,7 +207,9 @@ impl Pattern for ExpressionItem {
         StrLit, Or<
         Macro, Or<
         Then<List, Not<ThickArrow>>,
-        BinaryOperator>>>>>>>;
+        Or<BinaryOperator,
+        UnaryOperator,
+        >>>>>>>>;
 
         let res = ExpressionItemPattern::solve(tokens);
         let res = if let Err(ParseError { tokens_before_error, variant: ParseErrorVariant::UnexpectedTokenError{ got, ..} }) = res {
@@ -220,7 +233,9 @@ impl Pattern for ExpressionItem {
         }
         let parsed = parsed.unwrap_right();
 
-        return Ok((res.0, ExpressionItem::BinaryOperator(parsed)));
+        try_expression_item_next!(parsed, res.0, BinaryOperator);
+
+        return Ok((res.0, ExpressionItem::UnaryOperator(parsed)));
     }
 
     fn name() -> String { "expression item".to_string() }
@@ -416,5 +431,47 @@ mod tests {
             item,
             ExpressionItem::Macro(_),
         )
+    }
+
+    #[test]
+    fn expression_unary_operator_parses() {
+        let tokens = lex_string("!my_var").unwrap();
+
+        let (_, item) = Expression::solve(&tokens).unwrap();
+        assert_matches!(
+            item.node,
+            ExpressionItem::UnaryOperator(UnaryOperator::LogicalNot(_)),
+        );
+        assert_matches!(
+            item.children[0].node,
+            ExpressionItem::Ident(_),
+        );
+    }
+
+    #[test]
+    fn expression_unary_operator_respects_precedence() {
+        let tokens = lex_string("1 && !my_var@[1,2]").unwrap();
+        let (tokens_consumed, expression) = Expression::solve(&tokens).unwrap();
+        assert_eq!(tokens_consumed, tokens.len()-1);
+
+        assert_matches!(
+            expression.node,
+            ExpressionItem::BinaryOperator(BinaryOperator::LogicalAnd(_))
+        );
+
+        assert_matches!(
+            expression.children[0].node,
+            ExpressionItem::NumLit(_)
+        );
+        
+        assert_matches!(
+            expression.children[1].node,
+            ExpressionItem::UnaryOperator(UnaryOperator::LogicalNot(_)),
+        );
+
+        assert_matches!(
+            expression.children[1].children[0].node,
+            ExpressionItem::BinaryOperator(BinaryOperator::Index(_)),
+        );
     }
 }

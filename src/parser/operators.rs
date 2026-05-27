@@ -6,20 +6,23 @@
 //! "==", "!=",            => 3
 //! "+", "-"               => 4
 //! "*", "/", "%"          => 5
-//! "!"                    => 6 // TODO: implement "!"
+//! "!"                    => 6
 //! "@",                   => 7
 //! "."                    => 8
 
-use crate::{lexer::token::Token, parser::{LanguageItem, ParseError, Pattern, PatternResult, terminals::{At, Divide, GreaterThan, GreaterThanEqual, LessThan, LessThanEqual, LogicalAnd, LogicalEqual, LogicalInequal, LogicalOr, Minus, Modulo, Multiply, Period, Plus}}};
+use crate::{lexer::token::Token, parser::{LanguageItem, ParseError, Pattern, PatternResult, terminals::{At, Divide, GreaterThan, GreaterThanEqual, LessThan, LessThanEqual, LogicalAnd, LogicalEqual, LogicalInequal, LogicalNot, LogicalOr, Minus, Modulo, Multiply, Period, Plus}}};
 
 /// The number of precedence levels for all operators
 pub const NB_PRECEDENCE_LEVELS: u32 = 9;
-/// The precedence levels which are right associative
-pub const RIGHT_ASSOCIATIVE_LEVELS: &[u32] = &[];
 
 pub trait Operator {
     /// The order the operations should be merged in (higher = earlier)
     fn precedence(&self) -> u32;
+
+    /// Wheter the operator is right associative.
+    fn is_right_associative(&self) -> bool {
+        false
+    }
 }
 
 /// An operator with two operands on both of it's sides
@@ -132,4 +135,44 @@ impl Pattern for BinaryOperator {
     }
 
     fn name() -> String { "binaryop".to_string() }
+}
+
+/// An operator with with one operand, either on it's left or right
+#[derive(Debug, Clone, PartialEq)]
+pub enum UnaryOperator {
+    LogicalNot(LogicalNot),
+}
+
+impl LanguageItem for UnaryOperator {
+    fn slice(&self) -> crate::source::SfSlice {
+        match self {
+            Self::LogicalNot(t) => t.slice(),
+        }
+    }
+}
+
+impl Operator for UnaryOperator {
+    fn precedence(&self) -> u32 {
+        match self {
+            Self::LogicalNot(_) => 6,
+        }
+    }
+
+    fn is_right_associative(&self) -> bool {
+        match self {
+            Self::LogicalNot(_) => true,
+        }
+    }
+}
+
+impl Pattern for UnaryOperator {
+    fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult> {
+        let res = LogicalNot::solve(&tokens)?;
+        
+        let operator = UnaryOperator::LogicalNot(res.1);
+
+        Ok((res.0, operator))
+    }
+
+    fn name() -> String { "unaryop".to_string() }
 }
