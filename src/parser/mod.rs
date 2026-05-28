@@ -38,6 +38,16 @@ pub trait Pattern where Self: Sized {
 
     /// The name of the pattern, used for errors
     fn name() -> String;
+
+    /// Lexes and then parses the string.
+    /// 
+    /// # Panics
+    /// Panics if the lexing fails.
+    #[cfg(test)]
+    fn solve_str(string: &str) -> Result<Self::ParseResult, ParseError> {
+        Self::solve(&crate::lexer::lex_string(string).unwrap())
+            .map(|ok| ok.1)
+    }
 }
 
 /// Error happening during the parsing process when an unexpected token is encontered.

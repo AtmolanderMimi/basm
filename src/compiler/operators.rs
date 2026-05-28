@@ -328,6 +328,12 @@ impl BinaryOperator {
 }
 
 impl UnaryOperator {
+    pub fn evaluate(&self, arg: Value) -> Result<Value, OperationError> {
+        match self.0 {
+            ParsedUnaryOperator::LogicalNot(_) => Self::not(arg),
+        }
+    }
+
     fn not(value: Value) -> Result<Value, OperationError> {
         let value_type = value.type_name().to_string();
 

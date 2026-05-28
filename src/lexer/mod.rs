@@ -267,4 +267,34 @@ mod tests {
         let tokens = lex_string("1 * 2 / 3").unwrap();
         assert_eq!(tokens.len(), 6);
     }
+
+        #[test]
+    fn lex_unicode_char() {
+        let tokens = lex_string("'↑'").unwrap();
+
+        assert_eq!(tokens.len(), 2);
+        assert_eq!(tokens[0].t_type, TokenType::CharLit);
+    }
+
+    #[test]
+    fn lex_arbitrary_escape_sequence_in_char() {
+        let tokens = lex_string("'\\3'").unwrap();
+
+        assert_eq!(tokens.len(), 2);
+        assert_eq!(tokens[0].t_type, TokenType::CharLit);
+    }
+
+    #[test]
+    fn lex_logical_not() {
+        let tokens = lex_string("!(5 == 4 || 0 == 0)").unwrap();
+        
+        assert_eq!(tokens.len(), 11);
+    }
+
+    #[test]
+    fn lex_reference() {
+        let tokens = lex_string("&ident").unwrap();
+        
+        assert_eq!(tokens.len(), 2);
+    }
 }

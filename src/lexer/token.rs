@@ -352,7 +352,7 @@ impl<'a> Token {
                     .expect("byte slice should not be oob");
                 return Err(LiteralError::EmptyChar(error_slice));
             }
-            if char_content.len() >= 2 {
+            if char_content.chars().count() > 2 {
                 let err_slice = sf_slice.slice(trim_str_range)
                         .unwrap();
                 return Err(LiteralError::TooFullChar(err_slice))
