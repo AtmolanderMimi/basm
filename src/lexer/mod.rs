@@ -79,7 +79,9 @@ impl Lexer {
 
             self.range.start = non_lit.slice.end();
 
-            if let Some(lit) = Token::parse_token_lit(&possibly_lit_slice)? {
+            if let Some(occluded_non_lit) = Token::parse_token_non_lit_ambiguous(&possibly_lit_slice) {
+                self.tokens.push(occluded_non_lit);
+            } else if let Some(lit) = Token::parse_token_lit(&possibly_lit_slice)? {
                 self.tokens.push(lit);
             }
 
@@ -286,15 +288,17 @@ mod tests {
 
     #[test]
     fn lex_logical_not() {
-        let tokens = lex_string("!(5 == 4 || 0 == 0)").unwrap();
+        let tokens = lex_string(" 4 &&     \n!(5 == 4 || 0 == 0)").unwrap();
         
-        assert_eq!(tokens.len(), 11);
+        assert_eq!(tokens.len(), 13);
+        assert_matches!(&tokens[2], Token { t_type: TokenType::ExclamationMark, .. });
+        assert_eq!(tokens[2].range(), (11 as usize)..(12 as usize));
     }
 
     #[test]
     fn lex_reference() {
         let tokens = lex_string("&ident").unwrap();
         
-        assert_eq!(tokens.len(), 2);
+        assert_eq!(tokens.len(), 3);
     }
 }

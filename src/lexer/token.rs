@@ -239,6 +239,15 @@ impl<'a> Token {
     /// Returns a [`Token`] and it's position in the string, **EXCEPT FOR IDENTS/LITS**
     /// The token's range postion is absolute.
     pub fn parse_token_non_lit(sf_slice: &SfSlice) -> Option<Token> {
+        Self::parse_token_non_lit_inner(sf_slice, false)
+    }
+
+    /// Same as [Self::parse_token_non_lit], but accepts ambiguous tokens.
+    pub fn parse_token_non_lit_ambiguous(sf_slice: &SfSlice) -> Option<Token> {
+        Self::parse_token_non_lit_inner(sf_slice, true)
+    }
+    
+    fn parse_token_non_lit_inner(sf_slice: &SfSlice, accept_ambiguous: bool) -> Option<Token> {
         let slice = sf_slice.inner_slice();
         let trim_slice = slice.trim();
 
@@ -247,6 +256,17 @@ impl<'a> Token {
         let in_char = slice.chars().filter(|c| *c == '\'').count() % 2 == 1 || trim_slice.ends_with('\'');
         if in_string || in_char {
             return None;
+        }
+
+        // this is a cheat
+        if accept_ambiguous {
+            let t_type = TokenType::MAPPING.iter().find(|m| m.0 == trim_slice)
+                .map(|(_, t_type)| t_type.clone())?;
+
+            let offset = slice.find(trim_slice).unwrap();
+            let token = Token::new(t_type, sf_slice.slice(offset..(offset+trim_slice.len())).unwrap());
+
+            return Some(token);
         }
 
         let mut matches = vec![];
