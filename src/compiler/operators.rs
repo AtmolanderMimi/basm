@@ -32,10 +32,6 @@ pub enum OperationError {
     }
 }
 
-/// A binary operator. Wrapper type over [crate::parser::BinaryOperator].
-#[derive(Debug, Clone, PartialEq)]
-pub struct BinaryOperator(ParsedBinaryOperator);
-
 impl BinaryOperator {
     pub fn evaluate(&self, lhs: Value, rhs: Value) -> Result<Value, OperationError> {
         match self.0 {
@@ -330,10 +326,6 @@ impl BinaryOperator {
         unimplemented!("add properties")
     }
 }
-
-/// A unary operator. Wrapper type over [crate::parser::UnaryOperator].
-#[derive(Debug, Clone, PartialEq)]
-pub struct UnaryOperator(ParsedUnaryOperator);
 
 impl UnaryOperator {
     fn not(value: Value) -> Result<Value, OperationError> {

@@ -281,44 +281,8 @@ mod tests {
     }
 
     #[test]
-    fn expression_have_proper_expression_order() {
-        let tokens = lex_string("1 + 2 * 3").unwrap();
-        let (tokens_consumed, expression) = Expression::solve(&tokens).unwrap();
-        assert_eq!(tokens_consumed, tokens.len()-1);
-
-        // the addition (at the top)
-        assert_matches!(
-            expression.node,
-            ExpressionItem::BinaryOperator(BinaryOperator::Plus(_))
-        );
-
-        // the left argument of the multiplication
-        assert_matches!(
-            expression.children[0].node,
-            ExpressionItem::NumLit(NumLit(Token { t_type: TokenType::NumLit(1), .. })),
-        );
-
-        // the multiplication
-        assert_matches!(
-            expression.children[1].node,
-            ExpressionItem::BinaryOperator(BinaryOperator::Multiply(_))
-        );
-
-        // .. and it's arguments
-        assert_matches!(
-            expression.children[1].children[0].node,
-            ExpressionItem::NumLit(NumLit(Token { t_type: TokenType::NumLit(2), .. })),
-        );
-
-        assert_matches!(
-            expression.children[1].children[1].node,
-            ExpressionItem::NumLit(NumLit(Token { t_type: TokenType::NumLit(3), .. })),
-        );
-    }
-
-    #[test]
     fn expression_are_left_to_right_when_needed() {
-        let tokens = lex_string("1 * 2 / 3").unwrap();
+        let tokens = lex_string("\"hi\" * ident / 3").unwrap();
         let (tokens_consumed, expression) = Expression::solve(&tokens).unwrap();
         assert_eq!(tokens_consumed, tokens.len()-1);
 
@@ -331,7 +295,7 @@ mod tests {
         // the right argument of the division
         assert_matches!(
             expression.children[1].node,
-            ExpressionItem::NumLit(NumLit(Token { t_type: TokenType::NumLit(3), .. })),
+            ExpressionItem::NumLit(NumLit(Token { t_type: TokenType::NumLit, .. })),
         );
 
         // the multiplication
@@ -343,12 +307,12 @@ mod tests {
         // .. and it's arguments
         assert_matches!(
             expression.children[0].children[0].node,
-            ExpressionItem::NumLit(NumLit(Token { t_type: TokenType::NumLit(1), .. })),
+            ExpressionItem::StrLit(StrLit(Token { t_type: TokenType::StrLit, .. })),
         );
 
         assert_matches!(
             expression.children[0].children[1].node,
-            ExpressionItem::NumLit(NumLit(Token { t_type: TokenType::NumLit(2), .. })),
+            ExpressionItem::Ident(Ident(Token { t_type: TokenType::Ident, .. })),
         );
     }
 

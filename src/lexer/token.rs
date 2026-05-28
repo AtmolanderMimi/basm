@@ -34,11 +34,11 @@ impl Token {
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
     /// "72", an Num literal.
-    NumLit(u32),
+    NumLit,
     /// '"Hello, World"', a Str literal.
-    StrLit(String),
+    StrLit,
     /// "'c'", a Char literal.
-    CharLit(char),
+    CharLit,
     /// "+", used to offset values.
     Plus,
     /// "-", used to offset values.
@@ -101,7 +101,7 @@ pub enum TokenType {
     LineComment,
     /// Any alphanumeric squence that starts with a letter and
     /// is not any other token.
-    Ident(String),
+    Ident,
     /// End of file identificator. Signifies the end of the token string.
     Eof,
 }
@@ -148,9 +148,9 @@ impl TokenType {
     fn _exhaustive(&self) {
         #[allow(clippy::pedantic)]
         match self {
-            Self::NumLit(_) => (),
-            Self::StrLit(_) => (),
-            Self::CharLit(_) => (),
+            Self::NumLit => (),
+            Self::StrLit => (),
+            Self::CharLit => (),
             Self::Plus => (),
             Self::Minus => (),
             Self::Star => (),
@@ -180,7 +180,7 @@ impl TokenType {
             Self::Period => (),
             Self::ThickArrow => (),
             Self::LineComment => (),
-            Self::Ident(_) => (),
+            Self::Ident => (),
             Self::Eof => (),
         }
     }
@@ -189,9 +189,9 @@ impl TokenType {
 impl Display for TokenType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let name = match self {
-            Self::NumLit(_) => "numlit",
-            Self::StrLit(_) => "strlit",
-            Self::CharLit(_) => "charlit",
+            Self::NumLit => "numlit",
+            Self::StrLit => "strlit",
+            Self::CharLit => "charlit",
             Self::Plus => "+",
             Self::Minus => "-",
             Self::Star => "*",
@@ -221,7 +221,7 @@ impl Display for TokenType {
             Self::Period => ".",
             Self::ThickArrow => "=>",
             Self::LineComment => "//",
-            Self::Ident(_) => "ident",
+            Self::Ident => "ident",
             Self::Eof => "eof",
         };
 
@@ -338,11 +338,8 @@ impl<'a> Token {
         // Str
         let trim_str_range = trim_str_start..(trim_str_start+trim_str.len());
         if trim_str.starts_with('\"') && trim_str.ends_with('\"') {
-            let string_contents = trim_str.replace('\"', "");
-            let string_contents = string_contents.replace("\\n", "\n");
-
             let slice = sf_slice.slice(trim_str_range).unwrap();
-            return Ok(Some(Token::new(TokenType::StrLit(string_contents.to_string()), slice)));
+            return Ok(Some(Token::new(TokenType::StrLit, slice)));
         }
 
         // Char
@@ -361,14 +358,13 @@ impl<'a> Token {
                 return Err(LiteralError::TooFullChar(err_slice))
             }
 
-            let ch = char_content.chars().next()
-                .expect("the checks should have caught that we have at least one char");
             let slice = sf_slice.slice(trim_str_range)
                 .unwrap();
-            return Ok(Some(Token::new(TokenType::CharLit(ch), slice)));
+            return Ok(Some(Token::new(TokenType::CharLit, slice)));
         }
 
         // Num
+        // FIXME: can probably rework this fairly easily so that it accepts i32 instead of u32
         if trim_str.is_numeric() {
             let res = trim_str.parse::<u32>();
 
@@ -387,7 +383,7 @@ impl<'a> Token {
             };
 
             return Ok(Some(Token::new(
-                TokenType::NumLit(num),
+                TokenType::NumLit,
                 sf_slice.slice(trim_str_range).unwrap(),
             )));
         }
@@ -396,7 +392,7 @@ impl<'a> Token {
         let trim_str_without_under = trim_str.replace('_', "");
         if trim_str_without_under.is_alphanumeric() {
             return Ok(Some(Token::new(
-                TokenType::Ident(trim_str.to_string()),
+                TokenType::Ident,
                 sf_slice.slice(trim_str_range).unwrap(),
             )));
         }
@@ -530,17 +526,17 @@ mod tests {
     fn parse_token_lit_str() {
         lit_match_range(
             Token::parse_token_lit(&sfs("\n\"Hello, World!\"")),
-            TokenType::StrLit("Hello, World!".to_string()),
+            TokenType::StrLit,
             1..16
         );
         lit_match_range(
             Token::parse_token_lit(&sfs(" \"\"")),
-            TokenType::StrLit("".to_string()),
+            TokenType::StrLit,
             1..3
         );
         lit_match_range(
             Token::parse_token_lit(&sfs("\"Sfdsfa339472evm weoi 03d \"")),
-            TokenType::StrLit("Sfdsfa339472evm weoi 03d ".to_string()),
+            TokenType::StrLit,
             0..27
         );
     }
@@ -549,7 +545,7 @@ mod tests {
     fn parse_token_lit_char() {
         lit_match_range(
             Token::parse_token_lit(&sfs("\n'c' ")),
-            TokenType::CharLit('c'),
+            TokenType::CharLit,
             1..4
         );
 
@@ -582,12 +578,12 @@ mod tests {
     fn parse_token_lit_num() {
         lit_match_range(
             Token::parse_token_lit(&sfs("\n72 ")),
-            TokenType::NumLit(72),
+            TokenType::NumLit,
             1..3
         );
         lit_match_range(
             Token::parse_token_lit(&sfs(" 142 \n")),
-            TokenType::NumLit(142),
+            TokenType::NumLit,
             1..4
         );
     }

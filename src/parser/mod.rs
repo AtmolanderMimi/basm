@@ -144,6 +144,12 @@ impl CompilerError for ParseError {
 pub trait LanguageItem {
     /// A slice defining the position of the language item.
     fn slice(&self) -> SfSlice;
+
+    /// A string slice, generated from `slice`
+    fn slice_str(&self) -> &str {
+        let slice = self.slice();
+        slice.inner_slice()
+    }
 }
 
 impl LanguageItem for Token {

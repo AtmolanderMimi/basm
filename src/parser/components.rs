@@ -340,7 +340,7 @@ mod tests {
 
     #[test]
     fn or_token_pattern() {
-        let token = bogus_token(TokenType::Ident("joe".to_string()));
+        let token = bogus_token(TokenType::Ident);
         let tokens = vec![token];
         let res = <Or<Ident, Or<NumLit, CharLit>>>::solve(&tokens);
         if let Ok(_) = res {
@@ -349,7 +349,7 @@ mod tests {
             panic!("should have been valid")
         }
 
-        let token = bogus_token(TokenType::CharLit('c'));
+        let token = bogus_token(TokenType::CharLit);
         let tokens = vec![token];
         let res = <Or<Ident, Or<NumLit, CharLit>>>::solve(&tokens);
         if let Ok(_) = res {
@@ -379,9 +379,9 @@ mod tests {
     #[test]
     fn then_token_pattern() {
         let tokens = vec![
-            bogus_token(TokenType::CharLit('c')),
+            bogus_token(TokenType::CharLit),
             bogus_token(TokenType::Minus),
-            bogus_token(TokenType::Ident("a".to_string())),
+            bogus_token(TokenType::Ident),
         ];
 
         let res = <Then<CharLit, Then<Minus, Ident>>>::solve(&tokens);
@@ -390,8 +390,8 @@ mod tests {
         }
 
         let tokens = vec![
-            bogus_token(TokenType::CharLit('c')),
-            bogus_token(TokenType::Ident("a".to_string())),
+            bogus_token(TokenType::CharLit),
+            bogus_token(TokenType::Ident),
             bogus_token(TokenType::Minus),
         ];
         let res = <Then<CharLit, Then<Minus, Ident>>>::solve(&tokens);
@@ -411,20 +411,20 @@ mod tests {
     #[test]
     fn many_token_pattern() {
         let tokens = vec![
-            bogus_token(TokenType::Ident("tavgha".to_string())),
-            bogus_token(TokenType::Ident("a".to_string())),
+            bogus_token(TokenType::Ident),
+            bogus_token(TokenType::Ident),
             bogus_token(TokenType::Minus),
-            bogus_token(TokenType::Ident("the_secrets_of_732".to_string())),
+            bogus_token(TokenType::Ident),
             bogus_token(TokenType::Eof),
         ];
         let res = <Many<Ident>>::solve(&tokens);
         assert_eq!(res.unwrap().1.len(), 2);
 
         let tokens = vec![
-            bogus_token(TokenType::Ident("tavgha".to_string())),
-            bogus_token(TokenType::Ident("a".to_string())),
+            bogus_token(TokenType::Ident),
+            bogus_token(TokenType::Ident),
             bogus_token(TokenType::Minus),
-            bogus_token(TokenType::Ident("the_secrets_of_732".to_string())),
+            bogus_token(TokenType::Ident),
             bogus_token(TokenType::Eof),
         ];
         let res = <Then<Then<Many<Ident>, Minus>, Many<Ident>>>::solve(&tokens);
@@ -433,8 +433,8 @@ mod tests {
         assert_eq!(res.1.1.len(), 1);
 
         let tokens = vec![
-            bogus_token(TokenType::Ident("tavgha".to_string())),
-            bogus_token(TokenType::Ident("a".to_string())),
+            bogus_token(TokenType::Ident),
+            bogus_token(TokenType::Ident),
             bogus_token(TokenType::Eof),
         ];
         let res = <Then<Many<Ident>, Ident>>::solve(&tokens);

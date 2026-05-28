@@ -41,25 +41,25 @@ macro_rules! single_token_pattern {
 single_token_pattern!(
     Ident,
     "ident",
-    TokenType::Ident(_)
+    TokenType::Ident
 );
 
 single_token_pattern!(
     NumLit,
     "numlit",
-    TokenType::NumLit(_)
+    TokenType::NumLit
 );
 
 single_token_pattern!(
     CharLit,
     "charlit",
-    TokenType::CharLit(_)
+    TokenType::CharLit
 );
 
 single_token_pattern!(
     StrLit,
     "strlit",
-    TokenType::StrLit(_)
+    TokenType::StrLit
 );
 
 single_token_pattern!(

@@ -242,7 +242,7 @@ mod tests {
     fn lexing_just_num() {
         assert_matches!(
             lex_string("3").unwrap()[0].t_type,
-            TokenType::NumLit(_)
+            TokenType::NumLit
         );
     }
 
@@ -258,7 +258,7 @@ mod tests {
     fn lexing_just_ident() {
         assert_matches!(
             lex_string("hello").unwrap()[0].t_type,
-            TokenType::Ident(_)
+            TokenType::Ident
         );
     }
 

@@ -158,7 +158,7 @@ impl SfSlice {
     }
 
     /// Returns the equivalent string slice.
-    pub fn inner_slice(&self) -> &str {
+    pub fn inner_slice(&self) -> &'static str {
         (&self.source.contents).slice(self.range())
             .expect("char_range should always be a valid substring of the source")
     }

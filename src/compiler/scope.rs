@@ -41,17 +41,17 @@ impl<'a, 'b: 'a> Scope<'a, 'b> {
     }
 
     /// Gets the value of a variable,
-    /// returns `Err` if the variable is not declared in this scope.
+    /// returns `None` if the variable is not declared in this scope.
     /// This method will search for the variable in super-scopes if it is not found in the current scope.
-    pub fn get(&self, variable_name: &str) -> Result<Value, ()> {
+    pub fn get(&self, variable_name: &str) -> Option<Value> {
         let local_entry = self.local_variables.get(variable_name);
 
         if let Some(local_entry) = local_entry {
-            Ok(local_entry.clone())
+            Some(local_entry.clone())
         } else {
             self.parent.as_ref()
                 .map(|p| p.get(variable_name))
-                .unwrap_or(Err(()))
+                .unwrap_or(None)
         }
     }
 }
@@ -76,12 +76,12 @@ mod tests {
 
         // declaring in your own scope
         scope.declare("my_var".to_string(), Value::Number(42));
-        assert_eq!(scope.get("my_var"), Ok(Value::Number(42)));
+        assert_eq!(scope.get("my_var"), Some(Value::Number(42)));
 
         // declaring in a sub-scope shadows the variable of super-scopes
         let mut sub_scope = scope.sub_scope();
         sub_scope.declare("my_var".to_string(), Value::Number(732));
-        assert_eq!(sub_scope.get("my_var"), Ok(Value::Number(732)));
+        assert_eq!(sub_scope.get("my_var"), Some(Value::Number(732)));
     }
 
     #[test]
@@ -91,7 +91,7 @@ mod tests {
         scope.declare("my_var".to_string(), Value::Number(42));
         scope.declare("my_var".to_string(), Value::List(Vec::new()));
 
-        assert_eq!(scope.get("my_var"), Ok(Value::List(Vec::new())));
+        assert_eq!(scope.get("my_var"), Some(Value::List(Vec::new())));
     }
 
     #[test]
@@ -109,7 +109,7 @@ mod tests {
         let mut sub_scope = scope.sub_scope();
         sub_scope.set("my_var", Value::Number(732)).unwrap();
 
-        assert_eq!(scope.get("my_var"), Ok(Value::Number(732)));
+        assert_eq!(scope.get("my_var"), Some(Value::Number(732)));
     }
 
     #[test]
@@ -118,7 +118,7 @@ mod tests {
         scope.declare("my_var".to_string(), Value::Number(42));
 
         let sub_scope = scope.sub_scope();
-        assert_eq!(sub_scope.get("not_var"), Err(()));
+        assert_eq!(sub_scope.get("not_var"), None);
     }
 
     #[test]
@@ -127,9 +127,9 @@ mod tests {
         scope.declare("my_var".to_string(), Value::Number(42));
 
         let mut sub_scope = scope.sub_scope();
-        assert_eq!(sub_scope.get("my_var"), Ok(Value::Number(42)));
+        assert_eq!(sub_scope.get("my_var"), Some(Value::Number(42)));
 
         sub_scope.set("my_var", Value::Number(732)).unwrap();
-        assert_eq!(scope.get("my_var"), Ok(Value::Number(732)));
+        assert_eq!(scope.get("my_var"), Some(Value::Number(732)));
     }
 }
