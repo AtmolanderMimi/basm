@@ -23,6 +23,10 @@ pub trait Operator {
     fn is_right_associative(&self) -> bool {
         false
     }
+
+    /// Retruns true if it can modify an emplacement on it's left (first child of an expression).
+    /// (Modifying an emplacement means that it takes an emplacement and returns one).
+    fn modifies_an_emplacement(&self) -> bool;
 }
 
 /// An operator with two operands on both of it's sides
@@ -85,6 +89,14 @@ impl Operator for BinaryOperator {
             | Self::Modulo(_) => 5,
             Self::Index(_) => 7,
             Self::Property(_) => 8,
+        }
+    }
+
+    fn modifies_an_emplacement(&self) -> bool {
+        match self {
+            Self::Index(_)
+            | Self::Property(_) => true,
+            _ => false,
         }
     }
 }
@@ -162,6 +174,10 @@ impl Operator for UnaryOperator {
         match self {
             Self::LogicalNot(_) => true,
         }
+    }
+
+    fn modifies_an_emplacement(&self) -> bool {
+        false
     }
 }
 

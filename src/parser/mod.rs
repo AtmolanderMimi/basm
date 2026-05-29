@@ -17,6 +17,8 @@ mod r#macro;
 pub use r#macro::*;
 mod expression;
 pub use expression::*;
+mod emplacement;
+pub use emplacement::*;
 mod file;
 pub use file::*;
 
@@ -77,6 +79,9 @@ enum ParseErrorVariant {
         /// The items in the expression that could not be parsed
         items: Vec<ExpressionItem>
     },
+    /// When an emplacement is invalid.
+    #[error("emplacement expression does not represent an emplacement")]
+    InvalidEmplacement(EmplacementSubExpression),
     /// When the pattern has no more tokens to read, this should never happen.
     #[error("{0} could not be parsed before running out of tokens")]
     NoMoreTokens(String),
@@ -142,6 +147,7 @@ impl CompilerError for ParseError {
 
                 Lint::new_error_range(items.first()?.slice().source(), start..end)?
             },
+            ParseErrorVariant::InvalidEmplacement(e) => Lint::from_slice_error(e.slice()),
             ParseErrorVariant::NoMoreTokens(_) => return None,
             ParseErrorVariant::UnexpectedPattern(_, slice) => Lint::from_slice_error(slice.clone()),
         };
