@@ -6,10 +6,12 @@ mod scope;
 mod operators;
 mod string_normalizer;
 mod expression;
+mod directive;
 
 use either::Either;
 use thiserror::Error;
 
+use crate::compiler::directive::{Directive, DirectiveInlineError};
 use crate::compiler::expression::Expression;
 use crate::compiler::operators::OperationError;
 use crate::parser::{CharLit, Ident, LanguageItem, ParsedFile, StrLit};
@@ -66,7 +68,12 @@ pub enum CompilerError {
     EscapeSequencesIsInvalid {
         lit: Either<StrLit, CharLit>,
         sequence: String,
-    }
+    },
+    #[error("{inner}")]
+    DirectiveInlineError {
+        directive: Directive,
+        inner: DirectiveInlineError,
+    },
 }
 
 impl CompilerErrorTrait for CompilerError {
@@ -80,6 +87,7 @@ impl CompilerErrorTrait for CompilerError {
             Self::OperationError { expression, .. } => {
                 Lint::from_slice_error(expression.0.slice())
             },
+            Self::DirectiveInlineError { directive, .. } => Lint::from_slice_error(directive.0.slice())
         };
 
         Some(lint)

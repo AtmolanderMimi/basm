@@ -2,20 +2,39 @@
 
 use std::collections::HashMap;
 
+use either::Either;
+
 use crate::compiler::value::Value;
 
-/// The scdope in which variables can be defined.
+/// The main scope (aka the topmost scope) specific data.
+/// It stores data about the program as a whole
+#[derive(Debug, Clone, PartialEq, Default)]
+struct MainScopeData {
+    program_output: String,
+}
+
+/// The scope in which variables can be defined.
 /// This can also be a sub-scope, aka a scope which is an extension of a higher one.
-#[derive(Debug, PartialEq, Default)]
+#[derive(Debug, PartialEq)]
 pub struct Scope<'a, 'b: 'a> {
     local_variables: HashMap<String, Value>,
-    parent: Option<&'a mut Scope<'b, 'b>>,
+    parent: Either<&'a mut Scope<'b, 'b>, MainScopeData>,
 }
 
 impl<'a, 'b: 'a> Scope<'a, 'b> {
     /// Creates a new scope that is not the child of anyone.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Gets a mutable reference to the main scope data.
+    fn main_scope_data_mut(&mut self) -> &mut MainScopeData {
+        self.parent.as_mut().right_or_else(|s| s.main_scope_data_mut())
+    }
+
+    /// Writes output of the program (i.e: the resulting bf).
+    pub fn write_output(&mut self, output: &str) {
+        self.main_scope_data_mut().program_output.push_str(output);
     }
 
     /// Declares a new local variable,
@@ -35,8 +54,8 @@ impl<'a, 'b: 'a> Scope<'a, 'b> {
             Ok(())
         } else {
             self.parent.as_mut()
-                .map(|p| p.set(variable_name, value))
-                .unwrap_or(Err(()))
+                .map_left(|p| p.set(variable_name, value))
+                .left_or(Err(()))
         }
     }
 
@@ -50,8 +69,8 @@ impl<'a, 'b: 'a> Scope<'a, 'b> {
             Some(local_entry.clone())
         } else {
             self.parent.as_ref()
-                .map(|p| p.get(variable_name))
-                .unwrap_or(None)
+                .map_left(|p| p.get(variable_name))
+                .left_or(None)
         }
     }
 }
@@ -60,8 +79,17 @@ impl<'a: 'c, 'c> Scope<'a, 'a> {
     /// Creates a new scope which is the child this one.
     pub fn sub_scope(&'c mut self) -> Scope<'c, 'a> {
         Scope {
-            parent: Some(self),
+            parent: Either::Left(self),
             ..Default::default()
+        }
+    }
+}
+
+impl Default for Scope<'_, '_> {
+    fn default() -> Self {
+        Scope {
+            local_variables: HashMap::default(),
+            parent: Either::Right(MainScopeData::default()),
         }
     }
 }

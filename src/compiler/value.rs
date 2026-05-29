@@ -12,11 +12,15 @@ impl Value {
     pub const TRUE: Value = Value::Number(1);
     pub const FALSE: Value = Value::Number(0);
 
+    pub const NUMBER_TYPE: &'static str = "number";
+    pub const LIST_TYPE: &'static str = "list";
+    pub const MACRO_TYPE: &'static str = "macro";
+
     pub fn type_name(&self) -> &'static str {
         match self {
-            Self::Number(_) => "number",
-            Self::List(_) => "list",
-            Self::Macro(..) => "macro",
+            Self::Number(_) => Value::NUMBER_TYPE,
+            Self::List(_) => Value::LIST_TYPE,
+            Self::Macro(..) => Value::MACRO_TYPE,
         }
     }
 }
