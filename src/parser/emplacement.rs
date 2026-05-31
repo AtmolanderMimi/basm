@@ -45,7 +45,7 @@ impl Pattern for EmplacementExpression {
 /// (an emplacement without the "&").
 #[derive(Debug, Clone, PartialEq)]
 #[repr(transparent)]
-pub struct EmplacementSubExpression(Expression);
+pub struct EmplacementSubExpression(pub Expression);
 
 impl EmplacementSubExpression {
     /// Creates a new EmplacementSubExpression (an emplacement without the "&"),
