@@ -6,12 +6,14 @@ mod scope;
 mod operators;
 mod string_normalizer;
 mod expression;
+mod emplacement;
 mod directive;
 
 use either::Either;
 use thiserror::Error;
 
 use crate::compiler::directive::{Directive, DirectiveInlineError};
+use crate::compiler::emplacement::EmplacementNormalizationError;
 use crate::compiler::expression::Expression;
 use crate::compiler::operators::OperationError;
 use crate::parser::{CharLit, Ident, LanguageItem, ParsedFile, StrLit};
@@ -56,6 +58,11 @@ macro_rules! use_as_parsed {
 #[derive(Debug, Clone, PartialEq, Error)]
 pub enum CompilerError {
     #[error("{inner}")]
+    EmplacementNormalizationError {
+        inner: EmplacementNormalizationError,
+        expression: Expression,
+    },
+    #[error("{inner}")]
     OperationError {
         inner: OperationError,
         expression: Expression,
@@ -79,6 +86,7 @@ pub enum CompilerError {
 impl CompilerErrorTrait for CompilerError {
     fn lint(&self) -> Option<crate::Lint> {
         let lint = match self {
+            Self::EmplacementNormalizationError { expression, .. } => Lint::from_slice_error(expression.0.slice()),
             Self::VariableDoesNotExist { ident } => Lint::from_slice_error(ident.slice()),
             Self::EscapeSequencesIsInvalid { lit, .. } => {
                 let slice = lit.as_ref().either(|s| s.slice(), |c| c.slice());
