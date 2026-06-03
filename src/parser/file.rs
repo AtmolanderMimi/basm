@@ -3,6 +3,7 @@
 use crate::{lexer::token::Token, parser::{Pattern, PatternResult, directive::Directive, pattern::TerminatedMany, terminals::Eof}};
 
 /// A file of basm code.
+#[derive(Debug, PartialEq, Clone)]
 pub struct ParsedFile {
     pub directives: Vec<Directive>,
     pub eof: Eof

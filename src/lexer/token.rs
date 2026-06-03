@@ -252,7 +252,7 @@ impl<'a> Token {
         let trim_slice = slice.trim();
 
         // don't check for tokens if we are in a string
-        let in_string = slice.chars().filter(|c| *c == '"').count() % 2 == 1 || slice.ends_with('"');
+        let in_string = slice.chars().filter(|c| *c == '"').count() % 2 == 1 || trim_slice.ends_with('"');
         let in_char = slice.chars().filter(|c| *c == '\'').count() % 2 == 1 || trim_slice.ends_with('\'');
         if in_string || in_char {
             return None;

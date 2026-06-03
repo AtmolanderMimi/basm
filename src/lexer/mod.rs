@@ -301,4 +301,11 @@ mod tests {
         
         assert_eq!(tokens.len(), 3);
     }
+
+    #[test]
+    fn lex_smallest_program() {
+        let tokens = lex_string(include_str!("../../test-resources/small.basm")).unwrap();
+        dbg!(&tokens);
+        assert_eq!(tokens.len(), 9);
+    }
 }

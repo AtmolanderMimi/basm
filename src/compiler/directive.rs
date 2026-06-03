@@ -170,11 +170,11 @@ mod tests {
 
     #[test]
     fn raw_generic_adds_to_output() {
-        let directive = directive_from_str("#raw \"hi\" + \" :D\";");
+        let directive = directive_from_str("#raw \"hello\" + \", world!\" + \" :D\";");
         let mut scope = Scope::new();
         directive.inline(&mut scope).unwrap();
 
-        assert_eq!(scope.get_output(), "hi :D");
+        assert_eq!(scope.get_output(), "hello, world! :D");
     }
 
     #[test]

@@ -9,7 +9,7 @@
 Incr: Ab, 1;
 WhNe: Aindex, Vnth_number, [] => {
     #decl Atmp, sp;
-    #decl sp sp+1;
+    #decl sp, sp+1;
 
     Incr: Aindex, 1;
     Copy: Aa, Ab, Atmp;

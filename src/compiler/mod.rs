@@ -16,6 +16,8 @@ use thiserror::Error;
 use crate::compiler::directive::{Directive, DirectiveError};
 use crate::compiler::emplacement::EmplacementNormalizationError;
 use crate::compiler::expression::{Expression, ExpressionEvaluationError};
+use crate::compiler::file::File;
+use crate::compiler::scope::Scope;
 use crate::parser::{LanguageItem, ParsedFile};
 use crate::{CompilerError as CompilerErrorTrait, Lint};
 
@@ -28,6 +30,7 @@ macro_rules! newtype_wrapper {
         #[derive(Debug, Clone, PartialEq)]
         pub struct $newtype(pub $inner_type);
 
+        // -- direct value
         // value cast
         impl From<$inner_type> for $newtype {
             fn from(value: $inner_type) -> Self {
@@ -55,16 +58,6 @@ macro_rules! newtype_wrapper {
 #[derive(Debug, Clone, PartialEq, Error)]
 pub enum CompilerError {
     #[error("{inner}")]
-    EmplacementNormalizationError {
-        inner: EmplacementNormalizationError,
-        expression: Expression,
-    },
-    #[error("{inner}")]
-    ExpressionEvaluationError {
-        inner: ExpressionEvaluationError,
-        expression: Expression,
-    },
-    #[error("{inner}")]
     DirectiveError {
         directive: Directive,
         inner: DirectiveError,
@@ -74,10 +67,6 @@ pub enum CompilerError {
 impl CompilerErrorTrait for CompilerError {
     fn lint(&self) -> Option<crate::Lint> {
         let lint = match self {
-            Self::EmplacementNormalizationError { expression, .. } => Lint::from_slice_error(expression.0.slice()),
-            Self::ExpressionEvaluationError { expression, .. } => {
-                Lint::from_slice_error(expression.0.slice())
-            },
             Self::DirectiveError { directive, .. } => Lint::from_slice_error(directive.0.slice())
         };
 
@@ -87,6 +76,27 @@ impl CompilerErrorTrait for CompilerError {
 
 /// Compiles the file (and any other files that the given file may import).
 pub fn compile(program: &ParsedFile) -> Result<String, CompilerError> {
-    todo!()
+    let file: &File = program.into();
+
+    let mut main_scope = Scope::new();
+    file.interpret_directives(&mut main_scope)?;
+
+    Ok(main_scope.get_output().to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::parser::Pattern;
+
+use super::*;
+
+    #[test]
+    fn minimal_program() {
+        let file = ParsedFile::solve_str(include_str!("../../test-resources/small.basm"))
+            .unwrap();
+
+        let output = compile(&file).unwrap();
+        assert_eq!(output, "hello, world! :D");
+    }
 }
 
