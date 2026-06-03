@@ -252,8 +252,8 @@ impl<'a> Token {
         let trim_slice = slice.trim();
 
         // don't check for tokens if we are in a string
-        let in_string = slice.chars().filter(|c| *c == '"').count() % 2 == 1 || trim_slice.ends_with('"');
-        let in_char = slice.chars().filter(|c| *c == '\'').count() % 2 == 1 || trim_slice.ends_with('\'');
+        let in_string = is_in_string(trim_slice) || trim_slice.ends_with('"');
+        let in_char = is_in_char(trim_slice) || trim_slice.ends_with('\'');
         if in_string || in_char {
             return None;
         }
@@ -426,6 +426,53 @@ impl<'a> Token {
         Ok(None)
     }
 }
+
+/// returns true if the slice is within a string (\")
+pub fn is_in_string(string: &str) -> bool {
+    let mut real_quote_count = 0;
+
+    let mut escape_mode = false;
+    for char in string.chars() {
+        if !escape_mode && char == '\\' {
+            escape_mode = true;
+            continue;
+        }
+
+        if !escape_mode && char == '\"' {
+            real_quote_count += 1;
+        }
+
+        if escape_mode {
+            escape_mode = false;
+        }
+    }
+
+    real_quote_count % 2 == 1
+}
+
+/// returns true if the slice is within a string (\')
+pub fn is_in_char(string: &str) -> bool {
+    let mut real_quote_count = 0;
+
+    let mut escape_mode = false;
+    for char in string.chars() {
+        if !escape_mode && char == '\\' {
+            escape_mode = true;
+            continue;
+        }
+
+        if !escape_mode && char == '\'' {
+            real_quote_count += 1;
+        }
+
+        if escape_mode {
+            escape_mode = false;
+        }
+    }
+
+    real_quote_count % 2 == 1
+}
+
 
 #[cfg(test)]
 mod tests {

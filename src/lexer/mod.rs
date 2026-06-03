@@ -11,7 +11,7 @@ use std::{ops::Range, vec::IntoIter};
 use thiserror::Error;
 use token::{Token, TokenType};
 
-use crate::{error::{CompilerError, Lint}, source::{SfSlice, SourceFile}, utils::Sliceable};
+use crate::{error::{CompilerError, Lint}, lexer::token::{is_in_char, is_in_string}, source::{SfSlice, SourceFile}, utils::Sliceable};
 
 struct Lexer {
     range: Range<usize>,
@@ -97,8 +97,8 @@ impl Lexer {
 
         // kind-of a cheat, instead of waiting for a non-lit, if there is a space: check
         let string = sf_slice.inner_slice();
-        let in_string = string.chars().filter(|c| *c == '\"').count() % 2 == 1;
-        let in_char = string.chars().filter(|c| *c == '\'').count() % 2 == 1;
+        let in_string = is_in_string(string);
+        let in_char = is_in_char(string);
         if (string.ends_with(' ') || string.ends_with('\n')) && !(in_string || in_char) {
             if let Some(non_lit) = Token::parse_token_non_lit(&sf_slice) {
                 self.tokens.push(non_lit);
@@ -305,7 +305,13 @@ mod tests {
     #[test]
     fn lex_smallest_program() {
         let tokens = lex_string(include_str!("../../test-resources/small.basm")).unwrap();
-        dbg!(&tokens);
         assert_eq!(tokens.len(), 9);
+    }
+
+    #[test]
+    fn lex_string_with_escape_sequence() {
+        let tokens = lex_string("\"i love the \\\" character, it is my favorite\"").unwrap();
+        dbg!(&tokens);
+        assert_eq!(tokens.len(), 2);
     }
 }
