@@ -2,10 +2,33 @@
 
 use std::mem::transmute;
 
-use crate::{compiler::{CompilerError, operators::{BinaryOperator, UnaryOperator}, scope::Scope, string_normalizer::normalize_string_literal, value::Value}, parser::LanguageItem, use_as_parsed};
+use either::Either;
+use thiserror::Error;
+
+use crate::{compiler::{operators::{BinaryOperator, OperationError, UnaryOperator}, scope::Scope, string_normalizer::normalize_string_literal, value::Value}, parser::{CharLit, Ident, LanguageItem, StrLit}, use_as_parsed};
 
 use_as_parsed!(Expression);
 use_as_parsed!(ExpressionItem);
+
+/// An error occuring during the evaluation of an expression
+#[derive(Debug, Clone, PartialEq, Error)]
+pub enum ExpressionEvaluationError {
+    #[error("variable {} does not exist in the current scope", ident.slice_str())]
+    VariableDoesNotExist {
+        ident: Ident
+    },
+    #[error("{inner}")]
+    OperationError {
+        inner: OperationError,
+        expression: Expression,
+    },
+
+    #[error("escape sequence {sequence} is invalid")]
+    EscapeSequencesIsInvalid {
+        lit: Either<StrLit, CharLit>,
+        sequence: String,
+    },
+}
 
 impl Expression {
     fn node(&self) -> &ExpressionItem {
@@ -17,7 +40,7 @@ impl Expression {
         unsafe { transmute::<&[ParsedExpression], &[Expression]>(&self.0.children) } 
     }
 
-    pub fn evaluate(&self, ctx: &Scope) -> Result<Value, CompilerError> {
+    pub fn evaluate(&self, ctx: &Scope) -> Result<Value, ExpressionEvaluationError> {
         if self.0.is_leaf() {
             let inherent_value = self.node().inherent_value(ctx)?
                 .expect("expession is misconstructed, leaf nodes should always represent a value (i.e: not an operation)");
@@ -34,7 +57,7 @@ impl Expression {
                 let input_values = (children[0].evaluate(ctx)?, children[1].evaluate(ctx)?);
 
                 let value = op.evaluate(input_values.0, input_values.1)
-                    .map_err(|err| CompilerError::OperationError { inner: err, expression: self.clone() })?;
+                    .map_err(|err| ExpressionEvaluationError::OperationError { inner: err, expression: self.clone() })?;
 
                 value
             },
@@ -46,7 +69,7 @@ impl Expression {
                 let input_value = children[0].evaluate(ctx)?;
 
                 let value = op.evaluate(input_value)
-                    .map_err(|err| CompilerError::OperationError { inner: err, expression: self.clone() })?;
+                    .map_err(|err| ExpressionEvaluationError::OperationError { inner: err, expression: self.clone() })?;
 
                 value
             },
@@ -63,7 +86,7 @@ impl ExpressionItem {
     /// (e.g: lists and parenthesis group).
     /// May fail if an variable is not defined in the scope.
     /// (e.g: NumLit() -> Value::Number, StrLit -> Value::List, BinaryOperator -> None)
-    pub fn inherent_value(&self, ctx: &Scope) -> Result<Option<Value>, CompilerError> {
+    pub fn inherent_value(&self, ctx: &Scope) -> Result<Option<Value>, ExpressionEvaluationError> {
         let maybe_value = match &self.0 {
             ParsedExpressionItem::ParenGroup(_, e, _) => {
                 let expression = <&Expression>::from(e.as_ref());
@@ -73,7 +96,7 @@ impl ExpressionItem {
             },
             ParsedExpressionItem::Ident(ident) => {
                 let Some(value) = ctx.get(ident.slice_str()) else {
-                    return Err(CompilerError::VariableDoesNotExist { ident: ident.clone() })
+                    return Err(ExpressionEvaluationError::VariableDoesNotExist { ident: ident.clone() })
                 };
 
                 Some(value)
@@ -188,7 +211,7 @@ mod tests {
         let scope = Scope::new();
 
         let value = expr.evaluate(&scope);
-        assert_matches!(value.unwrap_err(), CompilerError::OperationError { inner: OperationError::InvalidTypeUnary { .. }, .. });
+        assert_matches!(value.unwrap_err(), ExpressionEvaluationError::OperationError { inner: OperationError::InvalidTypeUnary { .. }, .. });
     }
 
     #[test]
@@ -198,7 +221,7 @@ mod tests {
         let scope = Scope::new();
 
         let value = expr.evaluate(&scope);
-        assert_matches!(value.unwrap_err(), CompilerError::OperationError { inner: OperationError::InvalidTypeBinary { .. }, .. });
+        assert_matches!(value.unwrap_err(), ExpressionEvaluationError::OperationError { inner: OperationError::InvalidTypeBinary { .. }, .. });
     }
 
     #[test]
@@ -242,7 +265,7 @@ mod tests {
         scope.declare("my_var".to_string(), Value::Number(23));
 
         let value = ident.inherent_value(&scope);
-        assert_matches!(value.unwrap_err(), CompilerError::VariableDoesNotExist { .. });
+        assert_matches!(value.unwrap_err(), ExpressionEvaluationError::VariableDoesNotExist { .. });
     }
 
     #[test]
@@ -312,7 +335,7 @@ mod tests {
         let scope = Scope::new();
 
         let value = ident.inherent_value(&scope);
-        assert_matches!(value.unwrap_err(), CompilerError::EscapeSequencesIsInvalid { .. });
+        assert_matches!(value.unwrap_err(), ExpressionEvaluationError::EscapeSequencesIsInvalid { .. });
     }
 
     #[test]

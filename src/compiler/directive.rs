@@ -4,95 +4,29 @@ use std::{collections::HashMap, sync::LazyLock};
 
 use thiserror::Error;
 
-use crate::{compiler::{CompilerError, expression::Expression, scope::Scope, value::{Value, ValueType}}, parser::{EmplacementExpression, LanguageItem}, use_as_parsed};
+use crate::{compiler::{argument::{Argument, ArgumentError, ArgumentType, ArgumentValueTypePair}, scope::Scope, value::{Value, ValueType}}, parser::LanguageItem, use_as_parsed};
 
-use_as_parsed!(Argument);
 use_as_parsed!(Directive);
 
 #[derive(Debug, PartialEq, Clone, Error)]
-pub enum DirectiveInlineError {
+pub enum DirectiveError {
     #[error("directive \"{0}\" does not exist")]
-    NameDoesNotExist(String),
-    #[error("expected {expected} arguments, got {got}")]
-    InvalidNumberOfArguments {
+    DirectiveDoesNotExist(String),
+    #[error("{inner}")]
+    ArgumentError {
+        inner: ArgumentError,
+        argument: Argument,
+    },
+    #[error("expected {expected} arguments, got {got} arguments")]
+    InvalidArgumentCount {
         expected: usize,
         got: usize,
-    },
-    #[error("expected argument \"{}\" to be an {}, got {}",
-        argument.0.slice_str(),
-        expected.name(),
-        got.name()
-    )]
-    InvalidArgumentType {
-        argument: Argument,
-        expected: ArgumentType,
-        got: ArgumentType,
-    },
-    #[error("expected argument \"{}\"'s value to be of type {}, got {}",
-        argument.0.slice_str(),
-        expected.name(),
-        got.name()
-    )]
-    InvalidValueType {
-        argument: Argument,
-        expected: ValueType,
-        got: ValueType,
-    },
-}
-
-impl Argument {
-    /// Returns true if the argument is an emplacement
-    pub fn is_emplacement(&self) -> bool {
-        match self.0 {
-            ParsedArgument::EmplacementExpression(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn get_type(&self) -> ArgumentType {
-        match self.0 {
-            ParsedArgument::Expression(_) => ArgumentType::Expression,
-            ParsedArgument::EmplacementExpression(_) => ArgumentType::Emplacement,
-        }
-    }
-
-    /// Gets the expression of a expression argument
-    /// or None if the argument is not an expression
-    pub fn get_as_expression(&self) -> &Expression {
-        match &self.0 {
-            ParsedArgument::Expression(e) => <&Expression>::from(e),
-            ParsedArgument::EmplacementExpression(e) => <&Expression>::from(&e.sub_expression.0),
-        }
-    }
-
-    /// Gets the emplacement of a emplacement argument
-    /// or None if the argument is not an emplacement
-    pub fn get_emplacement(&self) -> Option<&EmplacementExpression> {
-        match &self.0 {
-            ParsedArgument::EmplacementExpression(e) => Some(<&EmplacementExpression>::from(e)),
-            _ => None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum ArgumentType {
-    Expression,
-    Emplacement,
-}
-
-impl ArgumentType {
-    fn name(&self) -> &str {
-        match self {
-            Self::Expression => "expression",
-            Self::Emplacement => "emplacement",
-        }
     }
 }
 
 impl Directive {
     /// Tries to inline the macro, returns an error on failure.
-    pub fn inline(&self, ctx: &mut Scope) -> Result<(), CompilerError> {
+    pub fn inline(&self, ctx: &mut Scope) -> Result<(), DirectiveError> {
         match &self.0 {
             ParsedDirective::Generic { name, .. } => {
                 self.inline_generic(ctx, name.slice_str())
@@ -101,14 +35,38 @@ impl Directive {
         }
     }
 
-    fn inline_generic(&self, ctx: &mut Scope, name: &str) -> Result<(), CompilerError> {
-        let Some(directive_logic) = DIRECTIVES.get(name) else {
-            let inner = DirectiveInlineError::NameDoesNotExist(name.to_string());
-
-            return Err(CompilerError::DirectiveInlineError { directive: self.clone(), inner });
+    fn inline_generic(&self, ctx: &mut Scope, name: &str) -> Result<(), DirectiveError> {
+        let Some(directive_data) = DIRECTIVES.get(name) else {
+            return Err(DirectiveError::DirectiveDoesNotExist(name.to_string()));
         };
 
-        directive_logic.inline(ctx, self)
+        let arguments = self.validated_argument_value(ctx)?;
+
+        (directive_data.function)(ctx, &arguments)
+    }
+
+    /// Returns the list of arguments and their values (or None if the argument is not expected to have a value).
+    /// Returns an error if the arguments to the directive are not what they were expected.
+    fn validated_argument_value(&self, ctx: &mut Scope) -> Result<Vec<(&Argument, Option<Value>)>, DirectiveError> {
+        let actual_arguments = self.arguments();
+        let expected_argument_types = self.expected_argument_value_type_pair()?;
+
+        if actual_arguments.len() != expected_argument_types.len() {
+            return Err(DirectiveError::InvalidArgumentCount {
+                expected: expected_argument_types.len(),
+                got: actual_arguments.len(),
+            });
+        }
+
+        let mut values = Vec::new();
+        for (i, argument) in actual_arguments.into_iter().enumerate() {
+            let value = expected_argument_types[i].evaluate_as(ctx, argument)
+                .map_err(|err| DirectiveError::ArgumentError { inner: err, argument: argument.clone() })?;
+
+            values.push((argument, value));
+        }
+
+        Ok(values)
     }
 
     /// Returns the list of arguments.
@@ -125,110 +83,55 @@ impl Directive {
             },
         }
     }
+
+    /// Returns the list of argument-value type pair expected for the directive.
+    fn expected_argument_value_type_pair(&self) -> Result<&[ArgumentValueTypePair], DirectiveError> {
+        match &self.0 {
+            ParsedDirective::Generic { name, .. } => {
+                let name = name.slice_str();
+
+                let Some(directive_data) = DIRECTIVES.get(name) else {
+                    return Err(DirectiveError::DirectiveDoesNotExist(name.to_string()));
+                };
+
+                Ok(&directive_data.argument_types)
+            },
+            ParsedDirective::InlineMacro { macro_expression, .. } => todo!("implement macro type"),
+        }
+    }
 }
 
-struct GenericDirectiveLogic {
-    arguments: Vec<(ArgumentType, Option<ValueType>)>,
+struct GenericDirectiveData {
+    pub argument_types: Vec<ArgumentValueTypePair>,
     /// function that takes in the values of arguments,
     /// returns a list where emplacement argument are Some and Expression are None.
-    function: fn(&mut Scope, arguments: &[(&Argument, Option<Value>)]) -> Result<(), DirectiveInlineError>,
+    pub function: fn(&mut Scope, arguments: &[(&Argument, Option<Value>)]) -> Result<(), DirectiveError>,
 }
 
-impl GenericDirectiveLogic {
+impl GenericDirectiveData {
     pub fn new(
-        func: fn(&mut Scope, arguments: &[(&Argument, Option<Value>)]) -> Result<(), DirectiveInlineError>,
-        argument_types: Vec<(ArgumentType, Option<ValueType>)>,
+        func: fn(&mut Scope, arguments: &[(&Argument, Option<Value>)]) -> Result<(), DirectiveError>,
+        argument_types: Vec<ArgumentValueTypePair>,
     ) -> Self {
-        GenericDirectiveLogic {
-            arguments: argument_types,
+        GenericDirectiveData {
+            argument_types,
             function: func,
         }
     }
-
-    /// Checks the type of arguments, will call `function`
-    /// with the values and update the variables passed with emplacement.
-    pub fn inline(&self, ctx: &mut Scope, directive: &Directive) -> Result<(), CompilerError> {
-        let arguments = directive.arguments();        
-
-        // check argument count
-        if arguments.len() != self.arguments.len() {
-            let inner = DirectiveInlineError::InvalidNumberOfArguments {
-                expected: self.arguments.len(),
-                got: arguments.len(),
-            };
-
-            return Err(CompilerError::DirectiveInlineError {
-                inner,
-                directive: directive.clone(),
-            });
-        }
-
-        // checks argument type
-        for ((expected_arg_type, _), &argument) in self.arguments.iter().zip(&arguments) {
-            if *expected_arg_type != argument.get_type() {
-                let inner = DirectiveInlineError::InvalidArgumentType {
-                    argument: argument.clone(),
-                    expected: expected_arg_type.clone(),
-                    got: argument.get_type(),
-                };
-
-                return Err(CompilerError::DirectiveInlineError {
-                    inner,
-                    directive: directive.clone(),
-                });
-            }
-        }
-
-        // checks value type
-        let mut values = Vec::new();
-        for ((_, expected_val_type), &argument) in self.arguments.iter().zip(&arguments) {
-            // if we don't expect a value, we don't need to evaluate the argument
-            if expected_val_type.is_none() {
-                values.push(None);
-            }
-
-            let expected_val_type = expected_val_type.as_ref().unwrap();
-            let value = argument.get_as_expression().evaluate(ctx)?;
-            if !value.type_is_part_of(expected_val_type) {
-                let inner = DirectiveInlineError::InvalidValueType {
-                    argument: argument.clone(),
-                    expected: expected_val_type.clone(),
-                    got: value.type_of(),
-                };
-
-                return Err(CompilerError::DirectiveInlineError {
-                    inner,
-                    directive: directive.clone(),
-                });
-            }
-
-            values.push(Some(value));
-        }
-
-        let arguments = arguments.into_iter().zip(values)
-            .collect::<Vec<_>>();
-        (self.function)(ctx, &arguments)
-            .map_err(|inner| CompilerError::DirectiveInlineError {
-                    inner,
-                    directive: directive.clone(),
-            })?;
-
-        Ok(())
-    }
 }
 
-static DIRECTIVES: LazyLock<HashMap<String, GenericDirectiveLogic>> = LazyLock::new(|| {
-    let mut hash_map: HashMap<String, GenericDirectiveLogic> = HashMap::new();
+static DIRECTIVES: LazyLock<HashMap<String, GenericDirectiveData>> = LazyLock::new(|| {
+    let mut hash_map: HashMap<String, GenericDirectiveData> = HashMap::new();
     
-    hash_map.insert("raw".to_string(), GenericDirectiveLogic::new(
+    hash_map.insert("raw".to_string(), GenericDirectiveData::new(
         directive_raw,
-        vec![(ArgumentType::Expression, Some(ValueType::String))],
+        vec![ArgumentValueTypePair::new(ArgumentType::Expression, ValueType::String)],
     ));
 
     hash_map
 });
 
-fn directive_raw(ctx: &mut Scope, arguments: &[(&Argument, Option<Value>)]) -> Result<(), DirectiveInlineError> {
+fn directive_raw(ctx: &mut Scope, arguments: &[(&Argument, Option<Value>)]) -> Result<(), DirectiveError> {
     let msg = arguments[0].1.as_ref().unwrap()
         .as_string().unwrap();
 

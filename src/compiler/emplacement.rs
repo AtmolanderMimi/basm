@@ -2,9 +2,9 @@
 
 use std::mem;
 
-use crate::{compiler::{expression::Expression, value::PropertyError}, parser::{BinaryOperator as ParsedBinaryOperator, Expression as ParsedExpression, ExpressionItem as ParsedExpressionItem}};
+use crate::{compiler::{expression::{Expression, ExpressionEvaluationError}, value::PropertyError}, parser::{BinaryOperator as ParsedBinaryOperator, Expression as ParsedExpression, ExpressionItem as ParsedExpressionItem}};
 use thiserror::Error;
-use crate::{compiler::{CompilerError, scope::Scope, value::{Value, ValueType}}, parser::LanguageItem, use_as_parsed};
+use crate::{compiler::{scope::Scope, value::{Value, ValueType}}, parser::LanguageItem, use_as_parsed};
 
 use_as_parsed!(EmplacementExpression);
 use_as_parsed!(EmplacementSubExpression);
@@ -19,6 +19,11 @@ pub enum EmplacementNormalizationError {
     InvalidPropertyValueType {
         invalid_type: ValueType,
     },
+    #[error("{inner}")]
+    FailedToEvaluateExpression {
+        inner: ExpressionEvaluationError,
+        expression: Expression,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Error)]
@@ -62,14 +67,14 @@ impl EmplacementExpression {
     }
 
     /// Normalizes the emplacement. (i.e: transforms all expressions into their current value)
-    pub fn normalize(&self, ctx: &Scope) -> Result<NormalizedEmplacement, CompilerError> {
+    pub fn normalize(&self, ctx: &Scope) -> Result<NormalizedEmplacement, EmplacementNormalizationError> {
         self.sub_expression().normalize(ctx)
     }  
 }
 
 impl EmplacementSubExpression {
     /// Normalizes the emplacement. (i.e: transforms all expressions into their current value)
-    pub fn normalize(&self, ctx: &Scope) -> Result<NormalizedEmplacement, CompilerError> {
+    pub fn normalize(&self, ctx: &Scope) -> Result<NormalizedEmplacement, EmplacementNormalizationError> {
         let inner_expr = &self.0.0;
         if let ParsedExpressionItem::Ident(ident) = &inner_expr.node {
             let emplacement = NormalizedEmplacement {
@@ -84,15 +89,14 @@ impl EmplacementSubExpression {
             // -- indexing
             ParsedExpressionItem::BinaryOperator(ParsedBinaryOperator::Index(_)) => {
                 let rhs = <&Expression>::from(&inner_expr.children[1]);
-                let value = rhs.evaluate(ctx)?;
+                let value = rhs.evaluate(ctx)
+                    .map_err(|err| EmplacementNormalizationError::FailedToEvaluateExpression { inner: err, expression: rhs.clone() })?;
 
                 // indexing by list
                 let operation = if let Value::Number(number) = value {
                     EmplacementOperation::Index(number)
                 } else {
-                    let inner = EmplacementNormalizationError::InvalidIndexValueType { invalid_type: value.type_of() };
-
-                    return Err(CompilerError::EmplacementNormalizationError { inner, expression: rhs.clone() });
+                    return Err(EmplacementNormalizationError::InvalidIndexValueType { invalid_type: value.type_of() });
                 };
 
                 operation
@@ -100,12 +104,11 @@ impl EmplacementSubExpression {
             // -- property
             ParsedExpressionItem::BinaryOperator(ParsedBinaryOperator::Property(_)) => {
                 let rhs = <&Expression>::from(&inner_expr.children[1]);
-                let value = rhs.evaluate(ctx)?;
+                let value = rhs.evaluate(ctx)
+                    .map_err(|err| EmplacementNormalizationError::FailedToEvaluateExpression { inner: err, expression: rhs.clone() })?;
 
                 let Some(property_name) = value.as_string() else {
-                    let inner = EmplacementNormalizationError::InvalidPropertyValueType { invalid_type: value.type_of() };
-
-                    return Err(CompilerError::EmplacementNormalizationError { inner, expression: rhs.clone() });
+                    return Err(EmplacementNormalizationError::InvalidPropertyValueType { invalid_type: value.type_of() });
                 };
 
                 EmplacementOperation::Property(property_name)
@@ -208,7 +211,7 @@ mod tests {
     use std::assert_matches;
 
     /// Parses and normalizes an emplacement from a string in an empty scope
-    fn normalized_from_str(string: &str) -> Result<NormalizedEmplacement, CompilerError> {
+    fn normalized_from_str(string: &str) -> Result<NormalizedEmplacement, EmplacementNormalizationError> {
         let parsed = ParsedEmplacementExpression::solve_str(string).unwrap();
         let emplacement = EmplacementExpression::from(parsed);
 

@@ -2,7 +2,7 @@
 
 use either::Either;
 
-use crate::{compiler::CompilerError, parser::{CharLit, LanguageItem, StrLit}};
+use crate::{compiler::{expression::ExpressionEvaluationError}, parser::{CharLit, LanguageItem, StrLit}};
 const ESCAPE_SEQUENCES: &[(char, char)] = &[
     ('\\', '\\'),
     ('n', '\n'),
@@ -13,13 +13,13 @@ const ESCAPE_SEQUENCES: &[(char, char)] = &[
 
 /// Turns escape sequences into their value.
 /// Returns a string of the escape sequence which failed on error.
-pub fn normalize_string_literal(string: Either<&StrLit, &CharLit>) -> Result<String, CompilerError> {
+pub fn normalize_string_literal(string: Either<&StrLit, &CharLit>) -> Result<String, ExpressionEvaluationError> {
     let slice = string.as_ref().either(|s| s.slice_str(), |c| c.slice_str());
     // this assumes that the string literal is surrounded by quotes, which it should always be
     let slice_without_quotes = &slice[1..slice.len()-1];
 
     normalize_string_formatting(&slice_without_quotes)
-        .map_err(|sequence| CompilerError::EscapeSequencesIsInvalid {
+        .map_err(|sequence| ExpressionEvaluationError::EscapeSequencesIsInvalid {
         lit: string.map_either(|s| s.clone(), |c| c.clone()),
         sequence
     })

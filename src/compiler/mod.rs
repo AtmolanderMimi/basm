@@ -7,16 +7,15 @@ mod operators;
 mod string_normalizer;
 mod expression;
 mod emplacement;
+mod argument;
 mod directive;
 
-use either::Either;
 use thiserror::Error;
 
-use crate::compiler::directive::{Directive, DirectiveInlineError};
+use crate::compiler::directive::{Directive, DirectiveError};
 use crate::compiler::emplacement::EmplacementNormalizationError;
-use crate::compiler::expression::Expression;
-use crate::compiler::operators::OperationError;
-use crate::parser::{CharLit, Ident, LanguageItem, ParsedFile, StrLit};
+use crate::compiler::expression::{Expression, ExpressionEvaluationError};
+use crate::parser::{LanguageItem, ParsedFile};
 use crate::{CompilerError as CompilerErrorTrait, Lint};
 
 /// Imports an item from [crate::parser] with the `Parsed` prefix
@@ -63,23 +62,14 @@ pub enum CompilerError {
         expression: Expression,
     },
     #[error("{inner}")]
-    OperationError {
-        inner: OperationError,
+    ExpressionEvaluationError {
+        inner: ExpressionEvaluationError,
         expression: Expression,
     },
-    #[error("variable {} does not exist in the current scope", ident.slice_str())]
-    VariableDoesNotExist {
-        ident: Ident
-    },
-    #[error("escape sequence {sequence} is invalid")]
-    EscapeSequencesIsInvalid {
-        lit: Either<StrLit, CharLit>,
-        sequence: String,
-    },
     #[error("{inner}")]
-    DirectiveInlineError {
+    DirectiveError {
         directive: Directive,
-        inner: DirectiveInlineError,
+        inner: DirectiveError,
     },
 }
 
@@ -87,15 +77,10 @@ impl CompilerErrorTrait for CompilerError {
     fn lint(&self) -> Option<crate::Lint> {
         let lint = match self {
             Self::EmplacementNormalizationError { expression, .. } => Lint::from_slice_error(expression.0.slice()),
-            Self::VariableDoesNotExist { ident } => Lint::from_slice_error(ident.slice()),
-            Self::EscapeSequencesIsInvalid { lit, .. } => {
-                let slice = lit.as_ref().either(|s| s.slice(), |c| c.slice());
-                Lint::from_slice_error(slice)
-            },
-            Self::OperationError { expression, .. } => {
+            Self::ExpressionEvaluationError { expression, .. } => {
                 Lint::from_slice_error(expression.0.slice())
             },
-            Self::DirectiveInlineError { directive, .. } => Lint::from_slice_error(directive.0.slice())
+            Self::DirectiveError { directive, .. } => Lint::from_slice_error(directive.0.slice())
         };
 
         Some(lint)
