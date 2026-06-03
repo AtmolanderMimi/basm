@@ -28,6 +28,11 @@ impl<'a, 'b: 'a> Scope<'a, 'b> {
     }
 
     /// Gets a mutable reference to the main scope data.
+    fn main_scope_data(&self) -> &MainScopeData {
+        self.parent.as_ref().right_or_else(|s| s.main_scope_data())
+    }
+
+    /// Gets a mutable reference to the main scope data.
     fn main_scope_data_mut(&mut self) -> &mut MainScopeData {
         self.parent.as_mut().right_or_else(|s| s.main_scope_data_mut())
     }
@@ -35,6 +40,11 @@ impl<'a, 'b: 'a> Scope<'a, 'b> {
     /// Writes output of the program (i.e: the resulting bf).
     pub fn write_output(&mut self, output: &str) {
         self.main_scope_data_mut().program_output.push_str(output);
+    }
+
+    /// Gets the output of the program, thus far.
+    pub fn get_output(&self) -> &str {
+        &self.main_scope_data().program_output
     }
 
     /// Declares a new local variable,

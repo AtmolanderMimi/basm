@@ -128,16 +128,16 @@ impl Directive {
 }
 
 struct GenericDirectiveLogic {
-    arguments: Vec<(ArgumentType, ValueType)>,
+    arguments: Vec<(ArgumentType, Option<ValueType>)>,
     /// function that takes in the values of arguments,
     /// returns a list where emplacement argument are Some and Expression are None.
-    function: fn(&mut Scope, arguments: Vec<Value>) -> Result<Vec<Value>, DirectiveInlineError> ,
+    function: fn(&mut Scope, arguments: &[(&Argument, Option<Value>)]) -> Result<(), DirectiveInlineError>,
 }
 
 impl GenericDirectiveLogic {
     pub fn new(
-        func: fn(&mut Scope, arguments: Vec<Value>) -> Result<Vec<Value>, DirectiveInlineError>,
-        argument_types: Vec<(ArgumentType, ValueType)>,
+        func: fn(&mut Scope, arguments: &[(&Argument, Option<Value>)]) -> Result<(), DirectiveInlineError>,
+        argument_types: Vec<(ArgumentType, Option<ValueType>)>,
     ) -> Self {
         GenericDirectiveLogic {
             arguments: argument_types,
@@ -182,6 +182,12 @@ impl GenericDirectiveLogic {
         // checks value type
         let mut values = Vec::new();
         for ((_, expected_val_type), &argument) in self.arguments.iter().zip(&arguments) {
+            // if we don't expect a value, we don't need to evaluate the argument
+            if expected_val_type.is_none() {
+                values.push(None);
+            }
+
+            let expected_val_type = expected_val_type.as_ref().unwrap();
             let value = argument.get_as_expression().evaluate(ctx)?;
             if !value.type_is_part_of(expected_val_type) {
                 let inner = DirectiveInlineError::InvalidValueType {
@@ -196,22 +202,16 @@ impl GenericDirectiveLogic {
                 });
             }
 
-            values.push(value);
+            values.push(Some(value));
         }
 
-        let output = (self.function)(ctx, values)
+        let arguments = arguments.into_iter().zip(values)
+            .collect::<Vec<_>>();
+        (self.function)(ctx, &arguments)
             .map_err(|inner| CompilerError::DirectiveInlineError {
                     inner,
                     directive: directive.clone(),
             })?;
-
-        let returned_values = output.into_iter()
-            .enumerate();
-
-        for (i, new_value) in returned_values {
-            todo!("write back the emplacements");
-            //arguments[i].get_emplacement()
-        }
 
         Ok(())
     }
@@ -222,15 +222,64 @@ static DIRECTIVES: LazyLock<HashMap<String, GenericDirectiveLogic>> = LazyLock::
     
     hash_map.insert("raw".to_string(), GenericDirectiveLogic::new(
         directive_raw,
-        vec![(ArgumentType::Expression, ValueType::String)],
+        vec![(ArgumentType::Expression, Some(ValueType::String))],
     ));
 
     hash_map
 });
 
-fn directive_raw(ctx: &mut Scope, arguments: Vec<Value>) -> Result<Vec<Value>, DirectiveInlineError> {
-    let msg = arguments[0].as_string().unwrap();
+fn directive_raw(ctx: &mut Scope, arguments: &[(&Argument, Option<Value>)]) -> Result<(), DirectiveInlineError> {
+    let msg = arguments[0].1.as_ref().unwrap()
+        .as_string().unwrap();
 
     ctx.write_output(&msg);
-    Ok(arguments)
+    Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::parser::Pattern;
+
+    use super::*;
+
+    fn directive_from_str(string: &str) -> Directive {
+        ParsedDirective::solve_str(string).unwrap().into()
+    }
+
+    #[test]
+    fn generic_directive_too_many_arguments() {
+        let directive = directive_from_str("#raw \"hi :D\", 732;");
+        directive.inline(&mut Scope::new()).unwrap_err();
+    }
+
+    #[test]
+    fn generic_directive_not_enough_arguments() {
+        let directive = directive_from_str("#raw;");
+        directive.inline(&mut Scope::new()).unwrap_err();
+    }
+
+    #[test]
+    fn generic_directive_invalid_type() {
+        let directive = directive_from_str("#raw 732;");
+        directive.inline(&mut Scope::new()).unwrap_err();
+    }
+
+    #[test]
+    fn raw_generic_adds_to_output() {
+        let directive = directive_from_str("#raw \"hi\" + \" :D\";");
+        let mut scope = Scope::new();
+        directive.inline(&mut scope).unwrap();
+
+        assert_eq!(scope.get_output(), "hi :D");
+    }
+
+    #[test]
+    fn raw_generic_works_with_lists() {
+        let directive = directive_from_str("#raw [32, 42];");
+        let mut scope = Scope::new();
+        directive.inline(&mut scope).unwrap();
+
+        assert_eq!(scope.get_output(), " *");
+    }
+}
+
