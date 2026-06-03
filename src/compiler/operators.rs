@@ -2,7 +2,7 @@
 
 use thiserror::Error;
 
-use crate::{compiler::value::Value, use_as_parsed};
+use crate::{compiler::value::{PropertyError, Value}, use_as_parsed};
 
 use_as_parsed!(BinaryOperator);
 use_as_parsed!(UnaryOperator);
@@ -19,13 +19,17 @@ pub enum OperationError {
         indices: Vec<i32>,
         length: usize
     },
+    #[error("{inner}")]
+    PropertyError { // during property operation
+        inner: PropertyError
+    },
     #[error("{op_name} cannot be done between a {lhs_type} and a {rhs_type}")]
     InvalidTypeBinary {
         lhs_type: String,
         op_name: String,
         rhs_type: String,
     },
-    #[error("{op_name} cannot be done between a {value_type}")]
+    #[error("{op_name} cannot be done with a {value_type}")]
     InvalidTypeUnary {
         value_type: String,
         op_name: String,
@@ -323,7 +327,19 @@ impl BinaryOperator {
     }
 
     fn property(lhs: Value, rhs: Value) -> Result<Value, OperationError> {
-        unimplemented!("add properties")
+        let lhs_type = lhs.type_name().to_string();
+        let rhs_type = rhs.type_name().to_string();
+
+        match (lhs, rhs) {
+            // indexing by number
+            (value, property) if property.as_string().is_some() => {
+                let property_value = value.get_property(&property.as_string().unwrap())
+                    .map_err(|err| OperationError::PropertyError { inner: err })?;
+
+                Ok(property_value)
+            },
+            _ => Err(OperationError::InvalidTypeBinary { lhs_type, op_name: "finding a property".to_string(), rhs_type })
+        }
     }
 }
 

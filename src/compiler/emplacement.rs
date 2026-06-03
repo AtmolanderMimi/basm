@@ -2,7 +2,7 @@
 
 use std::mem;
 
-use crate::{compiler::expression::Expression, parser::{BinaryOperator as ParsedBinaryOperator, Expression as ParsedExpression, ExpressionItem as ParsedExpressionItem}};
+use crate::{compiler::{expression::Expression, value::PropertyError}, parser::{BinaryOperator as ParsedBinaryOperator, Expression as ParsedExpression, ExpressionItem as ParsedExpressionItem}};
 use thiserror::Error;
 use crate::{compiler::{CompilerError, scope::Scope, value::{Value, ValueType}}, parser::LanguageItem, use_as_parsed};
 
@@ -19,6 +19,27 @@ pub enum EmplacementNormalizationError {
     InvalidPropertyValueType {
         invalid_type: ValueType,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Error)]
+pub enum EmplacementSetError {
+    #[error("\"{variable_name}\" referenced in the emplacement does not exist in scope")]
+    VariableDoesNotExist {
+        variable_name: String,
+    },
+    #[error("failed to index because value is a {}", value_type.name())]
+    VariableCannotBeIndexed {
+        value_type: ValueType,
+    },
+    #[error("failed to index at {index}, it is out of bound (len: {len})")]
+    IndexOutOfBound {
+        index: i32,
+        len: usize,
+    },
+    #[error("{inner}")]
+    PropertyError {
+        inner: PropertyError,
+    }
 }
 
 /// A normalized emplacement (i.e: the expressions where replaced by their value)
@@ -110,9 +131,72 @@ impl EmplacementSubExpression {
 }
 
 impl NormalizedEmplacement {
-    //pub fn get_mut<'a>(&self, ctx: &'a mut Scope) -> &'a mut Value {
-    //    l
-    //}
+    pub fn set<'a>(&self, ctx: &'a mut Scope, value: Value) -> Result<(), EmplacementSetError> {
+        let Some(original_value) = ctx.get(&self.ident).clone() else {
+            return Err(EmplacementSetError::VariableDoesNotExist { variable_name: self.ident.clone() })
+        };
+
+        // -- goes searching for the value to modify
+        let mut value_queue = vec![original_value];
+        for operation in &self.operations {
+            match operation {
+                EmplacementOperation::Index(number) => {
+                    let Value::List(list) = value_queue.last().unwrap() else {
+                        return Err(EmplacementSetError::VariableCannotBeIndexed { value_type: value_queue.last().unwrap().type_of() });
+                    };
+
+                    let Ok(index): Result<usize, _> = (*number).try_into() else {
+                        return Err(EmplacementSetError::IndexOutOfBound { index: *number, len: list.len() });
+                    };
+
+                    let Some(element): Option<&Value> = list.get(index) else {
+                        return Err(EmplacementSetError::IndexOutOfBound { index: *number, len: list.len() });
+                    };
+
+                    value_queue.push(element.clone());
+                },
+                EmplacementOperation::Property(property) => {
+                    let property = value_queue.last().unwrap().get_property(property)
+                        .map_err(|err| EmplacementSetError::PropertyError { inner: err })?;
+
+                    value_queue.push(property);
+                }
+            }
+        }
+
+        // -- modifies the value
+        *value_queue.last_mut().unwrap() = value;
+
+        // -- puts the modified value in place
+        for operation in self.operations.iter().rev() {
+            let value = value_queue.pop().unwrap();
+
+            match operation {
+                EmplacementOperation::Index(number) => {
+                    let Value::List(list) = value_queue.last_mut().unwrap() else {
+                        panic!("is list because we already checked when creating the queue");
+                    };
+
+                    // we know that the index is valid
+                    list[*number as usize] = value;
+                },
+                EmplacementOperation::Property(property) => {
+                    let parent = value_queue.last_mut().unwrap();
+
+                    parent.set_property(property, value)
+                        .map_err(|err| EmplacementSetError::PropertyError { inner: err })?;
+                }
+            }
+        }
+
+        // we now have only the original value left in the queue
+        debug_assert_eq!(value_queue.len(), 1);
+        let new_value = value_queue.pop().unwrap();
+        // there should be no error
+        ctx.set(&self.ident, new_value).unwrap();
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -200,5 +284,41 @@ mod tests {
         assert_eq!(normalized.ident, "ident");
         assert_eq!(normalized.operations.len(), 1);
         assert_eq!(normalized.operations[0], EmplacementOperation::Index(13));
+    }
+
+    #[test]
+    fn set_normalized_simple() {
+        let normalized = normalized_from_str("&ident").unwrap();
+        let mut scope = Scope::new();
+        scope.declare("ident".to_string(), Value::Number(732));
+
+        normalized.set(&mut scope, Value::Number(42)).unwrap();
+        
+        let new_value = scope.get("ident").unwrap();
+        assert_eq!(new_value, Value::Number(42))
+    }
+
+    #[test]
+    fn set_normalized_index_works() {
+        let normalized = normalized_from_str("&ident@1").unwrap();
+        let mut scope = Scope::new();
+        scope.declare("ident".to_string(), Value::List(vec![Value::Number(732), Value::Number(143)]));
+
+        normalized.set(&mut scope, Value::List(Vec::new())).unwrap();
+        
+        let new_value = scope.get("ident").unwrap();
+        assert_eq!(new_value, Value::List(vec![Value::Number(732), Value::List(Vec::new())]));
+    }
+
+    #[test]
+    fn set_normalized_chained_index_works() {
+        let normalized = normalized_from_str("&ident@1@0").unwrap();
+        let mut scope = Scope::new();
+        scope.declare("ident".to_string(), Value::List(vec![Value::Number(732), Value::List(vec![Value::Number(143)])]));
+
+        normalized.set(&mut scope, Value::Number(42)).unwrap();
+        
+        let new_value = scope.get("ident").unwrap();
+        assert_eq!(new_value, Value::List(vec![Value::Number(732), Value::List(vec![Value::Number(42)])]));
     }
 }

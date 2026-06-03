@@ -1,5 +1,21 @@
 //! Defines what is a value and it's types.
 
+use thiserror::Error;
+
+/// Error relating to properties.
+#[derive(Debug, Clone, PartialEq, Error)]
+pub enum PropertyError {
+    #[error("the property \"{property_name}\" does not exist for value of type {}", value_type.name())]
+    PropertyDoesNotExist {
+        property_name: String,
+        value_type: ValueType,
+    },
+    #[error("the property \"{0}\" is read-only")]
+    PropertyCannotBeSet(String),
+    #[error("the property value is invalid because {0}")]
+    PropertyValueIsInvalid(String),
+}
+
 /// A value either coming from an expression or a variable.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
@@ -68,6 +84,38 @@ impl Value {
         self.type_of().name()
     }
 
+    pub fn set_property(&mut self, name: &str, value: Value) -> Result<(), PropertyError> {
+        match (name, self) {
+            // len property
+            ("len", Self::List(list)) => {
+                let Some(Ok(new_len)) = value.as_number().map(|num| num.try_into()) else {
+                    return Err(PropertyError::PropertyValueIsInvalid("\"len\" needs to be a non-negative number".to_string()));
+                };
+
+                // new elements in the list are default
+                list.resize(new_len, Value::default());
+            },
+            (_, myself) if myself.get_property(name).is_ok() => return Err(PropertyError::PropertyCannotBeSet(name.to_string())),
+            (_, myself)=> return Err(PropertyError::PropertyDoesNotExist { property_name: name.to_string(), value_type: myself.type_of() })
+        };
+
+        Ok(())
+    }
+
+    pub fn get_property(&self, name: &str) -> Result<Value, PropertyError> {
+        let property = match (name, self) {
+            // len property
+            ("len", Self::List(l)) => {
+                let len = l.len().try_into()
+                    .expect("there should be no way to excede i32::MAX, unless the user somehow creates a list literal bigger than that");
+                Value::Number(len)
+            },
+            _ => return Err(PropertyError::PropertyDoesNotExist { property_name: name.to_string(), value_type: self.type_of() })
+        };
+
+        Ok(property)
+    }
+
     #[cfg(test)]
     /// Parses and evaluates an expression from a string with an empty scope.
     /// Panics on fail of parsing or evaluating.
@@ -78,6 +126,13 @@ impl Value {
 
         let scope = Scope::new();
         expr.evaluate(&scope).unwrap()
+    }
+}
+
+impl Default for Value {
+    fn default() -> Self {
+        // the value that will be replicated when a list is expanded
+        Self::Number(0)
     }
 }
 
@@ -162,5 +217,41 @@ mod tests {
 
         assert_eq!(value.type_of(), ValueType::String);
         assert_eq!(value.as_string().unwrap(), "A*");
+    }
+
+    #[test]
+    fn get_property_that_does_not_exist_errors() {
+        let list = Value::new_from_str("[1,2,3]");
+        list.get_property("not_a_property").unwrap_err();
+    }
+
+    #[test]
+    fn get_len_property_reflects_lenght_of_list() {
+        let list = Value::new_from_str("[1,2,3]");
+        let lenght = list.get_property("len").unwrap();
+
+        assert_eq!(lenght, Value::Number(3));
+    }
+
+    #[test]
+    fn set_len_property_reflects_shortens_list() {
+        let mut list = Value::new_from_str("[1,2,3]");
+        list.set_property("len", Value::Number(2)).unwrap();
+
+        assert_eq!(list, Value::List(vec![Value::Number(1), Value::Number(2)]));
+    }
+
+    #[test]
+    fn set_len_property_reflects_expands_list_with_zero() {
+        let mut list = Value::new_from_str("[1,2,3]");
+        list.set_property("len", Value::Number(5)).unwrap();
+
+        assert_eq!(list, Value::List(vec![Value::Number(1), Value::Number(2), Value::Number(3), Value::Number(0), Value::Number(0)]));
+    }
+
+    #[test]
+    fn set_len_property_to_negative_errors() {
+        let mut list = Value::new_from_str("[1,2,3]");
+        list.set_property("len", Value::Number(-2)).unwrap_err();
     }
 }
