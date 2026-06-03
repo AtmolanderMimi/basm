@@ -5,10 +5,11 @@ use std::mem::transmute;
 use either::Either;
 use thiserror::Error;
 
-use crate::{compiler::{operators::{BinaryOperator, OperationError, UnaryOperator}, scope::Scope, string_normalizer::normalize_string_literal, value::Value}, parser::{CharLit, Ident, LanguageItem, StrLit}, use_as_parsed};
+use crate::{compiler::{operators::{BinaryOperator, OperationError, UnaryOperator}, scope::Scope, string_normalizer::normalize_string_literal, value::Value}, parser::{CharLit, Ident, LanguageItem, StrLit}, newtype_wrapper};
 
-use_as_parsed!(Expression);
-use_as_parsed!(ExpressionItem);
+use crate::parser::{Expression as ParsedExpression, ExpressionItem as ParsedExpressionItem};
+newtype_wrapper!(Expression, ParsedExpression);
+newtype_wrapper!(ExpressionItem, ParsedExpressionItem);
 
 /// An error occuring during the evaluation of an expression
 #[derive(Debug, Clone, PartialEq, Error)]

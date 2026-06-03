@@ -2,10 +2,12 @@
 
 use thiserror::Error;
 
-use crate::{compiler::value::{PropertyError, Value}, use_as_parsed};
+use crate::{compiler::value::{PropertyError, Value}, newtype_wrapper};
 
-use_as_parsed!(BinaryOperator);
-use_as_parsed!(UnaryOperator);
+use crate::parser::{BinaryOperator as ParsedBinaryOperator, UnaryOperator as ParsedUnaryOperator};
+
+newtype_wrapper!(BinaryOperator, ParsedBinaryOperator);
+newtype_wrapper!(UnaryOperator, ParsedUnaryOperator);
 
 /// An error which occured while evaluating an operation.
 #[derive(Debug, Clone, PartialEq, Error)]

@@ -4,10 +4,11 @@ use std::mem;
 
 use crate::{compiler::{expression::{Expression, ExpressionEvaluationError}, value::PropertyError}, parser::{BinaryOperator as ParsedBinaryOperator, Expression as ParsedExpression, ExpressionItem as ParsedExpressionItem}};
 use thiserror::Error;
-use crate::{compiler::{scope::Scope, value::{Value, ValueType}}, parser::LanguageItem, use_as_parsed};
+use crate::{compiler::{scope::Scope, value::{Value, ValueType}}, parser::LanguageItem, newtype_wrapper};
 
-use_as_parsed!(EmplacementExpression);
-use_as_parsed!(EmplacementSubExpression);
+use crate::parser::{EmplacementExpression as ParsedEmplacementExpression, EmplacementSubExpression as ParsedEmplacementSubExpression};
+newtype_wrapper!(EmplacementExpression, ParsedEmplacementExpression);
+newtype_wrapper!(EmplacementSubExpression, ParsedEmplacementSubExpression);
 
 #[derive(Debug, Clone, PartialEq, Error)]
 pub enum EmplacementNormalizationError {

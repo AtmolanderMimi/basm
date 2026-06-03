@@ -4,9 +4,10 @@ use std::{collections::HashMap, sync::LazyLock};
 
 use thiserror::Error;
 
-use crate::{compiler::{argument::{Argument, ArgumentError, ArgumentType, ArgumentValueTypePair}, scope::Scope, value::{Value, ValueType}}, parser::LanguageItem, use_as_parsed};
+use crate::{compiler::{argument::{Argument, ArgumentError, ArgumentType, ArgumentValueTypePair}, scope::Scope, value::{Value, ValueType}}, parser::LanguageItem, newtype_wrapper};
 
-use_as_parsed!(Directive);
+use crate::parser::Directive as ParsedDirective;
+newtype_wrapper!(Directive, ParsedDirective);
 
 #[derive(Debug, PartialEq, Clone, Error)]
 pub enum DirectiveError {

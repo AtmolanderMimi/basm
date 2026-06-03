@@ -2,9 +2,10 @@
 
 use thiserror::Error;
 
-use crate::{compiler::{emplacement::EmplacementExpression, expression::{Expression, ExpressionEvaluationError}, scope::Scope, value::{Value, ValueType}}, parser::LanguageItem, use_as_parsed};
+use crate::{compiler::{emplacement::EmplacementExpression, expression::{Expression, ExpressionEvaluationError}, scope::Scope, value::{Value, ValueType}}, parser::LanguageItem, newtype_wrapper};
 
-use_as_parsed!(Argument);
+use crate::parser::Argument as ParsedArgument;
+newtype_wrapper!(Argument, ParsedArgument);
 
 #[derive(Debug, PartialEq, Clone, Error)]
 pub enum ArgumentError {
