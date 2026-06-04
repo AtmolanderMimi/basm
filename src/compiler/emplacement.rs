@@ -48,6 +48,12 @@ pub enum EmplacementSetError {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Error)]
+pub enum EmplacementDeclareError {
+    #[error("emplacement has operations, expected only ident for declaration")]
+    EmplacementHasOperations
+}
+
 /// A normalized emplacement (i.e: the expressions where replaced by their value)
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct NormalizedEmplacement {
@@ -135,7 +141,20 @@ impl EmplacementSubExpression {
 }
 
 impl NormalizedEmplacement {
-    pub fn set<'a>(&self, ctx: &'a mut Scope, value: Value) -> Result<(), EmplacementSetError> {
+    /// Declares the variable name in the current scope to the `value`.
+    /// ONLY WORKS WITH IDENT ONLY EMPLACEMENT.
+    pub fn declare(&self, ctx: &mut Scope, value: Value) -> Result<(), EmplacementDeclareError> {
+        if !self.operations.is_empty() {
+            return Err(EmplacementDeclareError::EmplacementHasOperations);
+        }
+
+        ctx.declare(self.ident.clone(), value);
+
+        Ok(())
+    }
+
+    /// Sets `value` to the variable in the emplacement.
+    pub fn set(&self, ctx: &mut Scope, value: Value) -> Result<(), EmplacementSetError> {
         let Some(original_value) = ctx.get(&self.ident).clone() else {
             return Err(EmplacementSetError::VariableDoesNotExist { variable_name: self.ident.clone() })
         };
@@ -324,5 +343,24 @@ mod tests {
         
         let new_value = scope.get("ident").unwrap();
         assert_eq!(new_value, Value::List(vec![Value::Number(732), Value::List(vec![Value::Number(42)])]));
+    }
+
+    #[test]
+    fn declare_normalized_only_ident_works() {
+        let normalized = normalized_from_str("&my_var").unwrap();
+        let mut scope = Scope::new();
+
+        normalized.declare(&mut scope, Value::Number(42)).unwrap();
+        
+        let new_value = scope.get("my_var").unwrap();
+        assert_eq!(new_value, Value::Number(42));
+    }
+
+    #[test]
+    fn declare_normalized_with_operations_errors() {
+        let normalized = normalized_from_str("&my_var@3").unwrap();
+        let mut scope = Scope::new();
+
+        normalized.declare(&mut scope, Value::Number(42)).unwrap_err();
     }
 }

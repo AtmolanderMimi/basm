@@ -14,8 +14,6 @@ mod file;
 use thiserror::Error;
 
 use crate::compiler::directive::{Directive, DirectiveError};
-use crate::compiler::emplacement::EmplacementNormalizationError;
-use crate::compiler::expression::{Expression, ExpressionEvaluationError};
 use crate::compiler::file::File;
 use crate::compiler::scope::Scope;
 use crate::parser::{LanguageItem, ParsedFile};
