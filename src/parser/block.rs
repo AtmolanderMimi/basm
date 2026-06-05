@@ -1,15 +1,15 @@
-//! Defines a macro.
+//! Defines a block.
 
 use crate::{impl_language_item, lexer::token::Token, parser::{LanguageItem, Pattern, PatternResult, directive::Directive, pattern::{Maybe, TerminatedMany, TerminatedSeperatedMany, Then}, terminals::{Comma, Ident, LeftCurly, LeftSquare, Output, RightCurly, RightSquare, ThickArrow}}, source::SfSlice};
 
-/// A macro literal.
+/// A block literal.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Macro {
-    pub arguments: Option<(MacroArguments, ThickArrow)>,
-    pub body: MacroBody,
+pub struct Block {
+    pub arguments: Option<(BlockArguments, ThickArrow)>,
+    pub body: BlockBody,
 }
 
-impl LanguageItem for Macro {
+impl LanguageItem for Block {
     fn slice(&self) -> SfSlice {
         let start_index = if let Some((arguments, _)) = &self.arguments {
             arguments.slice().start()
@@ -24,15 +24,15 @@ impl LanguageItem for Macro {
     }
 }
 
-impl Pattern for Macro {
+impl Pattern for Block {
     fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult> {
         let res = 
         Then::<
-            Maybe<Then<MacroArguments, ThickArrow>>,
-            MacroBody
+            Maybe<Then<BlockArguments, ThickArrow>>,
+            BlockBody
         >::solve(tokens)?;
 
-        let macr = Macro {
+        let macr = Block {
             arguments: (res.1.0),
             body: res.1.1,
         };
@@ -40,20 +40,20 @@ impl Pattern for Macro {
         return Ok((res.0, macr));
     }
 
-    fn name() -> String { "macrolit".to_string() }
+    fn name() -> String { "blocklit".to_string() }
 }
 
-/// The arguments of a macro literal.
+/// The arguments of a block literal.
 #[derive(Debug, Clone, PartialEq)]
-pub struct MacroArguments {
+pub struct BlockArguments {
     pub opening_bracket: LeftSquare,
     pub arguments: Vec<(Option<Comma>, Option<Output>, Ident)>,
     pub closing_bracket: RightSquare,
 }
 
-impl_language_item!(MacroArguments, opening_bracket, closing_bracket);
+impl_language_item!(BlockArguments, opening_bracket, closing_bracket);
 
-impl Pattern for MacroArguments {
+impl Pattern for BlockArguments {
     fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult> {
         let res = 
         Then::<
@@ -69,7 +69,7 @@ impl Pattern for MacroArguments {
         let arguments = res.1.1.0.into_iter()
             .map(|(comma, (refe, ident))| (comma, refe, ident))
             .collect();
-        let arguments = MacroArguments {
+        let arguments = BlockArguments {
             opening_bracket: res.1.0,
             arguments,
             closing_bracket: res.1.1.1,
@@ -78,20 +78,20 @@ impl Pattern for MacroArguments {
         return Ok((res.0, arguments));
     }
 
-    fn name() -> String { "macro arguments".to_string() }
+    fn name() -> String { "block arguments".to_string() }
 }
 
-/// A the body of a macro literal.
+/// A the body of a block literal.
 #[derive(Debug, Clone, PartialEq)]
-pub struct MacroBody {
+pub struct BlockBody {
     pub opening_bracket: LeftCurly,
     pub directives: Vec<Directive>,
     pub closing_bracket: RightCurly,
 }
 
-impl_language_item!(MacroBody, opening_bracket, closing_bracket);
+impl_language_item!(BlockBody, opening_bracket, closing_bracket);
 
-impl Pattern for MacroBody {
+impl Pattern for BlockBody {
     fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult> {
         let res = 
         Then::<
@@ -102,7 +102,7 @@ impl Pattern for MacroBody {
             >
         >::solve(tokens)?;
 
-        let body = MacroBody {
+        let body = BlockBody {
             opening_bracket: res.1.0,
             directives: res.1.1.0,
             closing_bracket: res.1.1.1,
@@ -111,7 +111,7 @@ impl Pattern for MacroBody {
         return Ok((res.0, body));
     }
 
-    fn name() -> String { "macro body".to_string() }
+    fn name() -> String { "block body".to_string() }
 }
 
 #[cfg(test)]
@@ -121,20 +121,20 @@ mod tests {
 use super::*;
 
     #[test]
-    fn macro_parse_minimal() {
+    fn block_parse_minimal() {
         let tokens = lex_string("{}").unwrap();
 
-        let (tokens_consumed, macr) = Macro::solve(&tokens).unwrap();
+        let (tokens_consumed, macr) = Block::solve(&tokens).unwrap();
         assert_eq!(tokens_consumed, tokens.len()-1);
         assert!(macr.arguments.is_none());
         assert_eq!(macr.body.directives.len(), 0);
     }
 
     #[test]
-    fn macro_parse_minimal_with_arguments() {
+    fn block_parse_minimal_with_arguments() {
         let tokens = lex_string("[] => {}").unwrap();
 
-        let (tokens_consumed, macr) = Macro::solve(&tokens).unwrap();
+        let (tokens_consumed, macr) = Block::solve(&tokens).unwrap();
         let arguments = macr.arguments.unwrap().0.arguments;
 
         assert_eq!(tokens_consumed, tokens.len()-1);
@@ -143,7 +143,7 @@ use super::*;
     }
 
     #[test]
-    fn macro_parse_normal_usecase() {
+    fn block_parse_normal_usecase() {
         let tokens = lex_string("
         [arg1, arg2, arg3] => {
             #directive_name arg1, [34, arg2, \"hello\"];
@@ -152,7 +152,7 @@ use super::*;
         }
         ").unwrap();
 
-        let (tokens_consumed, macr) = Macro::solve(&tokens).unwrap();
+        let (tokens_consumed, macr) = Block::solve(&tokens).unwrap();
         let arguments = macr.arguments.unwrap().0.arguments;
         assert_eq!(tokens_consumed, tokens.len()-1);
         assert_eq!(arguments.len(), 3);
@@ -160,7 +160,7 @@ use super::*;
     }
 
     #[test]
-    fn macro_parse_output_argument() {
+    fn block_parse_output_argument() {
         let tokens = lex_string("
         [&arg1] => {
             #directive_name arg1, [34, \"hello\"];
@@ -169,7 +169,7 @@ use super::*;
         }
         ").unwrap();
 
-        let (tokens_consumed, macr) = Macro::solve(&tokens).unwrap();
+        let (tokens_consumed, macr) = Block::solve(&tokens).unwrap();
         let arguments = macr.arguments.unwrap().0.arguments;
         assert_eq!(tokens_consumed, tokens.len()-1);
         assert_eq!(arguments.len(), 1);
@@ -177,9 +177,9 @@ use super::*;
     }
 
     #[test]
-    fn macro_parse_only_accepts_idents_as_args() {
+    fn block_parse_only_accepts_idents_as_args() {
         let tokens = lex_string("[32] => {}").unwrap();
 
-        Macro::solve(&tokens).unwrap_err();
+        Block::solve(&tokens).unwrap_err();
     }
 }

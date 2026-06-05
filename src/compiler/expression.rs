@@ -126,9 +126,9 @@ impl ExpressionItem {
 
                 Some(Value::List(list))
             },
-            ParsedExpressionItem::Macro(macr) => {
+            ParsedExpressionItem::Block(block) => {
                 // TODO:
-                todo!("implement macro value")
+                todo!("implement block value")
             },
             ParsedExpressionItem::List(list) => {
                 let mut values = Vec::new();

@@ -36,13 +36,13 @@ pub enum DirectiveError {
 }
 
 impl Directive {
-    /// Tries to inline the macro, returns an error on failure.
+    /// Tries to inline the block, returns an error on failure.
     pub fn inline(&self, ctx: &mut Scope) -> Result<(), DirectiveError> {
         match &self.0 {
             ParsedDirective::Generic { name, .. } => {
                 self.inline_generic(ctx, name.slice_str())
             }
-            ParsedDirective::InlineMacro { .. } => todo!(),
+            ParsedDirective::InlineBlock { .. } => todo!(),
         }
     }
 
@@ -86,10 +86,10 @@ impl Directive {
             ParsedDirective::Generic { arguments, .. } => {
                 arguments.iter().map(|(_, a)| a.into()).collect()
             },
-            ParsedDirective::InlineMacro { arguments: Some(arguments), .. } => {
+            ParsedDirective::InlineBlock { arguments: Some(arguments), .. } => {
                 arguments.1.iter().map(|(_, a)| a.into()).collect()
             },
-            ParsedDirective::InlineMacro { arguments: None, .. } => {
+            ParsedDirective::InlineBlock { arguments: None, .. } => {
                 Vec::new()
             },
         }
@@ -107,7 +107,7 @@ impl Directive {
 
                 Ok(&directive_data.argument_types)
             },
-            ParsedDirective::InlineMacro { macro_expression, .. } => todo!("implement macro type"),
+            ParsedDirective::InlineBlock { block_expression, .. } => todo!("implement block type"),
         }
     }
 }

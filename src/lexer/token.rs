@@ -87,9 +87,9 @@ pub enum TokenType {
     Pound,
     /// "&", used to denote a variable is passed by reference.
     And,
-    /// "=>", used in macro definitions.
+    /// "=>", used in block definitions.
     ThickArrow,
-    /// ":", delimits the macro expression from it's arguments.
+    /// ":", delimits the block expression from it's arguments.
     Colon,
     /// ";", delimits directives.
     Semicolon,

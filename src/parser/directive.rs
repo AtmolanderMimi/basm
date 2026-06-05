@@ -2,7 +2,7 @@
 //! A directive equals in most cases to a single line of text.
 //! It has two forms:
 //! * Generic: `#Name arg1, arg2, arg3;`
-//! * Inline macro: `expression: arg1, arg2, arg3;`
+//! * Inline block: `expression: arg1, arg2, arg3;`
 
 use either::Either;
 
@@ -48,8 +48,8 @@ pub enum Directive {
         arguments: Vec<(Option<Comma>, Argument)>,
         semicolon: Semicolon,
     },
-    InlineMacro {
-        macro_expression: Expression,
+    InlineBlock {
+        block_expression: Expression,
         arguments: Option<(Colon, Vec<(Option<Comma>, Argument)>)>,
         semicolon: Semicolon,
     }
@@ -62,15 +62,15 @@ impl LanguageItem for Directive {
                 let slice = pound.slice();
                 (slice.source(), slice.start())
             },
-            Self::InlineMacro { macro_expression, .. } => {
-                let slice = macro_expression.slice();
+            Self::InlineBlock { block_expression, .. } => {
+                let slice = block_expression.slice();
                 (slice.source(), slice.start())
             }
         };
 
         let end = match self {
             Self::Generic { semicolon, .. } => semicolon.slice().end(),
-            Self::InlineMacro { semicolon, .. } => semicolon.slice().end(),
+            Self::InlineBlock { semicolon, .. } => semicolon.slice().end(),
         };
 
         SfSlice::from_source(source, start..end)
@@ -81,7 +81,7 @@ impl LanguageItem for Directive {
 impl Pattern for Directive {
     fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult> {
         type GenericPattern = Then<Ident, TerminatedSeperatedMany<Argument, Comma, Semicolon>>;
-        type InlineMacro = Then<Expression, Or<Then<Colon, TerminatedSeperatedMany<Argument, Comma, Semicolon>>, Semicolon>>;
+        type InlineBlock = Then<Expression, Or<Then<Colon, TerminatedSeperatedMany<Argument, Comma, Semicolon>>, Semicolon>>;
 
         let (tokens_consumed, directive) = if let Ok((pound_token_consumed, pound)) = Pound::solve(tokens) {
             let res = GenericPattern::solve(&tokens[pound_token_consumed..])?;
@@ -94,18 +94,18 @@ impl Pattern for Directive {
 
             (res.0 + pound_token_consumed, dir)
         } else {
-            let res = InlineMacro::solve(&tokens)?;
+            let res = InlineBlock::solve(&tokens)?;
             let dir = match res.1.1 {
                 
                 Either::Left((colon, (arguments, semicolon))) => {
-                    Directive::InlineMacro {
-                        macro_expression: res.1.0,
+                    Directive::InlineBlock {
+                        block_expression: res.1.0,
                         arguments: Some((colon, arguments)),
                         semicolon,
                     }
                 }
-                Either::Right(semicolon) => Directive::InlineMacro {
-                    macro_expression: res.1.0,
+                Either::Right(semicolon) => Directive::InlineBlock {
+                    block_expression: res.1.0,
                     arguments: None,
                     semicolon,
                 }
@@ -152,7 +152,7 @@ mod tests {
     }
 
     #[test]
-    fn generic_directive_with_a_macro() {
+    fn generic_directive_with_a_block() {
         let tokens = lex_string("#decl IncrementA, { #set a, a + 1; };").unwrap();
 
         let (tokens_consumed, directive) = Directive::solve(&tokens).unwrap();
@@ -190,19 +190,19 @@ mod tests {
         assert_eq!(tokens_consumed, tokens.len()-1);
         assert_matches!(
             directive,
-            Directive::InlineMacro { .. }
+            Directive::InlineBlock { .. }
         );
     }
 
     #[test]
-    fn inline_directive_with_macro_literal() {
+    fn inline_directive_with_block_literal() {
         let tokens = lex_string("[] => {};").unwrap();
 
         let (tokens_consumed, directive) = Directive::solve(&tokens).unwrap();
         assert_eq!(tokens_consumed, tokens.len()-1);
         assert_matches!(
             directive,
-            Directive::InlineMacro { .. }
+            Directive::InlineBlock { .. }
         );
     }
 
@@ -214,7 +214,7 @@ mod tests {
         assert_eq!(tokens_consumed, tokens.len()-1);
         assert_matches!(
             directive,
-            Directive::InlineMacro { .. }
+            Directive::InlineBlock { .. }
         );
     }
 
@@ -226,7 +226,7 @@ mod tests {
         assert_eq!(tokens_consumed, tokens.len()-1);
         assert_matches!(
             directive,
-            Directive::InlineMacro { .. }
+            Directive::InlineBlock { .. }
         );
     }
 }

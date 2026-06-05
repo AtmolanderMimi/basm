@@ -2,7 +2,7 @@
 
 use either::Either;
 
-use crate::{lexer::token::Token, parser::{LanguageItem, ParseError, ParseErrorVariant, Pattern, PatternResult, list::List, r#macro::Macro, operators::{BinaryOperator, NB_PRECEDENCE_LEVELS, Operator, UnaryOperator}, pattern::{Not, OneOrMore, Or, Then}, terminals::{CharLit, Ident, LeftParen, NumLit, RightParen, StrLit, ThickArrow}}, source::SfSlice};
+use crate::{lexer::token::Token, parser::{LanguageItem, ParseError, ParseErrorVariant, Pattern, PatternResult, list::List, block::Block, operators::{BinaryOperator, NB_PRECEDENCE_LEVELS, Operator, UnaryOperator}, pattern::{Not, OneOrMore, Or, Then}, terminals::{CharLit, Ident, LeftParen, NumLit, RightParen, StrLit, ThickArrow}}, source::SfSlice};
 
 //// An expression. An expression is formed from one or more [ExpressionItem] being merged.
 #[derive(Debug, Clone, PartialEq)]
@@ -147,7 +147,7 @@ pub enum ExpressionItem {
     NumLit(NumLit),
     CharLit(CharLit),
     StrLit(StrLit),
-    Macro(Macro),
+    Block(Block),
     List(List),
     BinaryOperator(BinaryOperator),
     UnaryOperator(UnaryOperator),
@@ -180,7 +180,7 @@ impl LanguageItem for ExpressionItem {
             Self::CharLit(t) => t.slice(),
             Self::StrLit(t) => t.slice(),
             Self::List(t) => t.slice(),
-            Self::Macro(t) => t.slice(),
+            Self::Block(t) => t.slice(),
             Self::BinaryOperator(t) => t.slice(),
             Self::UnaryOperator(t) => t.slice(),
         }
@@ -205,7 +205,7 @@ impl Pattern for ExpressionItem {
         NumLit, Or<
         CharLit, Or<
         StrLit, Or<
-        Macro, Or<
+        Block, Or<
         Then<List, Not<ThickArrow>>,
         Or<BinaryOperator,
         UnaryOperator,
@@ -227,7 +227,7 @@ impl Pattern for ExpressionItem {
         try_expression_item_next!(parsed, res.0, NumLit);
         try_expression_item_next!(parsed, res.0, CharLit);
         try_expression_item_next!(parsed, res.0, StrLit);
-        try_expression_item_next!(parsed, res.0, Macro);
+        try_expression_item_next!(parsed, res.0, Block);
         if let Either::Left((list, _)) = parsed {
             return Ok((res.0, ExpressionItem::List(list)));
         }
@@ -386,14 +386,14 @@ mod tests {
     }
 
     #[test]
-    fn expression_item_no_confusion_between_argumented_macro_and_list() {
+    fn expression_item_no_confusion_between_argumented_block_and_list() {
         let tokens = lex_string("[arg1, arg2] => {}").unwrap();
 
         let (tokens_consumed, item) = ExpressionItem::solve(&tokens).unwrap();
         assert_eq!(tokens_consumed, tokens.len()-1);
         assert_matches!(
             item,
-            ExpressionItem::Macro(_),
+            ExpressionItem::Block(_),
         )
     }
 

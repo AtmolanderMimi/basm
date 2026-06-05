@@ -4,7 +4,6 @@
 
 #![feature(associated_type_defaults)]
 #![feature(vec_try_remove)]
-#![feature(macro_metavar_expr_concat)]
 
 #![warn(missing_docs)]
 #![warn(clippy::pedantic)]

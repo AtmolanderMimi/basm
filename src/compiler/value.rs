@@ -21,7 +21,7 @@ pub enum PropertyError {
 pub enum Value {
     Number(i32),
     List(Vec<Value>),
-    Macro() // TODO macro goes here
+    Block() // TODO Block goes here
 }
 
 impl Value {
@@ -72,7 +72,7 @@ impl Value {
             Self::Number(_) => ValueType::Number,
             Self::List(_) if self.as_string().is_some() => ValueType::String,
             Self::List(_) => ValueType::List,
-            Self::Macro(..) => ValueType::Macro,
+            Self::Block(..) => ValueType::Block,
         }
     }
 
@@ -147,8 +147,8 @@ pub enum ValueType {
     List,
     /// A list of numbers that can be transfered to string
     String,
-    /// Value::Macro
-    Macro,
+    /// Value::Block
+    Block,
 }
 
 impl ValueType {
@@ -158,7 +158,7 @@ impl ValueType {
             ValueType::Number => "number",
             ValueType::List => "list",
             ValueType::String => "string list",
-            ValueType::Macro => "macro",
+            ValueType::Block => "code block",
         }
     }
 
@@ -170,7 +170,7 @@ impl ValueType {
             (Self::List, Self::List) => true,
             (Self::String, Self::List) => true,
             (Self::String, Self::String) => true,
-            (Self::Macro, Self::Macro) => true,
+            (Self::Block, Self::Block) => true,
             _ => false,
         }
     }
@@ -186,7 +186,7 @@ mod tests {
         assert!(ValueType::Number.is_part_of(&ValueType::Any));
         assert!(ValueType::List.is_part_of(&ValueType::Any));
         assert!(ValueType::String.is_part_of(&ValueType::Any));
-        assert!(ValueType::Macro.is_part_of(&ValueType::Any));
+        assert!(ValueType::Block.is_part_of(&ValueType::Any));
     }
 
     #[test]
@@ -195,7 +195,7 @@ mod tests {
         assert!(ValueType::Number.is_part_of(&ValueType::Number));
         assert!(ValueType::List.is_part_of(&ValueType::List));
         assert!(ValueType::String.is_part_of(&ValueType::String));
-        assert!(ValueType::Macro.is_part_of(&ValueType::Macro));
+        assert!(ValueType::Block.is_part_of(&ValueType::Block));
     }
 
     #[test]
