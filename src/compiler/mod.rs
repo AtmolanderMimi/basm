@@ -7,6 +7,7 @@ mod operators;
 mod string_normalizer;
 mod expression;
 mod emplacement;
+mod block;
 mod argument;
 mod directive;
 mod file;

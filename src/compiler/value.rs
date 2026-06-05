@@ -2,6 +2,8 @@
 
 use thiserror::Error;
 
+use crate::compiler::{argument::ArgumentType, block::Block};
+
 /// Error relating to properties.
 #[derive(Debug, Clone, PartialEq, Error)]
 pub enum PropertyError {
@@ -21,7 +23,7 @@ pub enum PropertyError {
 pub enum Value {
     Number(i32),
     List(Vec<Value>),
-    Block() // TODO Block goes here
+    Block(Box<Block>),
 }
 
 impl Value {
@@ -42,6 +44,15 @@ impl Value {
     pub fn as_list(&self) -> Option<&[Value]> {
         match self {
             Value::List(l) => Some(l),
+            _ => None,
+        }
+    }
+
+    // Returns the inner value of a Value::Block,
+    // if this instance of value is Value::Block.
+    pub fn as_block(&self) -> Option<Block> {
+        match self {
+            Value::Block(b) => Some(*b.clone()),
             _ => None,
         }
     }
@@ -72,7 +83,7 @@ impl Value {
             Self::Number(_) => ValueType::Number,
             Self::List(_) if self.as_string().is_some() => ValueType::String,
             Self::List(_) => ValueType::List,
-            Self::Block(..) => ValueType::Block,
+            Self::Block(b) => ValueType::Block(b.argument_types()),
         }
     }
 
@@ -80,7 +91,7 @@ impl Value {
         self.type_of().is_part_of(vtype)
     }
 
-    pub fn type_name(&self) -> &'static str {
+    pub fn type_name<'a>(&self) -> String {
         self.type_of().name()
     }
 
@@ -147,18 +158,39 @@ pub enum ValueType {
     List,
     /// A list of numbers that can be transfered to string
     String,
-    /// Value::Block
-    Block,
+    /// Value::Block(_), contains the types of the arguments
+    Block(Vec<ArgumentType>),
 }
 
 impl ValueType {
-    pub fn name(&self) -> &'static str {
+    pub fn name(&self) -> String {
         match self {
-            ValueType::Any => "any",
-            ValueType::Number => "number",
-            ValueType::List => "list",
-            ValueType::String => "string list",
-            ValueType::Block => "code block",
+            ValueType::Any => "any".to_string(),
+            ValueType::Number => "number".to_string(),
+            ValueType::List => "list".to_string(),
+            ValueType::String => "string list".to_string(),
+            ValueType::Block(args) => {
+                let mut string_acc = "code block [".to_string();
+
+                // adds each argument
+                for (i, arg_type) in args.iter().enumerate() {
+                    match arg_type {
+                        ArgumentType::Expression => (),
+                        ArgumentType::Emplacement => string_acc.push('&'),
+                    };
+
+                    string_acc.push_str(&format!("arg{i}, "));
+                }
+
+                // returns the trailing ", " if there were items
+                if !args.is_empty() {
+                    string_acc.pop();
+                    string_acc.pop();
+                }
+
+                string_acc.push(']');
+                string_acc
+            },
         }
     }
 
@@ -170,7 +202,7 @@ impl ValueType {
             (Self::List, Self::List) => true,
             (Self::String, Self::List) => true,
             (Self::String, Self::String) => true,
-            (Self::Block, Self::Block) => true,
+            (Self::Block(args1), Self::Block(args2)) if args1 == args2 => true,
             _ => false,
         }
     }
@@ -186,7 +218,7 @@ mod tests {
         assert!(ValueType::Number.is_part_of(&ValueType::Any));
         assert!(ValueType::List.is_part_of(&ValueType::Any));
         assert!(ValueType::String.is_part_of(&ValueType::Any));
-        assert!(ValueType::Block.is_part_of(&ValueType::Any));
+        assert!(ValueType::Block(Vec::new()).is_part_of(&ValueType::Any));
     }
 
     #[test]
@@ -195,12 +227,20 @@ mod tests {
         assert!(ValueType::Number.is_part_of(&ValueType::Number));
         assert!(ValueType::List.is_part_of(&ValueType::List));
         assert!(ValueType::String.is_part_of(&ValueType::String));
-        assert!(ValueType::Block.is_part_of(&ValueType::Block));
+        assert!(ValueType::Block(Vec::new()).is_part_of(&ValueType::Block(Vec::new())));
     }
 
     #[test]
     fn string_type_is_part_of_list() {
         assert!(ValueType::String.is_part_of(&ValueType::List));
+    }
+
+    #[test]
+    fn blocks_with_different_argument_types_are_not_part_of() {
+        let block1 = ValueType::Block(vec![ArgumentType::Expression]);
+        let block2 = ValueType::Block(vec![ArgumentType::Expression, ArgumentType::Expression]);
+
+        assert!(!block1.is_part_of(&block2));
     }
 
     #[test]

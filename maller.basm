@@ -1,0 +1,14 @@
+#decl &Write, [msg] => {
+    #raw msg;
+};
+
+#decl &MySet, [&emplacement, value] => {
+    #set &buffer
+    #set &emplacement, value;
+};
+
+#decl &buffer, "what?";
+Write: buffer;
+
+MySet: &buffer, "\ncool :D";
+Write: buffer;

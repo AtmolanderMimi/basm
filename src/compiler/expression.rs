@@ -5,7 +5,7 @@ use std::mem::transmute;
 use either::Either;
 use thiserror::Error;
 
-use crate::{compiler::{operators::{BinaryOperator, OperationError, UnaryOperator}, scope::Scope, string_normalizer::normalize_string_literal, value::Value}, parser::{CharLit, Ident, LanguageItem, StrLit}, newtype_wrapper};
+use crate::{compiler::{block::Block, operators::{BinaryOperator, OperationError, UnaryOperator}, scope::Scope, string_normalizer::normalize_string_literal, value::Value}, newtype_wrapper, parser::{CharLit, Ident, LanguageItem, StrLit}};
 
 use crate::parser::{Expression as ParsedExpression, ExpressionItem as ParsedExpressionItem};
 newtype_wrapper!(Expression, ParsedExpression);
@@ -127,8 +127,7 @@ impl ExpressionItem {
                 Some(Value::List(list))
             },
             ParsedExpressionItem::Block(block) => {
-                // TODO:
-                todo!("implement block value")
+                Some(Value::Block(Box::new(Block::from(block.clone()))))
             },
             ParsedExpressionItem::List(list) => {
                 let mut values = Vec::new();

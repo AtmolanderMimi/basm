@@ -16,12 +16,12 @@ struct MainScopeData {
 /// The scope in which variables can be defined.
 /// This can also be a sub-scope, aka a scope which is an extension of a higher one.
 #[derive(Debug, PartialEq)]
-pub struct Scope<'a, 'b: 'a> {
+pub struct Scope {
     local_variables: HashMap<String, Value>,
-    parent: Either<&'a mut Scope<'b, 'b>, MainScopeData>,
+    parent: Either<Box<Scope>, MainScopeData>,
 }
 
-impl<'a, 'b: 'a> Scope<'a, 'b> {
+impl Scope {
     /// Creates a new scope that is not the child of anyone.
     pub fn new() -> Self {
         Self::default()
@@ -85,17 +85,30 @@ impl<'a, 'b: 'a> Scope<'a, 'b> {
     }
 }
 
-impl<'a: 'c, 'c> Scope<'a, 'a> {
+impl Scope {
     /// Creates a new scope which is the child this one.
-    pub fn sub_scope(&'c mut self) -> Scope<'c, 'a> {
-        Scope {
-            parent: Either::Left(self),
-            ..Default::default()
-        }
+    pub fn sub_scope(&mut self) {
+        replace_with::replace_with_or_default(self, |self_| {
+            Scope {
+                parent: Either::Left(Box::new(self_)),
+                ..Default::default()
+            }
+        });
+    }
+
+    /// Unwraps itself into it's parent scope or does nothing.
+    pub fn parent_scope(&mut self) {
+        replace_with::replace_with_or_default(self, |self_| {
+            if let Either::Left(parent) = self_.parent {
+                *parent
+            } else {
+                self_
+            }
+        });
     }
 }
 
-impl Default for Scope<'_, '_> {
+impl Default for Scope {
     fn default() -> Self {
         Scope {
             local_variables: HashMap::default(),
@@ -117,9 +130,9 @@ mod tests {
         assert_eq!(scope.get("my_var"), Some(Value::Number(42)));
 
         // declaring in a sub-scope shadows the variable of super-scopes
-        let mut sub_scope = scope.sub_scope();
-        sub_scope.declare("my_var".to_string(), Value::Number(732));
-        assert_eq!(sub_scope.get("my_var"), Some(Value::Number(732)));
+        scope.sub_scope();
+        scope.declare("my_var".to_string(), Value::Number(732));
+        assert_eq!(scope.get("my_var"), Some(Value::Number(732)));
     }
 
     #[test]
@@ -144,9 +157,10 @@ mod tests {
         let mut scope = Scope::new();
         scope.declare("my_var".to_string(), Value::Number(42));
 
-        let mut sub_scope = scope.sub_scope();
-        sub_scope.set("my_var", Value::Number(732)).unwrap();
-
+        scope.sub_scope();
+        scope.set("my_var", Value::Number(732)).unwrap();
+        
+        scope.parent_scope();
         assert_eq!(scope.get("my_var"), Some(Value::Number(732)));
     }
 
@@ -155,8 +169,8 @@ mod tests {
         let mut scope = Scope::new();
         scope.declare("my_var".to_string(), Value::Number(42));
 
-        let sub_scope = scope.sub_scope();
-        assert_eq!(sub_scope.get("not_var"), None);
+        scope.sub_scope();
+        assert_eq!(scope.get("not_var"), None);
     }
 
     #[test]
@@ -164,10 +178,11 @@ mod tests {
         let mut scope = Scope::new();
         scope.declare("my_var".to_string(), Value::Number(42));
 
-        let mut sub_scope = scope.sub_scope();
-        assert_eq!(sub_scope.get("my_var"), Some(Value::Number(42)));
+        assert_eq!(scope.get("my_var"), Some(Value::Number(42)));
 
-        sub_scope.set("my_var", Value::Number(732)).unwrap();
+        scope.set("my_var", Value::Number(732)).unwrap();
+
+        scope.parent_scope();
         assert_eq!(scope.get("my_var"), Some(Value::Number(732)));
     }
 }
