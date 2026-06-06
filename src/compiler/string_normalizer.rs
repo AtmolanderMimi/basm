@@ -1,8 +1,7 @@
 //! Turns strings with escape sequences (e.g: \n, \", \', \\) into their actual string value
 
-use either::Either;
+use thiserror::Error;
 
-use crate::{compiler::{expression::ExpressionEvaluationError}, parser::{CharLit, LanguageItem, StrLit}};
 const ESCAPE_SEQUENCES: &[(char, char)] = &[
     ('\\', '\\'),
     ('n', '\n'),
@@ -11,23 +10,13 @@ const ESCAPE_SEQUENCES: &[(char, char)] = &[
     ('\'', '\''),
 ];
 
-/// Turns escape sequences into their value.
-/// Returns a string of the escape sequence which failed on error.
-pub fn normalize_string_literal(string: Either<&StrLit, &CharLit>) -> Result<String, ExpressionEvaluationError> {
-    let slice = string.as_ref().either(|s| s.slice_str(), |c| c.slice_str());
-    // this assumes that the string literal is surrounded by quotes, which it should always be
-    let slice_without_quotes = &slice[1..slice.len()-1];
-
-    normalize_string_formatting(&slice_without_quotes)
-        .map_err(|sequence| ExpressionEvaluationError::EscapeSequencesIsInvalid {
-        lit: string.map_either(|s| s.clone(), |c| c.clone()),
-        sequence
-    })
-}
+#[derive(Debug, Clone, PartialEq, Error)]
+#[error("escape sequence {0} is invalid")]
+pub struct InvalidEscapeSequence(String);
 
 /// Turns escape sequences into their value.
 /// Returns a string of the escape sequence which failed on error.
-fn normalize_string_formatting(string: &str) -> Result<String, String> {
+pub fn normalize_string_formatting(string: &str) -> Result<String, InvalidEscapeSequence> {
     let mut nomalized_string = String::new();
     let mut characters = string.chars();
 
@@ -37,7 +26,7 @@ fn normalize_string_formatting(string: &str) -> Result<String, String> {
                 let Some(true_character) = ESCAPE_SEQUENCES.iter()
                     .find_map(|(from, to)| if *from == escaped { Some(*to) } else { None })
                 else {
-                    return Err(format!("\\{}", escaped));    
+                    return Err(InvalidEscapeSequence(format!("\\{}", escaped)));    
                 };
 
                 nomalized_string.push(true_character);

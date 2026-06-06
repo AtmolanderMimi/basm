@@ -2,8 +2,9 @@
 
 use std::mem;
 
-use crate::compiler::argument::ArgumentType;
-use crate::compiler::directive::Directive;
+use crate::compiler::argument::{Argument, ArgumentType, NormalizedArgument};
+use crate::compiler::directive::{Directive, DirectiveError};
+use crate::compiler::scope::Scope;
 use crate::parser::{Block as ParsedBlock, Directive as ParsedDirective, LanguageItem};
 
 use crate::newtype_wrapper;
@@ -41,6 +42,56 @@ impl Block {
     /// Returns directives in the block.
     pub fn directives(&self) -> &[Directive] {
         unsafe { mem::transmute::<&[ParsedDirective], &[Directive]>(&self.0.body.directives) }
+    }
+
+    /// Inlines the block.
+    pub fn inline(&self, ctx: &mut Scope, arguments: Vec<(&Argument, NormalizedArgument)>) -> Result<(), DirectiveError> {
+        // add the arguments in the scope
+        ctx.sub_scope(); // creates a new scope
+        for (i, argument_name) in self.argument_names().iter().enumerate() {
+            // we can unwrap because blocks have no way to ask for no value
+            let value = arguments[i].1.value().unwrap().clone();
+
+            ctx.declare(argument_name.to_string(), value);
+        }
+
+        // runs the directives in the block scope.
+        for directive in self.directives() {
+            directive.inline(ctx)
+                .map_err(|err| DirectiveError::InlineBlockError {
+                    inner: Box::new(err),
+                    block: self.clone(),
+                })?;
+        }
+
+        // -- sets the output variables
+        let output_argument_names = arguments.iter()
+            .map(|(_, n)| n)
+            .zip(self.argument_names())
+            .filter_map(|(no, na)| no.emplacement().map(|_| na));
+
+        // gets the values of the output variables in the scope of the block
+        let mut emplacement_values_in_block = Vec::new();
+        for argument_name in output_argument_names {
+            // we can unwrap because the variable should always exist, we declare it in this function
+            let value = ctx.get(argument_name).unwrap();
+            emplacement_values_in_block.push(value);
+        }
+
+        // sets the values of the output variables to the emplacements in the parent scope
+        let output_arguments = arguments.iter()
+            .filter_map(|(arg, norm)| norm.emplacement().map(|emp| (arg, emp)));
+
+        ctx.parent_scope();
+        for ((argument, emplacement), value) in output_arguments.zip(emplacement_values_in_block) {
+            emplacement.set(ctx, value)
+                .map_err(|err| DirectiveError::FailedToSet {
+                    inner: err,
+                    argument: (*argument).clone(),
+                })?;
+        }
+
+        Ok(())
     }
 }
 

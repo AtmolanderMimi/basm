@@ -30,8 +30,18 @@ impl Value {
     pub const TRUE: Value = Value::Number(1);
     pub const FALSE: Value = Value::Number(0);
 
-    // Returns the inner value of a Value::Number,
-    // if this instance of value is Value::Number.
+    /// Creates a Value::List equivalent to the string (does not normalize escape sequence).
+    pub fn new_from_str(string: &str) -> Self {
+        let mut list = Vec::new();
+        for ch in string.chars() {
+            list.push(Value::Number(ch as i32));
+        };
+
+        Value::List(list)
+    }
+
+    /// Returns the inner value of a Value::Number,
+    /// if this instance of value is Value::Number.
     pub fn as_number(&self) -> Option<i32> {
         match self {
             Value::Number(n) => Some(*n),
@@ -39,8 +49,28 @@ impl Value {
         }
     }
 
-    // Returns the inner value of a Value::List,
-    // if this instance of value is Value::List.
+    /// Returns the truthness of a Value::Number,
+    /// if this instance of value is Value::Number, else return None.
+    pub fn is_true(&self) -> Option<bool> {
+        if self.as_number()? != 0 {
+            Some(true)
+        } else {
+            Some(false)
+        }
+    }
+
+    /// Returns the truthness of a Value::Number,
+    /// if this instance of value is Value::Number, else return None.
+    pub fn is_false(&self) -> Option<bool> {
+        if self.as_number()? == 0 {
+            Some(true)
+        } else {
+            Some(false)
+        }
+    }
+
+    /// Returns the inner value of a Value::List,
+    /// if this instance of value is Value::List.
     pub fn as_list(&self) -> Option<&[Value]> {
         match self {
             Value::List(l) => Some(l),
@@ -48,8 +78,8 @@ impl Value {
         }
     }
 
-    // Returns the inner value of a Value::Block,
-    // if this instance of value is Value::Block.
+    /// Returns the inner value of a Value::Block,
+    /// if this instance of value is Value::Block.
     pub fn as_block(&self) -> Option<Block> {
         match self {
             Value::Block(b) => Some(*b.clone()),
@@ -130,7 +160,7 @@ impl Value {
     #[cfg(test)]
     /// Parses and evaluates an expression from a string with an empty scope.
     /// Panics on fail of parsing or evaluating.
-    pub fn new_from_str(string: &str) -> Self {
+    pub fn parse_from_str(string: &str) -> Self {
         use crate::{compiler::{expression::Expression, scope::Scope}, parser::{self, Pattern}};
 
         let expr = Expression::from(parser::Expression::solve_str(string).unwrap());
@@ -245,7 +275,7 @@ mod tests {
 
     #[test]
     fn value_as_string_is_valid() {
-        let value = Value::new_from_str("\"\\nHéllo ↑ & rŭnnin.\"");
+        let value = Value::parse_from_str("\"\\nHéllo ↑ & rŭnnin.\"");
 
         assert_eq!(value.type_of(), ValueType::String);
         assert_eq!(value.as_string().unwrap(), "\nHéllo ↑ & rŭnnin.");
@@ -253,7 +283,7 @@ mod tests {
 
     #[test]
     fn value_as_string_from_list_is_valid() {
-        let value = Value::new_from_str("['A', '*']");
+        let value = Value::parse_from_str("['A', '*']");
 
         assert_eq!(value.type_of(), ValueType::String);
         assert_eq!(value.as_string().unwrap(), "A*");
@@ -261,13 +291,13 @@ mod tests {
 
     #[test]
     fn get_property_that_does_not_exist_errors() {
-        let list = Value::new_from_str("[1,2,3]");
+        let list = Value::parse_from_str("[1,2,3]");
         list.get_property("not_a_property").unwrap_err();
     }
 
     #[test]
     fn get_len_property_reflects_lenght_of_list() {
-        let list = Value::new_from_str("[1,2,3]");
+        let list = Value::parse_from_str("[1,2,3]");
         let lenght = list.get_property("len").unwrap();
 
         assert_eq!(lenght, Value::Number(3));
@@ -275,7 +305,7 @@ mod tests {
 
     #[test]
     fn set_len_property_reflects_shortens_list() {
-        let mut list = Value::new_from_str("[1,2,3]");
+        let mut list = Value::parse_from_str("[1,2,3]");
         list.set_property("len", Value::Number(2)).unwrap();
 
         assert_eq!(list, Value::List(vec![Value::Number(1), Value::Number(2)]));
@@ -283,7 +313,7 @@ mod tests {
 
     #[test]
     fn set_len_property_reflects_expands_list_with_zero() {
-        let mut list = Value::new_from_str("[1,2,3]");
+        let mut list = Value::parse_from_str("[1,2,3]");
         list.set_property("len", Value::Number(5)).unwrap();
 
         assert_eq!(list, Value::List(vec![Value::Number(1), Value::Number(2), Value::Number(3), Value::Number(0), Value::Number(0)]));
@@ -291,7 +321,7 @@ mod tests {
 
     #[test]
     fn set_len_property_to_negative_errors() {
-        let mut list = Value::new_from_str("[1,2,3]");
+        let mut list = Value::parse_from_str("[1,2,3]");
         list.set_property("len", Value::Number(-2)).unwrap_err();
     }
 }

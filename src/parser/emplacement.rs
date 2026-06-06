@@ -17,7 +17,7 @@ impl LanguageItem for EmplacementExpression {
     fn slice(&self) -> SfSlice {
         let source = self.output.slice().source();
         let start = self.output.slice().start();
-        let end = self.output.slice().end();
+        let end = self.sub_expression.slice().end();
 
         SfSlice::from_source(source, start..end)
             .expect("from known positions")

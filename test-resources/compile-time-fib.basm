@@ -1,0 +1,24 @@
+#decl &GVmemoization, [0, 1];
+#decl &Fib, [&return, nth] => {
+    #if nth > GVmemoization."len", {
+        #set &GVmemoization."len", nth+1;
+    };
+
+    #if nth >= 2 && GVmemoization@nth == 0, {
+        #decl &fib_minus_1, 0;
+        #decl &fib_minus_2, 0;
+
+        Fib: &fib_minus_1, nth-1;
+        Fib: &fib_minus_2, nth-2;
+
+        #set &GVmemoization@nth, fib_minus_1 + fib_minus_2;
+    };
+
+    #set &return, GVmemoization@nth;
+};
+
+#decl &fib_result, 0;
+Fib: &fib_result, 20;
+
+#to_string &fib_result, fib_result;
+#raw fib_result;

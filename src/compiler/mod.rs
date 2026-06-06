@@ -97,5 +97,14 @@ use super::*;
         let output = compile(&file).unwrap();
         assert_eq!(output, "hello, world! :D");
     }
+
+    #[test]
+    fn compile_time_fib_program() {
+        let file = ParsedFile::solve_str(include_str!("../../test-resources/compile-time-fib.basm"))
+            .unwrap();
+
+        let output = compile(&file).unwrap();
+        assert_eq!(output, "6765");
+    }
 }
 

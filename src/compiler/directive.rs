@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::LazyLock};
 
 use thiserror::Error;
 
-use crate::{compiler::{argument::{Argument, ArgumentError, ArgumentType, ArgumentValueTypePair, NormalizedArgument}, block::Block, emplacement::{EmplacementDeclareError, EmplacementSetError}, expression::{Expression, ExpressionEvaluationError}, scope::Scope, value::ValueType}, newtype_wrapper, parser::LanguageItem};
+use crate::{compiler::{argument::{Argument, ArgumentError, ArgumentType, ArgumentValueTypePair, NormalizedArgument}, block::Block, emplacement::{EmplacementDeclareError, EmplacementSetError}, expression::{Expression, ExpressionEvaluationError}, scope::Scope, value::{Value, ValueType}}, newtype_wrapper, parser::LanguageItem};
 
 use crate::parser::Directive as ParsedDirective;
 newtype_wrapper!(Directive, ParsedDirective);
@@ -93,56 +93,10 @@ impl Directive {
     }
 
     fn inline_block(&self, ctx: &mut Scope) -> Result<(), DirectiveError> {
+        let arguments = self.validated_argument_value(ctx)?;
         let block = self.block_value(ctx)?.unwrap();
 
-        let arguments = self.validated_argument_value(ctx)?;
-        
-        // add the arguments in the scope
-        ctx.sub_scope(); // creates a new scope
-        for (i, argument_name) in block.argument_names().iter().enumerate() {
-            // we can unwrap because blocks have no way to ask for no value
-            let value = arguments[i].1.value().unwrap().clone();
-
-            ctx.declare(argument_name.to_string(), value);
-        }
-
-        // runs the directives in the block scope.
-        for directive in block.directives() {
-            directive.inline(ctx)
-                .map_err(|err| DirectiveError::InlineBlockError {
-                    inner: Box::new(err),
-                    block: block.clone(),
-                })?;
-        }
-
-        // -- sets the output variables
-        let output_argument_names = arguments.iter()
-            .map(|(_, n)| n)
-            .zip(block.argument_names())
-            .filter_map(|(no, na)| no.emplacement().map(|_| na));
-
-        // gets the values of the output variables in the scope of the block
-        let mut emplacement_values_in_block = Vec::new();
-        for argument_name in output_argument_names {
-            // we can unwrap because the variable should always exist, we declare it in this function
-            let value = ctx.get(argument_name).unwrap();
-            emplacement_values_in_block.push(value);
-        }
-
-        // sets the values of the output variables to the emplacements in the parent scope
-        let output_arguments = arguments.iter()
-            .filter_map(|(arg, norm)| norm.emplacement().map(|emp| (arg, emp)));
-
-        ctx.parent_scope();
-        for ((argument, emplacement), value) in output_arguments.zip(emplacement_values_in_block) {
-            emplacement.set(ctx, value)
-                .map_err(|err| DirectiveError::FailedToSet {
-                    inner: err,
-                    argument: (*argument).clone(),
-                })?;
-        }
-
-        Ok(())
+        block.inline(ctx, arguments)
     }
 
     /// Returns the list of arguments and their values (or None if the argument is not expected to have a value).
@@ -256,6 +210,24 @@ static DIRECTIVES: LazyLock<HashMap<String, GenericDirectiveData>> = LazyLock::n
         ],
     ));
 
+    // if <condition>, <block []>
+    hash_map.insert("if".to_string(), GenericDirectiveData::new(
+        directive_if,
+        vec![
+            ArgumentValueTypePair::new(ArgumentType::Expression, ValueType::Number),
+            ArgumentValueTypePair::new(ArgumentType::Expression, ValueType::Block(vec![])),
+        ],
+    ));
+
+    // to_string <&string> <number>
+    hash_map.insert("to_string".to_string(), GenericDirectiveData::new(
+        directive_to_string,
+        vec![
+            ArgumentValueTypePair::new_without_value(ArgumentType::Emplacement),
+            ArgumentValueTypePair::new(ArgumentType::Expression, ValueType::Number),
+        ],
+    ));
+
     hash_map
 });
 
@@ -288,6 +260,31 @@ fn directive_set(ctx: &mut Scope, arguments: &[(&Argument, NormalizedArgument)])
 
     let var_value = arguments[1].1.value().unwrap();
     var_name_emplacement.set(ctx, var_value.clone())
+        .map_err(|err| DirectiveError::FailedToSet {
+            inner: err,
+            argument: arguments[0].0.clone()
+        })?;
+
+    Ok(())
+}
+
+/// `if <condition>, <block []>`
+fn directive_if(ctx: &mut Scope, arguments: &[(&Argument, NormalizedArgument)]) -> Result<(), DirectiveError> {
+    let condition_fufiled = arguments[0].1.value().unwrap().is_true().unwrap();
+    if condition_fufiled {
+        let block = arguments[1].1.value().unwrap().as_block().unwrap();
+        block.inline(ctx, Vec::new())?;
+    }
+
+    Ok(())
+}
+
+/// `to_string <&string> <number>`
+fn directive_to_string(ctx: &mut Scope, arguments: &[(&Argument, NormalizedArgument)]) -> Result<(), DirectiveError> {
+    let number = arguments[1].1.value().unwrap().as_number().unwrap();
+    let number_string = number.to_string();
+    let emplacement = arguments[0].1.emplacement().unwrap();
+    emplacement.set(ctx, Value::new_from_str(&number_string))
         .map_err(|err| DirectiveError::FailedToSet {
             inner: err,
             argument: arguments[0].0.clone()
@@ -431,6 +428,55 @@ mod tests {
         let mut scope = Scope::new();
 
         directive.inline(&mut scope).unwrap_err();
+    }
+
+    #[test]
+    fn if_generic_inlines_the_scope_when_true() {
+        let directive = directive_from_str("#if 1, { #raw \"inlined\"; };");
+        let mut scope = Scope::new();
+        directive.inline(&mut scope).unwrap();
+
+        assert_eq!(scope.get_output(), "inlined");
+    }
+
+    #[test]
+    fn if_generic_does_not_inlines_the_scope_when_false() {
+        let directive = directive_from_str("#if 0, { #raw \"inlined\"; };");
+        let mut scope = Scope::new();
+        directive.inline(&mut scope).unwrap();
+
+        assert_eq!(scope.get_output(), "");
+    }
+
+    #[test]
+    fn if_generic_does_accept_argumented_block() {
+        let directive = directive_from_str("#if 0, [arg] => { #raw \"inlined\"; };");
+        let mut scope = Scope::new();
+        directive.inline(&mut scope).unwrap_err();
+    }
+
+    #[test]
+    fn to_string_generic_positive_number() {
+        let directive = directive_from_str("#to_string &my_var, 42;");
+        let mut scope = Scope::new();
+        scope.declare("my_var".to_string(), Value::Number(0));
+
+        directive.inline(&mut scope).unwrap();
+
+        let string = scope.get("my_var").unwrap().as_string().unwrap();
+        assert_eq!(string, "42");
+    }
+
+    #[test]
+    fn to_string_generic_negative_number() {
+        let directive = directive_from_str("#to_string &my_var, 0-732;");
+        let mut scope = Scope::new();
+        scope.declare("my_var".to_string(), Value::Number(0));
+
+        directive.inline(&mut scope).unwrap();
+
+        let string = scope.get("my_var").unwrap().as_string().unwrap();
+        assert_eq!(string, "-732");
     }
 }
 

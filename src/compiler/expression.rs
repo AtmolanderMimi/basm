@@ -5,7 +5,7 @@ use std::mem::transmute;
 use either::Either;
 use thiserror::Error;
 
-use crate::{compiler::{block::Block, operators::{BinaryOperator, OperationError, UnaryOperator}, scope::Scope, string_normalizer::normalize_string_literal, value::Value}, newtype_wrapper, parser::{CharLit, Ident, LanguageItem, StrLit}};
+use crate::{compiler::{block::Block, operators::{BinaryOperator, OperationError, UnaryOperator}, scope::Scope, string_normalizer::{self, InvalidEscapeSequence}, value::Value}, newtype_wrapper, parser::{CharLit, Ident, LanguageItem, StrLit}};
 
 use crate::parser::{Expression as ParsedExpression, ExpressionItem as ParsedExpressionItem};
 newtype_wrapper!(Expression, ParsedExpression);
@@ -24,10 +24,10 @@ pub enum ExpressionEvaluationError {
         expression: Expression,
     },
 
-    #[error("escape sequence {sequence} is invalid")]
-    EscapeSequencesIsInvalid {
+    #[error("{inner}")]
+    InvalidEscapeSequence {
+        inner: InvalidEscapeSequence,
         lit: Either<StrLit, CharLit>,
-        sequence: String,
     },
 }
 
@@ -109,7 +109,14 @@ impl ExpressionItem {
                 Some(Value::Number(num))
             },
             ParsedExpressionItem::CharLit(charlit) => {
-                let normalized = normalize_string_literal(either::Either::Right(charlit))?;
+                let string_token_slice = charlit.slice_str();
+                let inner_str = &string_token_slice[1..string_token_slice.len()-1];
+
+                let normalized = string_normalizer::normalize_string_formatting(inner_str)
+                    .map_err(|err| ExpressionEvaluationError::InvalidEscapeSequence {
+                        inner: err,
+                        lit: Either::Right(charlit.clone()),
+                    })?;
 
                 let first_char = normalized.chars().next()
                     .expect("chars should have at least one character");
@@ -117,14 +124,17 @@ impl ExpressionItem {
                 Some(Value::Number(first_char as i32))
             },
             ParsedExpressionItem::StrLit(strlit) => {
-                let normalized = normalize_string_literal(either::Either::Left(strlit))?;
+                let string_token_slice = strlit.slice_str();
+                let inner_str = &string_token_slice[1..string_token_slice.len()-1];
+                let normalized = string_normalizer::normalize_string_formatting(inner_str)
+                    .map_err(|err| ExpressionEvaluationError::InvalidEscapeSequence {
+                        inner: err,
+                        lit: Either::Left(strlit.clone()),
+                    })?;
 
-                let mut list = Vec::new();
-                for ch in normalized.chars() {
-                    list.push(Value::Number(ch as i32));
-                }
+                let value = Value::new_from_str(&normalized);
 
-                Some(Value::List(list))
+                Some(value)
             },
             ParsedExpressionItem::Block(block) => {
                 Some(Value::Block(Box::new(Block::from(block.clone()))))
@@ -335,7 +345,7 @@ mod tests {
         let scope = Scope::new();
 
         let value = ident.inherent_value(&scope);
-        assert_matches!(value.unwrap_err(), ExpressionEvaluationError::EscapeSequencesIsInvalid { .. });
+        assert_matches!(value.unwrap_err(), ExpressionEvaluationError::InvalidEscapeSequence { .. });
     }
 
     #[test]
