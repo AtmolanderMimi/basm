@@ -45,6 +45,10 @@ impl Lexer {
     pub fn advance(&mut self) -> Result<Advancement, LexerError> {
         // if there are no more characters
         let Some(new_end) = self.character_indexes_iter.next() else {
+            if self.comment_mode {
+                return Ok(Advancement::Finished);
+            }
+
             // check one last time
             let sf_slice = self.source.slice(self.range.clone())
                 .unwrap();

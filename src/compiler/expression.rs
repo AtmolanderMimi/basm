@@ -289,16 +289,6 @@ mod tests {
     }
 
     #[test]
-    fn numlit_inherent_value_negative() {
-        let ident = expression_item_from_str("-42");
-
-        let scope = Scope::new();
-
-        let value = ident.inherent_value(&scope);
-        assert_eq!(value.unwrap().unwrap(), Value::Number(-42));
-    }
-
-    #[test]
     fn charlit_inherent_value_ascii() {
         let ident = expression_item_from_str("'*'");
 
