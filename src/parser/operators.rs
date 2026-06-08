@@ -6,23 +6,22 @@
 //! "==", "!=",            => 3
 //! "+", "-"               => 4
 //! "*", "/", "%"          => 5
-//! "!"                    => 6
-//! "@",                   => 7
-//! "."                    => 8
+//! "!", "+", "-" (rev)    => 6
+//! "[]", "."              => 7
 
-use crate::{lexer::token::Token, parser::{LanguageItem, ParseError, Pattern, PatternResult, terminals::{At, Divide, GreaterThan, GreaterThanEqual, LessThan, LessThanEqual, LogicalAnd, LogicalEqual, LogicalInequal, LogicalNot, LogicalOr, Minus, Modulo, Multiply, Period, Plus}}};
+use either::Either;
+
+use crate::{lexer::token::Token, parser::{Expression, LanguageItem, ParseError, ParseErrorVariant, Pattern, PatternResult, pattern::{Or, Then}, terminals::*}, source::SfSlice, utils::Sliceable};
 
 /// The number of precedence levels for all operators
-pub const NB_PRECEDENCE_LEVELS: u32 = 9;
+pub const NB_PRECEDENCE_LEVELS: u32 = 8;
+/// The precedence levels which are backwards, e.g: those which link operators end to start.
+/// e.g: when there is a right-associative unary operator.
+pub const REVERSE_PRECEDENCE_LEVELS: &[u32] = &[6];
 
 pub trait Operator {
     /// The order the operations should be merged in (higher = earlier)
     fn precedence(&self) -> u32;
-
-    /// Wheter the operator is right associative.
-    fn is_right_associative(&self) -> bool {
-        false
-    }
 
     /// Retruns true if it can modify an emplacement on it's left (first child of an expression).
     /// (Modifying an emplacement means that it takes an emplacement and returns one).
@@ -45,7 +44,6 @@ pub enum BinaryOperator {
     LessThanEqual(LessThanEqual),
     LogicalOr(LogicalOr),
     LogicalAnd(LogicalAnd),
-    Index(At),
     Property(Period),
 }
 
@@ -65,7 +63,6 @@ impl LanguageItem for BinaryOperator {
             Self::LessThanEqual(t) => t.slice(),
             Self::LogicalOr(t) => t.slice(),
             Self::LogicalAnd(t) => t.slice(),
-            Self::Index(t) => t.slice(),
             Self::Property(t) => t.slice(),
         }
     }
@@ -87,15 +84,13 @@ impl Operator for BinaryOperator {
             Self::Multiply(_)
             | Self::Divide(_)
             | Self::Modulo(_) => 5,
-            Self::Index(_) => 7,
-            Self::Property(_) => 8,
+            Self::Property(_) => 7,
         }
     }
 
     fn modifies_an_emplacement(&self) -> bool {
         match self {
-            Self::Index(_)
-            | Self::Property(_) => true,
+            Self::Property(_) => true,
             _ => false,
         }
     }
@@ -131,8 +126,6 @@ impl Pattern for BinaryOperator {
             (nb_tokens, BinaryOperator::LogicalOr(parsed))
         } else if let Ok((nb_tokens, parsed)) = LogicalAnd::solve(tokens) {
             (nb_tokens, BinaryOperator::LogicalAnd(parsed))
-        } else if let Ok((nb_tokens, parsed)) = At::solve(tokens) {
-            (nb_tokens, BinaryOperator::Index(parsed))
         } else if let Ok((nb_tokens, parsed)) = Period::solve(tokens) {
             (nb_tokens, BinaryOperator::Property(parsed))
         } else if let Some(token) = tokens.first() {
@@ -151,28 +144,28 @@ impl Pattern for BinaryOperator {
 
 /// An operator with with one operand, either on it's left or right
 #[derive(Debug, Clone, PartialEq)]
-pub enum UnaryOperator {
+pub enum RightAssociativeUnaryOperator {
+    UnaryPlus(Plus),
+    UnaryMinus(Minus),
     LogicalNot(LogicalNot),
 }
 
-impl LanguageItem for UnaryOperator {
+impl LanguageItem for RightAssociativeUnaryOperator {
     fn slice(&self) -> crate::source::SfSlice {
         match self {
+            Self::UnaryPlus(t) => t.slice(),
+            Self::UnaryMinus(t) => t.slice(),
             Self::LogicalNot(t) => t.slice(),
         }
     }
 }
 
-impl Operator for UnaryOperator {
+impl Operator for RightAssociativeUnaryOperator {
     fn precedence(&self) -> u32 {
         match self {
-            Self::LogicalNot(_) => 6,
-        }
-    }
-
-    fn is_right_associative(&self) -> bool {
-        match self {
-            Self::LogicalNot(_) => true,
+            Self::UnaryPlus(_)
+            | Self::UnaryMinus(_)
+            | Self::LogicalNot(_) => 6,
         }
     }
 
@@ -181,14 +174,83 @@ impl Operator for UnaryOperator {
     }
 }
 
-impl Pattern for UnaryOperator {
+impl Pattern for RightAssociativeUnaryOperator {
     fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult> {
-        let res = LogicalNot::solve(&tokens)?;
+        let res = Or::<
+        Plus,
+        Or<Minus,
+        LogicalNot
+        >>::solve(&tokens);
+            
+        // modifies the error to say unary op
+        if let Err(ParseError { tokens_before_error, variant: ParseErrorVariant::UnexpectedTokenError{ got, ..} }) = res {
+            return Err(ParseError::new_unexpected_token(tokens_before_error, Self::name(), got));
+        };
         
-        let operator = UnaryOperator::LogicalNot(res.1);
+        let (token_consumed, parsed) = res?;
+        let operator = match parsed {
+            Either::Left(op) => Self::UnaryPlus(op),
+            Either::Right(Either::Left(op)) => Self::UnaryMinus(op),
+            Either::Right(Either::Right(op)) => Self::LogicalNot(op),
+        };
 
-        Ok((res.0, operator))
+        Ok((token_consumed, operator))
     }
 
-    fn name() -> String { "unaryop".to_string() }
+    fn name() -> String { "right-associative unaryop".to_string() }
+}
+
+/// An operator with with one operand which associates with the operand on its right.
+#[derive(Debug, Clone, PartialEq)]
+pub enum LeftAssociativeUnaryOperator {
+    Index(LeftSquare, Box<Expression>, RightSquare),
+}
+
+impl LanguageItem for LeftAssociativeUnaryOperator {
+    fn slice(&self) -> crate::source::SfSlice {
+        match self {
+            Self::Index(lsquare, _, rsquare) => {
+                let source = lsquare.slice().source();
+                let start = lsquare.slice().start();
+                let end = rsquare.slice().end();
+
+                SfSlice::from_source(source, start..end)
+                    .expect("from known byte slice")
+            },
+        }
+    }
+}
+
+impl Operator for LeftAssociativeUnaryOperator {
+    fn precedence(&self) -> u32 {
+        match self {
+            Self::Index(..) => 7,
+        }
+    }
+
+    fn modifies_an_emplacement(&self) -> bool {
+        match self {
+            Self::Index(..) => true,
+        }
+    }
+}
+
+impl Pattern for LeftAssociativeUnaryOperator {
+    fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult> {
+        type IndexPattern = Then::<LeftSquare, Then<Expression, RightSquare>>;
+
+        let res = IndexPattern::solve(tokens);
+            
+        // modifies the error to say unary op
+        if let Err(ParseError { tokens_before_error, variant: ParseErrorVariant::UnexpectedTokenError{ got, ..} }) = res {
+            return Err(ParseError::new_unexpected_token(tokens_before_error, Self::name(), got));
+        };
+
+        let (token_consumed, parsed) = res?;
+        let operation = Self::Index(parsed.0, Box::new(parsed.1.0), parsed.1.1);
+
+        Ok((token_consumed, operation))
+    }
+
+    fn name() -> String { "left-associative unaryop".to_string() }
 }

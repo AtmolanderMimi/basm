@@ -1,10 +1,10 @@
 //! Defines how to describe the position of a value.
-//! e.g: `&var@3` defines the position of the third value in the list `var`.
+//! e.g: `&var[3]` defines the position of the third value in the list `var`.
 //! [EmplacementExpression] simply parses an & + expression and then checks if the expression is an emplacement.
 
 use std::mem;
 
-use crate::{lexer::token::Token, parser::{Expression, ExpressionItem, LanguageItem, Operator, Output, ParseError, ParseErrorVariant::InvalidEmplacement, Pattern, PatternResult, pattern::Then}, source::SfSlice};
+use crate::{lexer::token::Token, parser::{Expression, ExpressionItem, LanguageItem, Operator, Output, ParseError, ParseErrorVariant::InvalidEmplacement, Pattern, PatternResult, ValueItem, pattern::Then}, source::SfSlice};
 
 /// Defines the position of a value.
 #[derive(Debug, Clone, PartialEq)]
@@ -62,8 +62,8 @@ impl EmplacementSubExpression {
 
     fn convey_emplacement(&self) -> bool {
         match &self.0.node {
-            ExpressionItem::Ident(_) => true,
-            ExpressionItem::ParenGroup(_, g, _) => {
+            ExpressionItem::ValueItem(ValueItem::Ident(_)) => true,
+            ExpressionItem::ValueItem(ValueItem::ParenGroup(_, g, _)) => {
                 unsafe { mem::transmute::<&Box<Expression>, &Box<EmplacementSubExpression>>(g) }
                     .convey_emplacement()
             },
@@ -71,7 +71,11 @@ impl EmplacementSubExpression {
                 unsafe { mem::transmute::<&Expression, &EmplacementSubExpression>(&self.0.children[0]) }
                     .convey_emplacement()
             },
-            ExpressionItem::UnaryOperator(op) if op.modifies_an_emplacement() => {
+            ExpressionItem::LeftAssociativeUnaryOperator(op) if op.modifies_an_emplacement() => {
+                unsafe { mem::transmute::<&Expression, &EmplacementSubExpression>(&self.0.children[0]) }
+                    .convey_emplacement()
+            },
+            ExpressionItem::RightAssociativeUnaryOperator(op) if op.modifies_an_emplacement() => {
                 unsafe { mem::transmute::<&Expression, &EmplacementSubExpression>(&self.0.children[0]) }
                     .convey_emplacement()
             },
@@ -146,7 +150,7 @@ use super::*;
 
     #[test]
     fn index_on_emplacement_is_emplacement() {
-        let tokens = lex_string("&my_var@3").unwrap();
+        let tokens = lex_string("&my_var[3]").unwrap();
 
         let (tokens_consumed, _) = EmplacementExpression::solve(&tokens).unwrap();
         assert_eq!(tokens_consumed, tokens.len()-1);
@@ -162,7 +166,7 @@ use super::*;
 
     #[test]
     fn complex_emplacement() {
-        let tokens = lex_string("&(my_var@(4+3))@[1 || 0, 2 * my_var, another_index].\"len\"").unwrap();
+        let tokens = lex_string("&(my_var[(4+3)])[[1 || 0, 2 * my_var, another_index].\"len\"]").unwrap();
 
         let (tokens_consumed, _) = EmplacementExpression::solve(&tokens).unwrap();
         assert_eq!(tokens_consumed, tokens.len()-1);

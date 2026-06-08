@@ -2,7 +2,7 @@
 
 use either::Either;
 
-use crate::{lexer::token::Token, parser::{LanguageItem, ParseError, ParseErrorVariant, Pattern, PatternResult, list::List, block::Block, operators::{BinaryOperator, NB_PRECEDENCE_LEVELS, Operator, UnaryOperator}, pattern::{Not, OneOrMore, Or, Then}, terminals::{CharLit, Ident, LeftParen, NumLit, RightParen, StrLit, ThickArrow}}, source::SfSlice};
+use crate::{lexer::token::Token, parser::{LanguageItem, LeftAssociativeUnaryOperator, ParseError, Pattern, PatternResult, REVERSE_PRECEDENCE_LEVELS, ValueItem, operators::{BinaryOperator, NB_PRECEDENCE_LEVELS, Operator, RightAssociativeUnaryOperator}, pattern::Or}, source::SfSlice};
 
 //// An expression. An expression is formed from one or more [ExpressionItem] being merged.
 #[derive(Debug, Clone, PartialEq)]
@@ -42,15 +42,21 @@ impl Expression {
                         return false;
                     };
                     let has_correct_precedence = precedence == current_precedence;
-
                     let has_not_been_linked = item.is_leaf();
-
+                    
                     has_correct_precedence && has_not_been_linked
                 };
 
-                let maybe_operator_index = sub_exprs.iter()
-                    .enumerate()
-                    .find(predicate).map(|(i, _)| i);
+                let maybe_operator_index = if REVERSE_PRECEDENCE_LEVELS.contains(&current_precedence) {
+                    sub_exprs.iter()
+                        .enumerate()
+                        .rev()
+                        .find(predicate).map(|(i, _)| i)
+                } else {
+                    sub_exprs.iter()
+                        .enumerate()
+                        .find(predicate).map(|(i, _)| i)
+                };
 
                 let Some(operator_index) = maybe_operator_index else {
                     // there are no more unmatched operators in the precedence level
@@ -71,7 +77,7 @@ impl Expression {
                         let operator = &mut sub_exprs[operator_index-1];
                         operator.children = vec![item_before, item_after];
                     },
-                    ExpressionItem::UnaryOperator(op) if op.is_right_associative() => {
+                    ExpressionItem::RightAssociativeUnaryOperator(_) => {
                         let Some(item_after) = sub_exprs.try_remove(operator_index + 1) else {
                             return Err(ParseError::new_unparsed_expression(tokens_consumed, items.to_vec()));
                         };
@@ -79,7 +85,7 @@ impl Expression {
                         let operator = &mut sub_exprs[operator_index];
                         operator.children = vec![item_after];
                     },
-                    ExpressionItem::UnaryOperator(op) if !op.is_right_associative() => {
+                    ExpressionItem::LeftAssociativeUnaryOperator(_) => {
                         // TODO: usize::MAX hack
                         let Some(item_before) = sub_exprs.try_remove(operator_index.checked_sub(1).unwrap_or(usize::MAX)) else {
                             return Err(ParseError::new_unparsed_expression(tokens_consumed, items.to_vec()));
@@ -130,9 +136,61 @@ impl LanguageItem for Expression {
 
 impl Pattern for Expression {
     fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult> {
-        let (consumed_tokens, items) = OneOrMore::<ExpressionItem>::solve(&tokens)?;
+        // these two patterns switch over every time a value item is found or a binary operator is found
+        // For example:
+        // `!value[32] + 8`
+        // Start with `RightAssociativeOrValue`.
+        // -> `!` RightAssotive
+        // -> `value` Value
+        // we found a value, so we switch to `LeftAssociativeOrBinary`
+        // -> `[32]` LeftAssociative 
+        // -> `+` BinaryOperator
+        // we found an operator, so we switch to `RightAssociativeOrValue`
+        // This method allows us to prune the parsing of expression items which would be impossible,
+        // in turn allowing otherwise ambiguous syntax like `[..]` for index which is the same a list literal.
+        type RightAssociativeOrValue = Or<RightAssociativeUnaryOperator, ValueItem>;
+        type LeftAssociativeOrBinary = Or<LeftAssociativeUnaryOperator, BinaryOperator>;
 
-        Ok((consumed_tokens, Expression::new_from_items(consumed_tokens, &items)?))
+        let mut items = Vec::new();
+        let mut tokens_consumed = 0;
+        let mut parsing_right_associative_or_value = true;
+        loop {
+            let (new_tokens_consumed, new_item) = if parsing_right_associative_or_value {
+                // -- right-associative or value
+                let (new_tokens_consumed, parsed) = RightAssociativeOrValue::solve(&tokens[tokens_consumed..])?;
+
+                let item = match parsed {
+                    Either::Left(op) => ExpressionItem::RightAssociativeUnaryOperator(op),
+                    Either::Right(val) => {
+                        parsing_right_associative_or_value = false;
+                        ExpressionItem::ValueItem(val)
+                    },
+                };
+
+                (new_tokens_consumed, item)
+            } else {
+                // -- left-associative or binary operator
+                let Ok((new_tokens_consumed, parsed)) = LeftAssociativeOrBinary::solve(&tokens[tokens_consumed..]) else {
+                    // this is okay to fail, it just means that we are done
+                    break;
+                };
+
+                let item = match parsed {
+                    Either::Left(op) => ExpressionItem::LeftAssociativeUnaryOperator(op),
+                    Either::Right(val) => {
+                        parsing_right_associative_or_value = true;
+                        ExpressionItem::BinaryOperator(val)
+                    },
+                };
+
+                (new_tokens_consumed, item)
+            };
+
+            tokens_consumed += new_tokens_consumed;
+            items.push(new_item);
+        }
+
+        Ok((tokens_consumed, Expression::new_from_items(tokens_consumed, &items)?))
     }
 
     fn name() -> String { "expr".to_string() }
@@ -141,16 +199,10 @@ impl Pattern for Expression {
 //// An item in an expression.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExpressionItem {
-    /// A group of items in parenthesises (or however it is spelled)
-    ParenGroup(LeftParen, Box<Expression>, RightParen),
-    Ident(Ident),
-    NumLit(NumLit),
-    CharLit(CharLit),
-    StrLit(StrLit),
-    Block(Block),
-    List(List),
+    ValueItem(ValueItem),
     BinaryOperator(BinaryOperator),
-    UnaryOperator(UnaryOperator),
+    LeftAssociativeUnaryOperator(LeftAssociativeUnaryOperator),
+    RightAssociativeUnaryOperator(RightAssociativeUnaryOperator),
 }
 
 impl ExpressionItem {
@@ -158,7 +210,8 @@ impl ExpressionItem {
     pub fn precedence(&self) -> Option<u32> {
         match self {
             Self::BinaryOperator(op) => Some(op.precedence()),
-            Self::UnaryOperator(op) => Some(op.precedence()),
+            Self::LeftAssociativeUnaryOperator(op) => Some(op.precedence()),
+            Self::RightAssociativeUnaryOperator(op) => Some(op.precedence()),
             _ => None,
         }
     }
@@ -167,84 +220,21 @@ impl ExpressionItem {
 impl LanguageItem for ExpressionItem {
     fn slice(&self) -> crate::source::SfSlice {
         match self {
-            Self::ParenGroup(left, _, right) => {
-                let source = left.slice().source();
-                let start = left.slice().start();
-                let end = right.slice().end();
-
-                SfSlice::from_source(source, start..end)
-                    .expect("from known items")
-            },
-            Self::Ident(t) => t.slice(),
-            Self::NumLit(t) => t.slice(),
-            Self::CharLit(t) => t.slice(),
-            Self::StrLit(t) => t.slice(),
-            Self::List(t) => t.slice(),
-            Self::Block(t) => t.slice(),
+            Self::ValueItem(t) => t.slice(), 
             Self::BinaryOperator(t) => t.slice(),
-            Self::UnaryOperator(t) => t.slice(),
+            Self::LeftAssociativeUnaryOperator(t) => t.slice(),
+            Self::RightAssociativeUnaryOperator(t) => t.slice(),
         }
     }
 }
 
-macro_rules! try_expression_item_next {
-    ($parsed:ident, $tokens_consumed:expr, $variant:ident) => {
-        if $parsed.is_left() { return Ok(($tokens_consumed, ExpressionItem::$variant($parsed.unwrap_left()))); }
-        let $parsed = $parsed.unwrap_right();
-    };
-}
-
-impl Pattern for ExpressionItem {
-    // The order of these if statements has an impact on which item has priority
-    fn solve(tokens: &[Token]) -> PatternResult<Self::ParseResult> {
-        type ParenGroupPattern = Then<LeftParen, Then<Expression, RightParen>>;
-        type ExpressionItemPattern = 
-        Or<
-        ParenGroupPattern, Or<
-        Ident, Or<
-        NumLit, Or<
-        CharLit, Or<
-        StrLit, Or<
-        Block, Or<
-        Then<List, Not<ThickArrow>>,
-        Or<BinaryOperator,
-        UnaryOperator,
-        >>>>>>>>;
-
-        let res = ExpressionItemPattern::solve(tokens);
-        let res = if let Err(ParseError { tokens_before_error, variant: ParseErrorVariant::UnexpectedTokenError{ got, ..} }) = res {
-            return Err(ParseError::new_unexpected_token(tokens_before_error, Self::name(), got));
-        } else {
-            res?
-        };
-
-        let parsed = res.1;
-
-        if parsed.is_left() { let p = parsed.unwrap_left(); return Ok((res.0, ExpressionItem::ParenGroup(p.0, Box::new(p.1.0), p.1.1))); }
-        let parsed = parsed.unwrap_right();
-
-        try_expression_item_next!(parsed, res.0, Ident);
-        try_expression_item_next!(parsed, res.0, NumLit);
-        try_expression_item_next!(parsed, res.0, CharLit);
-        try_expression_item_next!(parsed, res.0, StrLit);
-        try_expression_item_next!(parsed, res.0, Block);
-        if let Either::Left((list, _)) = parsed {
-            return Ok((res.0, ExpressionItem::List(list)));
-        }
-        let parsed = parsed.unwrap_right();
-
-        try_expression_item_next!(parsed, res.0, BinaryOperator);
-
-        return Ok((res.0, ExpressionItem::UnaryOperator(parsed)));
-    }
-
-    fn name() -> String { "expression item".to_string() }
-}
+// ExpressionItem does not have a pattern definition, as its parsing is dependent on context.
+// ExpressionItem's are parsed in the Expression Pattern implementation.
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{lexer::{lex_string, token::TokenType}, parser::Pattern};
+    use crate::{lexer::lex_string, parser::Pattern};
 
     use std::assert_matches;
 
@@ -295,7 +285,7 @@ mod tests {
         // the right argument of the division
         assert_matches!(
             expression.children[1].node,
-            ExpressionItem::NumLit(NumLit(Token { t_type: TokenType::NumLit, .. })),
+            ExpressionItem::ValueItem(ValueItem::NumLit(_)),
         );
 
         // the multiplication
@@ -307,48 +297,47 @@ mod tests {
         // .. and it's arguments
         assert_matches!(
             expression.children[0].children[0].node,
-            ExpressionItem::StrLit(StrLit(Token { t_type: TokenType::StrLit, .. })),
+            ExpressionItem::ValueItem(ValueItem::StrLit(_)),
         );
 
         assert_matches!(
             expression.children[0].children[1].node,
-            ExpressionItem::Ident(Ident(Token { t_type: TokenType::Ident, .. })),
+            ExpressionItem::ValueItem(ValueItem::Ident(_)),
         );
     }
 
     #[test]
     fn expression_list_and_property() {
-        let tokens = lex_string("list @ [1,2,3].len").unwrap();
+        let tokens = lex_string("list[[1,2,3].len]").unwrap();
         let (tokens_consumed, expression) = Expression::solve(&tokens).unwrap();
         assert_eq!(tokens_consumed, tokens.len()-1);
 
         // the division (at the top)
-        assert_matches!(
-            expression.node,
-            ExpressionItem::BinaryOperator(BinaryOperator::Index(_))
-        );
+        let ExpressionItem::LeftAssociativeUnaryOperator(LeftAssociativeUnaryOperator::Index(_, inner_expr, _)) = expression.node else {
+            panic!()
+        };
 
         // the right argument of the division
         assert_matches!(
             expression.children[0].node,
-            ExpressionItem::Ident(_),
+            ExpressionItem::ValueItem(ValueItem::Ident(_)),
         );
 
         // the multiplication
         assert_matches!(
-            expression.children[1].node,
+            inner_expr.node,
             ExpressionItem::BinaryOperator(BinaryOperator::Property(_))
         );
 
         // .. and it's arguments
         assert_matches!(
-            expression.children[1].children[0].node,
-            ExpressionItem::List(_),
+            inner_expr.children[0].node,
+            ExpressionItem::ValueItem(ValueItem::List(_)),
         );
 
         assert_matches!(
-            expression.children[1].children[1].node,
-            ExpressionItem::Ident(_),
+            inner_expr.children[1].node,
+            ExpressionItem::ValueItem(ValueItem::Ident(_)),
         );
     }
 
@@ -358,7 +347,7 @@ mod tests {
         let (tokens_consumed, expression) = Expression::solve(&tokens).unwrap();
         assert_eq!(tokens_consumed, tokens.len()-1);
 
-        let ExpressionItem::ParenGroup(_, inner_expression,_ ) = expression.node else {
+        let ExpressionItem::ValueItem(ValueItem::ParenGroup(_, inner_expression,_ )) = expression.node else {
             panic!()
         };
 
@@ -369,12 +358,12 @@ mod tests {
 
         assert_matches!(
             inner_expression.children[0].node,
-            ExpressionItem::ParenGroup(..)
+            ExpressionItem::ValueItem(ValueItem::ParenGroup(..))
         );
         
         assert_matches!(
             inner_expression.children[1].node,
-            ExpressionItem::NumLit(_),
+            ExpressionItem::ValueItem(ValueItem::NumLit(_)),
         );
     }
 
@@ -386,14 +375,14 @@ mod tests {
     }
 
     #[test]
-    fn expression_item_no_confusion_between_argumented_block_and_list() {
+    fn expression_no_confusion_between_argumented_block_and_list() {
         let tokens = lex_string("[arg1, arg2] => {}").unwrap();
 
-        let (tokens_consumed, item) = ExpressionItem::solve(&tokens).unwrap();
+        let (tokens_consumed, item) = Expression::solve(&tokens).unwrap();
         assert_eq!(tokens_consumed, tokens.len()-1);
         assert_matches!(
-            item,
-            ExpressionItem::Block(_),
+            item.node,
+            ExpressionItem::ValueItem(ValueItem::Block(_)),
         )
     }
 
@@ -404,17 +393,17 @@ mod tests {
         let (_, item) = Expression::solve(&tokens).unwrap();
         assert_matches!(
             item.node,
-            ExpressionItem::UnaryOperator(UnaryOperator::LogicalNot(_)),
+            ExpressionItem::RightAssociativeUnaryOperator(RightAssociativeUnaryOperator::LogicalNot(_)),
         );
         assert_matches!(
             item.children[0].node,
-            ExpressionItem::Ident(_),
+            ExpressionItem::ValueItem(ValueItem::Ident(_)),
         );
     }
 
     #[test]
     fn expression_unary_operator_respects_precedence() {
-        let tokens = lex_string("1 && !my_var@[1,2]").unwrap();
+        let tokens = lex_string("1 && !my_var[[1,2]]").unwrap();
         let (tokens_consumed, expression) = Expression::solve(&tokens).unwrap();
         assert_eq!(tokens_consumed, tokens.len()-1);
 
@@ -425,17 +414,17 @@ mod tests {
 
         assert_matches!(
             expression.children[0].node,
-            ExpressionItem::NumLit(_)
+            ExpressionItem::ValueItem(ValueItem::NumLit(_))
         );
         
         assert_matches!(
             expression.children[1].node,
-            ExpressionItem::UnaryOperator(UnaryOperator::LogicalNot(_)),
+            ExpressionItem::RightAssociativeUnaryOperator(RightAssociativeUnaryOperator::LogicalNot(_)),
         );
 
         assert_matches!(
             expression.children[1].children[0].node,
-            ExpressionItem::BinaryOperator(BinaryOperator::Index(_)),
+            ExpressionItem::LeftAssociativeUnaryOperator(LeftAssociativeUnaryOperator::Index(..)),
         );
     }
 }

@@ -2,12 +2,13 @@
 
 use thiserror::Error;
 
-use crate::{compiler::value::{PropertyError, Value}, newtype_wrapper};
+use crate::{compiler::{expression::{Expression, ExpressionEvaluationError}, scope::Scope, value::{PropertyError, Value}}, newtype_wrapper};
 
-use crate::parser::{BinaryOperator as ParsedBinaryOperator, UnaryOperator as ParsedUnaryOperator};
+use crate::parser::{BinaryOperator as ParsedBinaryOperator, LeftAssociativeUnaryOperator as ParsedLeftAssociativeUnaryOperator, RightAssociativeUnaryOperator as ParsedRightAssociativeUnaryOperator};
 
 newtype_wrapper!(BinaryOperator, ParsedBinaryOperator);
-newtype_wrapper!(UnaryOperator, ParsedUnaryOperator);
+newtype_wrapper!(LeftAssociativeUnaryOperator, ParsedLeftAssociativeUnaryOperator);
+newtype_wrapper!(RightAssociativeUnaryOperator, ParsedRightAssociativeUnaryOperator);
 
 /// An error which occured while evaluating an operation.
 #[derive(Debug, Clone, PartialEq, Error)]
@@ -35,7 +36,12 @@ pub enum OperationError {
     InvalidTypeUnary {
         value_type: String,
         op_name: String,
-    }
+    },
+    #[error("{inner}")]
+    CouldNotEvaluateIndex {
+        inner: Box<ExpressionEvaluationError>,
+        expression: Expression,
+    },
 }
 
 impl BinaryOperator {
@@ -54,7 +60,6 @@ impl BinaryOperator {
             ParsedBinaryOperator::LessThanEqual(_) => Self::lesser_than_equal(lhs, rhs),
             ParsedBinaryOperator::LogicalOr(_) => Self::logical_or(lhs, rhs),
             ParsedBinaryOperator::LogicalAnd(_) => Self::logical_and(lhs, rhs),
-            ParsedBinaryOperator::Index(_) => Self::index(lhs, rhs),
             ParsedBinaryOperator::Property(_) => Self::property(lhs, rhs),
         }
     }
@@ -197,7 +202,7 @@ impl BinaryOperator {
     }
 
     fn inequal(lhs: Value, rhs: Value) -> Result<Value, OperationError> {
-        UnaryOperator::not(Self::equal(lhs, rhs)?)
+        RightAssociativeUnaryOperator::not(Self::equal(lhs, rhs)?)
     }
 
     fn greater_than(lhs: Value, rhs: Value) -> Result<Value, OperationError> {
@@ -237,11 +242,11 @@ impl BinaryOperator {
     }
 
     fn lesser_than(lhs: Value, rhs: Value) -> Result<Value, OperationError> {
-        UnaryOperator::not(Self::greater_than_equal(lhs, rhs)?)
+        RightAssociativeUnaryOperator::not(Self::greater_than_equal(lhs, rhs)?)
     }
 
     fn lesser_than_equal(lhs: Value, rhs: Value) -> Result<Value, OperationError> {
-        UnaryOperator::not(Self::greater_than(lhs, rhs)?)
+        RightAssociativeUnaryOperator::not(Self::greater_than(lhs, rhs)?)
     }
 
     fn logical_or(lhs: Value, rhs: Value) -> Result<Value, OperationError> {
@@ -280,54 +285,6 @@ impl BinaryOperator {
         }
     }
 
-    fn index(lhs: Value, rhs: Value) -> Result<Value, OperationError> {
-        let lhs_type = lhs.type_name().to_string();
-        let rhs_type = rhs.type_name().to_string();
-
-        match (lhs, rhs) {
-            // indexing by number
-            (Value::List(mut lhs_l), Value::Number(rhs_n)) => {
-                // tries to convert into index
-                let Ok(index): Result<usize, _> = rhs_n.try_into() else {
-                    return Err(OperationError::IndexOutOfBound { indices: vec![rhs_n], length: lhs_l.len() });
-                };
-
-                // tries to get the item
-                let Some(element) = lhs_l.try_remove(index) else {
-                    return Err(OperationError::IndexOutOfBound { indices: vec![rhs_n], length: lhs_l.len() });
-                };
-
-                Ok(element)
-            },
-            // indexing by list of number
-            (Value::List(lhs_l), Value::List(rhs_l)) => {
-                let mut return_list = Vec::new();
-
-                for index_value in rhs_l {
-                    let Value::Number(rhs_n) = index_value else {
-                        return Err(OperationError::InvalidTypeBinary { lhs_type, op_name: "indexing".to_string(), rhs_type: index_value.type_name().to_string() });
-                    };
-
-                    // tries to convert into index
-                    let Ok(index): Result<usize, _> = rhs_n.try_into() else {
-                        return Err(OperationError::IndexOutOfBound { indices: vec![rhs_n], length: lhs_l.len() });
-                    };
-
-                    // tries to get the item
-                    let Some(element) = lhs_l.get(index) else {
-                        return Err(OperationError::IndexOutOfBound { indices: vec![rhs_n], length: lhs_l.len() });
-                    };
-
-                    // this is bad, cloning can lose a lot of performance
-                    return_list.push(element.clone());
-                }
-
-                Ok(Value::List(return_list))
-            },
-            _ => Err(OperationError::InvalidTypeBinary { lhs_type, op_name: "indexing".to_string(), rhs_type })
-        }
-    }
-
     fn property(lhs: Value, rhs: Value) -> Result<Value, OperationError> {
         let lhs_type = lhs.type_name().to_string();
         let rhs_type = rhs.type_name().to_string();
@@ -345,11 +302,101 @@ impl BinaryOperator {
     }
 }
 
-impl UnaryOperator {
+impl LeftAssociativeUnaryOperator {
+    pub fn evaluate(&self, ctx: &Scope, arg: Value) -> Result<Value, OperationError> {
+        match &self.0 {
+            ParsedLeftAssociativeUnaryOperator::Index(_, index, _) => {
+                let index = <&Expression>::from(&**index);
+                let index_value = index.evaluate(ctx)
+                    .map_err(|err| OperationError::CouldNotEvaluateIndex { inner: Box::new(err), expression: index.clone() })?;
+
+                Self::index(arg, index_value)
+            },
+        }
+    }
+
+    fn index(lhs: Value, index: Value) -> Result<Value, OperationError> {
+        let lhs_type = lhs.type_name().to_string();
+        let index_type = index.type_name().to_string();
+
+        match (lhs, index) {
+            // indexing by number
+            (Value::List(mut lhs_l), Value::Number(index_n)) => {
+                // tries to convert into index
+                let Ok(index): Result<usize, _> = index_n.try_into() else {
+                    return Err(OperationError::IndexOutOfBound { indices: vec![index_n], length: lhs_l.len() });
+                };
+
+                // tries to get the item
+                let Some(element) = lhs_l.try_remove(index) else {
+                    return Err(OperationError::IndexOutOfBound { indices: vec![index_n], length: lhs_l.len() });
+                };
+
+                Ok(element)
+            },
+            // indexing by list of number
+            (Value::List(lhs_l), Value::List(index_l)) => {
+                let mut return_list = Vec::new();
+
+                for index_value in index_l {
+                    let Value::Number(index_n) = index_value else {
+                        return Err(OperationError::InvalidTypeBinary { lhs_type, op_name: "indexing".to_string(), rhs_type: index_value.type_name().to_string() });
+                    };
+
+                    // tries to convert into index
+                    let Ok(index): Result<usize, _> = index_n.try_into() else {
+                        return Err(OperationError::IndexOutOfBound { indices: vec![index_n], length: lhs_l.len() });
+                    };
+
+                    // tries to get the item
+                    let Some(element) = lhs_l.get(index) else {
+                        return Err(OperationError::IndexOutOfBound { indices: vec![index_n], length: lhs_l.len() });
+                    };
+
+                    // this is bad, cloning can lose a lot of performance
+                    return_list.push(element.clone());
+                }
+
+                Ok(Value::List(return_list))
+            },
+            _ => Err(OperationError::InvalidTypeBinary { lhs_type, op_name: "indexing".to_string(), rhs_type: index_type })
+        }
+    }
+}
+
+impl RightAssociativeUnaryOperator {
     pub fn evaluate(&self, arg: Value) -> Result<Value, OperationError> {
         match self.0 {
-            ParsedUnaryOperator::LogicalNot(_) => Self::not(arg),
+            ParsedRightAssociativeUnaryOperator::UnaryPlus(_) => Self::unary_plus(arg),
+            ParsedRightAssociativeUnaryOperator::UnaryMinus(_) => Self::unary_minus(arg),
+            ParsedRightAssociativeUnaryOperator::LogicalNot(_) => Self::not(arg),
         }
+    }
+
+    fn unary_plus(value: Value) -> Result<Value, OperationError> {
+        let value_type = value.type_name().to_string();
+
+        // only on numbers
+        let Value::Number(_) = value else {
+            return Err(OperationError::InvalidTypeUnary { value_type, op_name: "unary plus".to_string() });
+        };
+
+        Ok(value)
+    }
+
+    fn unary_minus(value: Value) -> Result<Value, OperationError> {
+        let value_type = value.type_name().to_string();
+
+        // only on numbers
+        let Value::Number(num) = value else {
+            return Err(OperationError::InvalidTypeUnary { value_type, op_name: "unary plus".to_string() });
+        };
+
+        let Some(num) = num.checked_neg() else {
+            return Err(OperationError::Overflow);
+        };
+
+        Ok(Value::Number(num))
     }
 
     fn not(value: Value) -> Result<Value, OperationError> {
@@ -605,67 +652,67 @@ mod tests {
 
     #[test]
     fn index_empty_list_errors() {
-        let res = BinaryOperator::index(List(Vec::new()), Number(0)).unwrap_err();
+        let res = LeftAssociativeUnaryOperator::index(List(Vec::new()), Number(0)).unwrap_err();
         assert_matches!(res, OperationError::IndexOutOfBound { .. });
     }
 
     #[test]
     fn index_list_with_integer_in_bounds() {
-        let res = BinaryOperator::index(List(vec![Number(1), List(Vec::new())]), Number(1)).unwrap();
+        let res = LeftAssociativeUnaryOperator::index(List(vec![Number(1), List(Vec::new())]), Number(1)).unwrap();
         assert_eq!(res, List(Vec::new()));
     }
 
     #[test]
     fn index_list_with_negative_index_errors() {
-        let res = BinaryOperator::index(List(vec![Number(1), List(Vec::new())]), Number(-1)).unwrap_err();
+        let res = LeftAssociativeUnaryOperator::index(List(vec![Number(1), List(Vec::new())]), Number(-1)).unwrap_err();
         assert_matches!(res, OperationError::IndexOutOfBound { .. });
     }
 
     #[test]
     fn index_list_with_index_over_bound_errors() {
-        let res = BinaryOperator::index(List(vec![Number(1), List(Vec::new())]), Number(2)).unwrap_err();
+        let res = LeftAssociativeUnaryOperator::index(List(vec![Number(1), List(Vec::new())]), Number(2)).unwrap_err();
         assert_matches!(res, OperationError::IndexOutOfBound { .. });
     }
 
     #[test]
     fn index_list_with_empty_list_returns_empty_list() {
-        let res = BinaryOperator::index(List(vec![Number(1), List(Vec::new())]), List(Vec::new())).unwrap();
+        let res = LeftAssociativeUnaryOperator::index(List(vec![Number(1), List(Vec::new())]), List(Vec::new())).unwrap();
         assert_eq!(res, List(Vec::new()));
     }
 
     #[test]
     fn index_list_with_list_single_item_returns_single_item_list() {
-        let res = BinaryOperator::index(List(vec![Number(1), List(Vec::new())]), List(vec![Number(1)])).unwrap();
+        let res = LeftAssociativeUnaryOperator::index(List(vec![Number(1), List(Vec::new())]), List(vec![Number(1)])).unwrap();
         assert_eq!(res, List(vec![List(Vec::new())]));
     }
 
     #[test]
     fn index_list_with_list_many_items_returns_many_items_list() {
-        let res = BinaryOperator::index(List(vec![Number(1), List(Vec::new()), Number(3)]), List(vec![Number(0), Number(2)])).unwrap();
+        let res = LeftAssociativeUnaryOperator::index(List(vec![Number(1), List(Vec::new()), Number(3)]), List(vec![Number(0), Number(2)])).unwrap();
         assert_eq!(res, List(vec![Number(1), Number(3)]));
     }
 
     #[test]
     fn index_list_with_list_many_items_out_of_bounds_errors() {
-        let res = BinaryOperator::index(List(vec![Number(1), List(Vec::new()), Number(3)]), List(vec![Number(0), Number(4)])).unwrap_err();
+        let res = LeftAssociativeUnaryOperator::index(List(vec![Number(1), List(Vec::new()), Number(3)]), List(vec![Number(0), Number(4)])).unwrap_err();
         assert_matches!(res, OperationError::IndexOutOfBound { .. });
     }
 
     #[test]
     fn index_list_with_list_as_element_errors() {
-        let res = BinaryOperator::index(List(vec![Number(1), List(Vec::new()), Number(3)]), List(vec![Number(0), List(Vec::new())])).unwrap_err();
+        let res = LeftAssociativeUnaryOperator::index(List(vec![Number(1), List(Vec::new()), Number(3)]), List(vec![Number(0), List(Vec::new())])).unwrap_err();
         assert_matches!(res, OperationError::InvalidTypeBinary { .. });
     }
 
     #[test]
     fn not_non_zero_becomes_false() {
-        let res = UnaryOperator::not(Number(3)).unwrap();
+        let res = RightAssociativeUnaryOperator::not(Number(3)).unwrap();
         assert_eq!(res, Value::FALSE);
     }
 
     #[test]
     fn not_zero_becomes_true() {
-        let res = UnaryOperator::not(Number(0)).unwrap();
+        let res = RightAssociativeUnaryOperator::not(Number(0)).unwrap();
         assert_eq!(res, Value::TRUE);
     }
 }

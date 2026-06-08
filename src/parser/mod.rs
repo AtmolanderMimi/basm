@@ -15,6 +15,8 @@ mod directive;
 pub use directive::*;
 mod block;
 pub use block::*;
+mod value_item;
+pub use value_item::*;
 mod expression;
 pub use expression::*;
 mod emplacement;

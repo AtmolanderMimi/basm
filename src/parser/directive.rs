@@ -172,7 +172,7 @@ mod tests {
 
     #[test]
     fn generic_directive_with_emplacement_argument() {
-        let tokens = lex_string("#set &my_var@(my_var.\"len\"-1), 9 + 10;").unwrap();
+        let tokens = lex_string("#set &my_var[(my_var.\"len\"-1)], 9 + 10;").unwrap();
 
         let (tokens_consumed, directive) = Directive::solve(&tokens).unwrap();
         assert_eq!(tokens_consumed, tokens.len()-1);
@@ -220,7 +220,7 @@ mod tests {
 
     #[test]
     fn inline_directive_with_reference() {
-        let tokens = lex_string("Macro: &arg1, &arg2@[1,2,3];").unwrap();
+        let tokens = lex_string("Macro: &arg1, &arg2[[1,2,3]];").unwrap();
 
         let (tokens_consumed, directive) = Directive::solve(&tokens).unwrap();
         assert_eq!(tokens_consumed, tokens.len()-1);

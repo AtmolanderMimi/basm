@@ -615,7 +615,7 @@ mod tests {
 
     #[test]
     fn terminated_seperated_many_parses_valid() {
-        let tokens = lex_string("3 + 4, hi@[3,5], 'c';").unwrap();
+        let tokens = lex_string("3 + 4, hi[[3,5]], 'c';").unwrap();
 
         let res = TerminatedSeperatedMany::<Expression, Comma, Semicolon>::solve(&tokens);
         let (tokens_taken, (items, _)) = res.unwrap();
@@ -625,7 +625,7 @@ mod tests {
 
     #[test]
     fn terminated_seperated_many_does_not_parse_missing_seperator() {
-        let tokens = lex_string("3 + 4, hi@[3,5] 'c';").unwrap();
+        let tokens = lex_string("3 + 4, hi[[3,5]] 'c';").unwrap();
 
         let res = TerminatedSeperatedMany::<Expression, Comma, Semicolon>::solve(&tokens);
         res.unwrap_err();
@@ -633,7 +633,7 @@ mod tests {
 
     #[test]
     fn terminated_seperated_many_does_not_parse_missing_terminator() {
-        let tokens = lex_string("3 + 4, hi@[3,5], 'c'").unwrap();
+        let tokens = lex_string("3 + 4, hi[[3,5]], 'c'").unwrap();
 
         let res = TerminatedSeperatedMany::<Expression, Comma, Semicolon>::solve(&tokens);
         res.unwrap_err();

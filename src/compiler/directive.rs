@@ -338,7 +338,7 @@ mod tests {
 
     #[test]
     fn inline_directive_modifies_output_arguments() {
-        let directive = directive_from_str("[&arg] => { #set &arg, 42; }: &my_var@1;");
+        let directive = directive_from_str("[&arg] => { #set &arg, 42; }: &my_var[1];");
         let mut scope = Scope::new();
         scope.declare("my_var".to_string(), Value::List(vec![Value::Number(1), Value::Number(2)]));
 
@@ -348,7 +348,7 @@ mod tests {
 
     #[test]
     fn inline_directive_cannot_modify_invalidated_emplacements() {
-        let directive = directive_from_str("[&arg1, &arg2] => { #set &arg1, 0; }: &my_var, &my_var@0;");
+        let directive = directive_from_str("[&arg1, &arg2] => { #set &arg1, 0; }: &my_var, &my_var[0];");
         let mut scope = Scope::new();
         scope.declare("my_var".to_string(), Value::List(vec![Value::Number(0)]));
 
@@ -394,7 +394,7 @@ mod tests {
 
     #[test]
     fn decl_generic_can_only_declare_ident_emplacement() {
-        let directive = directive_from_str("#decl &var@0, 42;");
+        let directive = directive_from_str("#decl &var[0], 42;");
         let mut scope = Scope::new();
 
         directive.inline(&mut scope).unwrap_err();
@@ -413,7 +413,7 @@ mod tests {
 
     #[test]
     fn set_generic_modifies_complex_emplacement() {
-        let directive = directive_from_str("#set &(var@0).\"len\", 1;");
+        let directive = directive_from_str("#set &(var[0]).\"len\", 1;");
         let mut scope = Scope::new();
         scope.declare("var".to_string(), Value::List(vec![Value::List(vec![])]));
 

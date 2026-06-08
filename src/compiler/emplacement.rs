@@ -1,4 +1,4 @@
-//! Defines emplacements (i.e: &var@1).
+//! Defines emplacements (i.e: &var[1]).
 
 use std::mem;
 
@@ -6,7 +6,7 @@ use crate::{compiler::{expression::{Expression, ExpressionEvaluationError}, valu
 use thiserror::Error;
 use crate::{compiler::{scope::Scope, value::{Value, ValueType}}, parser::LanguageItem, newtype_wrapper};
 
-use crate::parser::{EmplacementExpression as ParsedEmplacementExpression, EmplacementSubExpression as ParsedEmplacementSubExpression};
+use crate::parser::{EmplacementExpression as ParsedEmplacementExpression, EmplacementSubExpression as ParsedEmplacementSubExpression, ValueItem as ParsedValueItem, LeftAssociativeUnaryOperator as ParsedLeftAssociativeUnaryOperator};
 newtype_wrapper!(EmplacementExpression, ParsedEmplacementExpression);
 newtype_wrapper!(EmplacementSubExpression, ParsedEmplacementSubExpression);
 
@@ -83,7 +83,7 @@ impl EmplacementSubExpression {
     /// Normalizes the emplacement. (i.e: transforms all expressions into their current value)
     pub fn normalize(&self, ctx: &Scope) -> Result<NormalizedEmplacement, EmplacementNormalizationError> {
         let inner_expr = &self.0.0;
-        if let ParsedExpressionItem::Ident(ident) = &inner_expr.node {
+        if let ParsedExpressionItem::ValueItem(ParsedValueItem::Ident(ident)) = &inner_expr.node {
             let emplacement = NormalizedEmplacement {
                 ident: ident.slice_str().to_string(),
                 operations: Vec::new(),
@@ -94,10 +94,10 @@ impl EmplacementSubExpression {
 
         let operation = match &inner_expr.node {
             // -- indexing
-            ParsedExpressionItem::BinaryOperator(ParsedBinaryOperator::Index(_)) => {
-                let rhs = <&Expression>::from(&inner_expr.children[1]);
-                let value = rhs.evaluate(ctx)
-                    .map_err(|err| EmplacementNormalizationError::FailedToEvaluateExpression { inner: err, expression: rhs.clone() })?;
+            ParsedExpressionItem::LeftAssociativeUnaryOperator(ParsedLeftAssociativeUnaryOperator::Index(_, expr, _)) => {
+                let index = <&Expression>::from(&**expr);
+                let value = index.evaluate(ctx)
+                    .map_err(|err| EmplacementNormalizationError::FailedToEvaluateExpression { inner: err, expression: index.clone() })?;
 
                 // indexing by list
                 let operation = if let Value::Number(number) = value {
@@ -121,7 +121,7 @@ impl EmplacementSubExpression {
                 EmplacementOperation::Property(property_name)
             },
             // -- paren group
-            ParsedExpressionItem::ParenGroup(_, expr, _) => {
+            ParsedExpressionItem::ValueItem(ParsedValueItem::ParenGroup(_, expr, _)) => {
                 let emplacement = unsafe { mem::transmute::<&Box<ParsedExpression>, &Box<EmplacementSubExpression>>(expr) };
                 return emplacement.normalize(ctx);
             },
@@ -247,7 +247,7 @@ mod tests {
 
     #[test]
     fn non_emplacement_operator_normalized_emplacement() {
-        normalized_from_str("&(ident@[[]])").unwrap_err();
+        normalized_from_str("&(ident[[[]]])").unwrap_err();
     }
 
     #[test]
@@ -259,7 +259,7 @@ mod tests {
 
     #[test]
     fn index_number_is_valid_normalized_emplacement() {
-        let normalized = normalized_from_str("&ident@42").unwrap();
+        let normalized = normalized_from_str("&ident[42]").unwrap();
         assert_eq!(normalized.ident, "ident");
         assert_eq!(normalized.operations.len(), 1);
         assert_eq!(normalized.operations[0], EmplacementOperation::Index(42));
@@ -267,7 +267,7 @@ mod tests {
 
     #[test]
     fn index_list_is_invalid_normalized_emplacement() {
-        normalized_from_str("&ident@[1,2]").unwrap_err();
+        normalized_from_str("&ident[[1,2]]").unwrap_err();
     }
 
     #[test]
@@ -285,7 +285,7 @@ mod tests {
 
     #[test]
     fn combined_operator_precedence_respected_normalized_emplacement() {
-        let normalized = normalized_from_str("&ident.\"name\"@3").unwrap();
+        let normalized = normalized_from_str("&ident.\"name\"[3]").unwrap();
         assert_eq!(normalized.ident, "ident");
         assert_eq!(normalized.operations.len(), 2);
         assert_eq!(normalized.operations[0], EmplacementOperation::Property("name".to_string()));
@@ -294,7 +294,7 @@ mod tests {
 
     #[test]
     fn combined_operator_precedence_respected2_normalized_emplacement() {
-        let normalized = normalized_from_str("&(ident@3).\"len\"").unwrap();
+        let normalized = normalized_from_str("&(ident[3]).\"len\"").unwrap();
         assert_eq!(normalized.ident, "ident");
         assert_eq!(normalized.operations.len(), 2);
         assert_matches!(normalized.operations[0], EmplacementOperation::Index(_));
@@ -303,7 +303,7 @@ mod tests {
 
     #[test]
     fn expressions_are_normalized_normalized_emplacement() {
-        let normalized = normalized_from_str("&ident@(\"hello\"+\", world!\").\"len\"").unwrap();
+        let normalized = normalized_from_str("&ident[(\"hello\"+\", world!\").\"len\"]").unwrap();
         assert_eq!(normalized.ident, "ident");
         assert_eq!(normalized.operations.len(), 1);
         assert_eq!(normalized.operations[0], EmplacementOperation::Index(13));
@@ -323,7 +323,7 @@ mod tests {
 
     #[test]
     fn set_normalized_index_works() {
-        let normalized = normalized_from_str("&ident@1").unwrap();
+        let normalized = normalized_from_str("&ident[1]").unwrap();
         let mut scope = Scope::new();
         scope.declare("ident".to_string(), Value::List(vec![Value::Number(732), Value::Number(143)]));
 
@@ -335,7 +335,7 @@ mod tests {
 
     #[test]
     fn set_normalized_chained_index_works() {
-        let normalized = normalized_from_str("&ident@1@0").unwrap();
+        let normalized = normalized_from_str("&ident[1][0]").unwrap();
         let mut scope = Scope::new();
         scope.declare("ident".to_string(), Value::List(vec![Value::Number(732), Value::List(vec![Value::Number(143)])]));
 
@@ -358,7 +358,7 @@ mod tests {
 
     #[test]
     fn declare_normalized_with_operations_errors() {
-        let normalized = normalized_from_str("&my_var@3").unwrap();
+        let normalized = normalized_from_str("&my_var[3]").unwrap();
         let mut scope = Scope::new();
 
         normalized.declare(&mut scope, Value::Number(42)).unwrap_err();
